@@ -29,12 +29,47 @@ jobs:
         shell: pwsh
         run: pwsh -File scripts/gates.ps1 -Mode all
 
+  installers:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each leg scaffolds a fresh project with the checked-out installers,
+        # downloading the tarball for exactly this commit — a clean runner
+        # stands in for a fresh machine. macOS proves the pwsh leg there too.
+        include:
+          - os: ubuntu-latest
+            script: sh
+          - os: ubuntu-latest
+            script: pwsh
+          - os: macos-latest
+            script: sh
+          - os: macos-latest
+            script: pwsh
+          - os: windows-latest
+            script: pwsh
+    runs-on: ${{ matrix.os }}
+    env:
+      AGENT_DEV_REF: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Scaffold via install.sh
+        if: matrix.script == 'sh'
+        run: |
+          sh ./install.sh scaffold-check
+          test -f scaffold-check/gates.json
+      - name: Scaffold via install.ps1
+        if: matrix.script == 'pwsh'
+        shell: pwsh
+        run: |
+          ./install.ps1 -Target scaffold-check
+          if (-not (Test-Path scaffold-check/gates.json)) { throw 'scaffold incomplete' }
+
   # Always runs: GitHub counts a skipped required check as passing, so a
   # failed dependency must not silence the verdict.
   summary:
-    needs: [gates]
+    needs: [gates, installers]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Gates must have succeeded
-        run: test "${{ needs.gates.result }}" = "success"
+      - name: Gates and installers must have succeeded
+        run: test "${{ needs.gates.result }}" = "success" && test "${{ needs.installers.result }}" = "success"

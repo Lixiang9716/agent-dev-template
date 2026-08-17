@@ -19,13 +19,25 @@ Standing orders live in [AGENTS.md](AGENTS.md); the machinery in [docs/architect
 
 ## Installation
 
-From any host with curl (or wget), one line scaffolds a verified project:
+One line from any host with curl or wget:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Lixiang9716/agent-dev-template/master/install.sh | sh -s -- my-project
 ```
 
-Or the explicit way:
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/Lixiang9716/agent-dev-template/master/install.ps1 | iex
+```
+
+Or derive from the GitHub template directly:
+
+```sh
+gh repo create my-app --template Lixiang9716/agent-dev-template
+```
+
+The explicit way:
 
 ```sh
 git clone https://github.com/Lixiang9716/agent-dev-template my-project
@@ -48,7 +60,7 @@ winget install --id Microsoft.PowerShell   # Windows
 brew install powershell                    # macOS
 ```
 
-On Linux follow Microsoft's PowerShell install guide for your package manager. The checkout pins LF line endings (`.gitattributes`), so content-addressed gates behave identically on every platform.
+Checkouts pin LF line endings (`.gitattributes`), so content-addressed gates behave identically everywhere.
 
 ## Adding your toolchain
 
