@@ -28,7 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/Lixiang9716/agent-dev-template/mast
 Or the explicit way:
 
 ```sh
-git clone <this-repo> my-project
+git clone https://github.com/Lixiang9716/agent-dev-template my-project
 cd my-project
 rm -rf .git && git init
 bash scripts/gates.sh --mode all    # everything green, zero install
