@@ -19,13 +19,25 @@ agent 对强制门禁的遵从远高于对散文式约定的遵从——这是�
 
 ## 安装
 
-任何有 curl(或 wget)的主机,一行命令脚手架出一个已验证的项目:
+任何有 curl 或 wget 的主机,一行命令完成:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Lixiang9716/agent-dev-template/master/install.sh | sh -s -- my-project
 ```
 
-或者走显式步骤:
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/Lixiang9716/agent-dev-template/master/install.ps1 | iex
+```
+
+或者直接从 GitHub 模板派生新仓库:
+
+```sh
+gh repo create my-app --template Lixiang9716/agent-dev-template
+```
+
+显式步骤:
 
 ```sh
 git clone https://github.com/Lixiang9716/agent-dev-template my-project
@@ -48,7 +60,7 @@ winget install --id Microsoft.PowerShell   # Windows
 brew install powershell                    # macOS
 ```
 
-Linux 各发行版按微软的 PowerShell 安装指南操作。检出固定为 LF 行尾(`.gitattributes`),内容寻址门禁在所有平台上行为一致。
+检出固定为 LF 行尾(`.gitattributes`),内容寻址门禁在所有平台上行为一致。
 
 ## 接入你的工具链
 
