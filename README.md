@@ -41,14 +41,14 @@ PowerShell hosts run the twin:
 pwsh -File scripts/gates.ps1 -Mode all
 ```
 
-Hosts with neither shell run the same gates through a container:
+A host with neither shell installs pwsh 7 — one package, no container:
 
 ```sh
-docker run --rm -v "$PWD":/w -w /w bash:5 bash scripts/gates.sh --mode all
-docker run --rm -v "$PWD":/w -w /w mcr.microsoft.com/powershell pwsh -File scripts/gates.ps1 -Mode all
+winget install --id Microsoft.PowerShell   # Windows
+brew install powershell                    # macOS
 ```
 
-The checkout pins LF line endings (`.gitattributes`), so content-addressed gates behave identically on every platform.
+On Linux follow Microsoft's PowerShell install guide for your package manager. The checkout pins LF line endings (`.gitattributes`), so content-addressed gates behave identically on every platform.
 
 ## Adding your toolchain
 

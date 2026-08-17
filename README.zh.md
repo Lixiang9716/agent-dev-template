@@ -41,14 +41,14 @@ PowerShell 主机运行孪生脚本:
 pwsh -File scripts/gates.ps1 -Mode all
 ```
 
-两种 shell 都没有的主机可以通过容器跑同一套门禁:
+两种 shell 都没有的主机只需安装 pwsh 7——一个软件包,无需容器:
 
 ```sh
-docker run --rm -v "$PWD":/w -w /w bash:5 bash scripts/gates.sh --mode all
-docker run --rm -v "$PWD":/w -w /w mcr.microsoft.com/powershell pwsh -File scripts/gates.ps1 -Mode all
+winget install --id Microsoft.PowerShell   # Windows
+brew install powershell                    # macOS
 ```
 
-检出固定为 LF 行尾(`.gitattributes`),内容寻址门禁在所有平台上行为一致。
+Linux 各发行版按微软的 PowerShell 安装指南操作。检出固定为 LF 行尾(`.gitattributes`),内容寻址门禁在所有平台上行为一致。
 
 ## 接入你的工具链
 
