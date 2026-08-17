@@ -8,7 +8,7 @@ A template that prescribes a programming language excludes every project in anot
 
 ## Decision
 
-The governance plane ships as twin bash and pwsh ports (bash >= 5 / pwsh 7+, zero install; see the dual bash and pwsh governance runners note) and never touches product code. The product plane connects exclusively through command slots in `gates.json`. Hosts with neither shell run the same gates via a container.
+The governance plane ships as twin bash and pwsh ports (bash >= 5 / pwsh 7+, zero install; see the dual bash and pwsh governance runners note) and never touches product code. The product plane connects exclusively through command slots in `gates.json`. Hosts without either shell install pwsh 7 — one package per platform, no container needed.
 
 ## Alternatives considered
 
@@ -16,4 +16,4 @@ Shell scripts for every port (initially rejected as impractical to write safely,
 
 ## Consequences
 
-The runtime requirement is bash 5+ or pwsh 7+ (or any container runtime). Adopters of any language pay nothing beyond a shell their host already carries; swapping the script runtime later touches only `scripts/` because no product-plane artifact references script internals.
+The runtime requirement is bash 5+ or pwsh 7+. Adopters of any language pay nothing beyond a shell their host already carries; swapping the script runtime later touches only `scripts/` because no product-plane artifact references script internals.
