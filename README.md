@@ -19,25 +19,13 @@ Standing orders live in [AGENTS.md](AGENTS.md); the machinery in [docs/architect
 
 ## Installation
 
-One line from any host with curl or wget:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/Lixiang9716/agent-dev-template/master/install.sh | sh -s -- my-project
-```
-
-Windows PowerShell:
-
-```powershell
-irm https://raw.githubusercontent.com/Lixiang9716/agent-dev-template/master/install.ps1 | iex
-```
-
-Or derive from the GitHub template directly:
+Derive a fresh repository from the GitHub template — one command, clean history:
 
 ```sh
 gh repo create my-app --template Lixiang9716/agent-dev-template
 ```
 
-The explicit way:
+Or the explicit clone:
 
 ```sh
 git clone https://github.com/Lixiang9716/agent-dev-template my-project
