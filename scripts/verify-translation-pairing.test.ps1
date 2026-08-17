@@ -71,5 +71,21 @@ $zhHash = (& git -C $script:Repo hash-object README.zh.md).Trim()
 [IO.File]::WriteAllText((Join-Path $script:Repo 'README.i18n.yaml'), "pair:`n  en: $enHash`n  zh: $zhHash`n")
 Expect-Contains 'a fence divergence names fences' (Get-PairingViolationsText $script:Repo) 'structural mismatch on fences'
 Remove-Item -Recurse -Force $script:Repo
+# Anchored counterpart links canonicalize across languages; a differing
+# anchor fails on linkTargets.
+New-TempRepoWithPair
+[IO.File]::WriteAllText((Join-Path $script:Repo 'README.md'), (Get-PairBody 'en') + "`n`n[deep](README.zh.md#section)`n")
+[IO.File]::WriteAllText((Join-Path $script:Repo 'README.zh.md'), (Get-PairBody 'zh') + "`n`n[深链](README.md#section)`n")
+$enHash = (& git -C $script:Repo hash-object README.md).Trim()
+$zhHash = (& git -C $script:Repo hash-object README.zh.md).Trim()
+[IO.File]::WriteAllText((Join-Path $script:Repo 'README.i18n.yaml'), "pair:`n  en: $enHash`n  zh: $zhHash`n")
+$text = Get-PairingViolationsText $script:Repo
+Expect-Eq 'anchored counterpart links pass clean' $text ''
+[IO.File]::WriteAllText((Join-Path $script:Repo 'README.zh.md'), ((Get-PairBody 'zh') + "`n`n[深链](README.md#other)`n"))
+$zhHash2 = (& git -C $script:Repo hash-object README.zh.md).Trim()
+[IO.File]::WriteAllText((Join-Path $script:Repo 'README.i18n.yaml'), "pair:`n  en: $enHash`n  zh: $zhHash2`n")
+$text = Get-PairingViolationsText $script:Repo
+Expect-Contains 'a differing anchor fails on linkTargets' $text 'structural mismatch on linkTargets'
+Remove-Item -Recurse -Force $script:Repo
 
 Complete-TestSuite

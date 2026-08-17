@@ -66,10 +66,11 @@ function Get-Fences([string]$text) {
   (@([regex]::Matches($text, '```[^\n]*\n[\s\S]*?```') | ForEach-Object { $_.Value }) -join "`n")
 }
 
-# Canonicalized link targets with the document's own name dropped.
+# Canonicalized link targets with the document's own name dropped (a target
+# may carry a #anchor after the .zh.md suffix).
 function Get-SignatureLinks([string]$text, [string]$ownCanonicalName) {
   @([regex]::Matches($text, '\]\(([^)]+)\)') | ForEach-Object {
-    $target = $_.Groups[1].Value -replace '\.zh\.md$', '.md'
+    $target = $_.Groups[1].Value -replace '\.zh\.md(#|$)', '.md$1'
     if ($target -ne $ownCanonicalName) { $target }
   })
 }

@@ -96,11 +96,16 @@ extract_fences() { # <text>
 }
 
 # Canonicalized link targets with the document's own name dropped (each side
-# legitimately links its own language). Prints one per line.
+# legitimately links its own language; a target may carry a #anchor).
 signature_links() { # <text> <own-canonical-name>
-  local target
+  local target anchor
   while IFS= read -r target; do
-    [[ $target == *.zh.md ]] && target=${target%*.zh.md}.md
+    if [[ $target == *".zh.md#"* ]]; then
+      anchor=${target#*".zh.md#"}
+      target="${target%%.zh.md#*}.md#$anchor"
+    elif [[ $target == *.zh.md ]]; then
+      target="${target%.zh.md}.md"
+    fi
     [[ $target == "$2" ]] || printf '%s\n' "$target"
   done < <(extract_link_targets "$1")
 }

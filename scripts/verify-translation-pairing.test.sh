@@ -75,5 +75,24 @@ printf 'pair:\n  en: %s\n  zh: %s\n' \
 out=$(pairing_violations_of "$REPLY_REPO")
 expect_contains 'a fence divergence names fences' "$out" 'structural mismatch on fences'
 rm -rf "$REPLY_REPO"
+# Anchored counterpart links canonicalize across languages; a differing
+# anchor fails on linkTargets.
+temp_repo_with_pair
+pair_body en > "$REPLY_REPO/README.md"
+printf '\n[deep](README.zh.md#section)\n' >> "$REPLY_REPO/README.md"
+pair_body zh > "$REPLY_REPO/README.zh.md"
+printf '\n[深链](README.md#section)\n' >> "$REPLY_REPO/README.zh.md"
+printf 'pair:\n  en: %s\n  zh: %s\n' \
+  "$(git -C "$REPLY_REPO" hash-object "$REPLY_REPO/README.md")" \
+  "$(git -C "$REPLY_REPO" hash-object "$REPLY_REPO/README.zh.md")" > "$REPLY_REPO/README.i18n.yaml"
+out=$(pairing_violations_of "$REPLY_REPO")
+expect_eq 'anchored counterpart links pass clean' "$out" ''
+sed -i 's|#section|#other|' "$REPLY_REPO/README.zh.md"
+printf 'pair:\n  en: %s\n  zh: %s\n' \
+  "$(git -C "$REPLY_REPO" hash-object "$REPLY_REPO/README.md")" \
+  "$(git -C "$REPLY_REPO" hash-object "$REPLY_REPO/README.zh.md")" > "$REPLY_REPO/README.i18n.yaml"
+out=$(pairing_violations_of "$REPLY_REPO")
+expect_contains 'a differing anchor fails on linkTargets' "$out" 'structural mismatch on linkTargets'
+rm -rf "$REPLY_REPO"
 
 t_done
