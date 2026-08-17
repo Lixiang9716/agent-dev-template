@@ -14,4 +14,4 @@
 8. **尊重预算。** `scripts/doc-budgets.json` 的词数上限只降不升。上调是在 PR 里论证过的审慎行为。
 9. **选择最小充分检查集。** 先跑 `bash scripts/change-scope.sh --base <verified-ref>`(pwsh 版:`-Base <verified-ref>`),按触及面挑门禁;绝不条件反射地全量跑。穷尽性归 CI。
 10. **归档笔记是冻结的。** 永不编辑、移动或删除已封存笔记;用链接回指的新笔记取代它。
-11. **生长治理平面。** 治理平面是地板,不是天花板。缺陷类反复出现,就写尸检并把护栏蒸馏成门禁;约定第三次靠人工执行,就做成技能;散文承诺变得可机检,就升格为门禁。每个新事实锚定到它唯一的层级之家——触发器表见 [docs/architecture.md](docs/architecture.zh.md#growing-the-plane)。
+11. **生长治理平面。** 治理平面是地板,不是天花板。缺陷类反复出现,就写尸检并把护栏蒸馏成门禁;约定第三次靠人工执行,就做成技能;散文承诺变得可机检,就升格为门禁。每个新事实锚定到它唯一的层级之家——触发器表见 [docs/architecture.md](docs/architecture.zh.md)。
