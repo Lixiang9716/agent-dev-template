@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run all gates
+        run: node scripts/gates.mjs --mode all
+
+  # Always runs: GitHub counts a skipped required check as passing, so a
+  # failed dependency must not silence the verdict.
+  summary:
+    needs: [gates]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gates must have succeeded
+        run: test "${{ needs.gates.result }}" = "success"

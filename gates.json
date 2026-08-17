@@ -1,0 +1,35 @@
+{
+  "modes": {
+    "all": ["self-test", "notes", "archive", "pairing", "budgets"],
+    "quick": ["self-test"],
+    "docs": ["notes", "archive", "pairing", "budgets"]
+  },
+  "gates": [
+    {
+      "id": "self-test",
+      "label": "governance self-test",
+      "command": ["node", "--test", "scripts/*.test.mjs"]
+    },
+    {
+      "id": "notes",
+      "label": "Agent Notes tree",
+      "command": ["node", "scripts/verify-agent-notes.mjs"]
+    },
+    {
+      "id": "archive",
+      "label": "archived notes seal",
+      "command": ["node", "scripts/archive-agent-notes.mjs"],
+      "needs": ["notes"]
+    },
+    {
+      "id": "pairing",
+      "label": "translation pairing",
+      "command": ["node", "scripts/verify-translation-pairing.mjs"]
+    },
+    {
+      "id": "budgets",
+      "label": "doc word budgets",
+      "command": ["node", "scripts/verify-doc-budgets.mjs"]
+    }
+  ]
+}
