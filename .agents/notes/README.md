@@ -31,3 +31,13 @@ A rejected note adds the reason on the Status line: `Status: rejected — <why>`
 ## When to write one
 
 Every non-trivial change adds or updates at least one note in the same PR. When a note is fully superseded, the successor absorbs its unique rationale and links back, then the old note archives. There is no `INDEX.md`; the tree layout is the index.
+
+## Conditional stances
+
+Some facts hold only while a premise does. Record the premise with the fact, in the place the future changer will stand:
+
+- **Self-expiring clause**: a stance section states its own removal trigger ("delete this section at X"). When the trigger fires, remove the section and supersede the owning note.
+- **Reintroduction condition**: a removed capability records when it may return, pinned where the future agent will stand — a marker on the disabled code, linking back to the note.
+- **Premise-tagged artifacts**: a version stance baked into a generator's template travels with every regeneration and flips with the premise; link the artifact's one-line summary to the stance's home.
+
+A rule whose premise can expire and carries no sunset will outlive its truth and mislead the next session.

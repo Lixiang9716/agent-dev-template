@@ -3,6 +3,10 @@ name: CI
 on:
   push:
   pull_request:
+  schedule:
+    # Weekly heartbeat against environment drift (runner updates, action
+    # deprecations) — Sunday 02:17 UTC, off the top-of-hour cron stampede.
+    - cron: '17 2 * * 0'
 
 jobs:
   gates:

@@ -19,3 +19,17 @@ A gate is any command array that exits non-zero on failure. Language-specific wo
 ## Knowledge planes
 
 Agent Notes carry decisions (`proposed` / `implemented` / `rejected`, then a sealed `archived/`); the verifier enforces the five-section format and the archive seals content with sha256. Bilingual pairs carry user-facing documentation; the pairing verifier pins both sides with git blob hashes. Postmortems carry failures; their guardrails become gates. [docs/tiers.md](tiers.md) maps each fact to its one home.
+
+## Growing the plane
+
+The governance plane is a floor, not a ceiling: derived projects extend it with their own history, and growth is event-driven, never inspiration-driven.
+
+| Trigger | Landing |
+|---|---|
+| A defect class ships and is expensive to rediscover | `docs/postmortem/` entry; its guardrail distills into a gate |
+| A convention is enforced by hand a third time | `.agents/skills/` entry whose description is the trigger |
+| A prose promise becomes mechanically checkable | new gate in `gates.json` with a rejection test (rule 3) |
+| A non-trivial decision is made | Agent Note in the same PR (rule 2) |
+| A new fact needs a home | pick its tier first ([tiers.md](tiers.md)), land it once |
+
+Closed sets (note classes, lifecycles) grow by deliberate acts that update the verifier and the notes README together. Word budgets bound the growth: adding a home means feeding it a ceiling.
