@@ -6,16 +6,18 @@ A language-agnostic template repository for agent-driven development: the govern
 
 The template ships the governance plane only. It never prescribes your programming language, test framework, or package manager — your toolchain plugs in as command slots in `gates.json`. Every script ships as two equivalent ports, bash (`scripts/*.sh`, bash >= 5) and PowerShell (`scripts/*.ps1`, pwsh 7+): run whichever your host already has; no extra runtime, no install step.
 
-## What is inside
+## The agent development mode
 
-- `gates.json` + `scripts/gates.sh` / `scripts/gates.ps1` — a declarative DAG gate scheduler: dependency-ordered parallel execution, failure propagation, and fail-loud validation before any child process starts. A command slot is a plain array (same on both shells) or per-shell variants `{ "sh": [...], "pwsh": [...] }`.
-- `.agents/notes/` — the Agent Notes system: five-section decision records with lifecycle (`proposed` / `implemented` / `rejected`) and a sha256-sealed frozen archive. Verified by `scripts/verify-agent-notes.*` and `scripts/archive-agent-notes.*`.
-- `scripts/change-scope.*` — a stable JSON report of what a change touches, so agents select the smallest sufficient check set instead of reflexively running everything.
-- `scripts/verify-translation-pairing.*` — bilingual documentation pairs (`foo.md` + `foo.zh.md` + `foo.i18n.yaml`) with git-blob-hash consistency; one-sided edits fail the gate.
-- `.agents/skills/` — declarative skills (pre-push checks, code review, note archiving) whose descriptions are the trigger conditions.
-- `scripts/verify-doc-budgets.*` — word-count ceilings that ratchet down, never up by accident.
+Agents follow enforced gates far more reliably than prose conventions — the observation this template is built on. The mode is a loop:
 
-## Quickstart
+1. **Work freely, verify mechanically.** Every promise that a command can check is a gate in `gates.json`; nothing waits on human vigilance.
+2. **Record the why.** Every non-trivial change carries an Agent Note in the same PR: the decision, what it beat, the consequences — shared memory that keeps settled decisions settled.
+3. **Check only what changed.** `change-scope` reports the touched surface; the smallest sufficient gate set follows from it. CI owns exhaustiveness.
+4. **Docs pair or fail.** Bilingual pairs are pinned by git blob hashes; one-sided edits cannot hide.
+
+Standing orders live in [AGENTS.md](AGENTS.md); the machinery in [docs/architecture.md](docs/architecture.md).
+
+## Installation
 
 ```sh
 git clone <this-repo> my-project
@@ -38,6 +40,8 @@ docker run --rm -v "$PWD":/w -w /w bash:5 bash scripts/gates.sh --mode all
 docker run --rm -v "$PWD":/w -w /w mcr.microsoft.com/powershell pwsh -File scripts/gates.ps1 -Mode all
 ```
 
+The checkout pins LF line endings (`.gitattributes`), so content-addressed gates behave identically on every platform.
+
 ## Adding your toolchain
 
 `gates.json` declares each gate as a command slot. A Go project might add:
@@ -48,6 +52,15 @@ docker run --rm -v "$PWD":/w -w /w mcr.microsoft.com/powershell pwsh -File scrip
 
 Any command that exits non-zero on failure is a gate; a plain array runs on both shells. See [docs/architecture.md](docs/architecture.md).
 
+## What is inside
+
+- `gates.json` + `scripts/gates.*` — the declarative DAG gate scheduler: dependency-ordered parallel execution, failure propagation, fail-loud validation before any child starts.
+- `.agents/notes/` — Agent Notes: five-section decision records with lifecycle and a sha256-sealed frozen archive.
+- `scripts/change-scope.*` — a stable JSON report of what a change touches.
+- `scripts/verify-translation-pairing.*` — bilingual pairs pinned by git blob hashes.
+- `.agents/skills/` — declarative skills (pre-push checks, code review, note archiving).
+- `scripts/verify-doc-budgets.*` — word-count ceilings that ratchet down.
+
 ## Origin
 
-The mechanisms are distilled from the DeepSeek Harness repository, whose governing observation was: agents follow enforced gates far more reliably than prose conventions. See [AGENTS.md](AGENTS.md) for the standing orders.
+The mechanisms are distilled from the DeepSeek Harness repository, whose plugin-everything architecture and governance axiom — gates over prose, enforced mechanically — shaped every part of this template. What is kept is the governance plane; what is left to you is the product plane.

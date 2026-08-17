@@ -6,16 +6,18 @@
 
 模板只提供治理平面。它不预设你的编程语言、测试框架或包管理器——你的工具链以命令槽位的形式接入 `gates.json`。每个脚本提供两份等价实现:bash 版(`scripts/*.sh`,要求 bash 5+)与 PowerShell 版(`scripts/*.ps1`,要求 pwsh 7+)。主机上有什么就用什么,无额外运行时、无安装步骤。
 
-## 里面有什么
+## Agent 开发模式
 
-- `gates.json` + `scripts/gates.sh` / `scripts/gates.ps1` —— 声明式 DAG 门禁调度器:按依赖顺序并行执行、失败传播、任何子进程启动前先做 fail-loud 校验。命令槽位是纯数组(两种 shell 通用)或按 shell 的变体 `{ "sh": [...], "pwsh": [...] }`。
-- `.agents/notes/` —— Agent Notes 体系:五段式决策记录,带生命周期(`proposed` / `implemented` / `rejected`)与 sha256 封存的冻结归档。由 `scripts/verify-agent-notes.*` 与 `scripts/archive-agent-notes.*` 校验。
-- `scripts/change-scope.*` —— 以稳定 JSON 报告一次改动触及的范围,让 agent 选择最小充分检查集,而不是条件反射地全量跑。
-- `scripts/verify-translation-pairing.*` —— 双语文档配对(`foo.md` + `foo.zh.md` + `foo.i18n.yaml`),用 git blob 哈希保证一致性;单侧编辑会让门禁变红。
-- `.agents/skills/` —— 声明式技能(pre-push 检查、代码评审、笔记归档),其 description 就是触发条件。
-- `scripts/verify-doc-budgets.*` —— 只降不升的词数上限。
+agent 对强制门禁的遵从远高于对散文式约定的遵从——这是本模板的立身观察。模式是一个循环:
 
-## 快速开始
+1. **自由工作,机械验证。** 凡命令能检查的承诺都是 `gates.json` 里的门禁;没有任何环节依赖人的自觉。
+2. **记录为什么。** 每个非平凡改动在同一个 PR 里携带一篇 Agent Note:决策、它击败的备选、后果——共享记忆让已定的决策不再被反复重议。
+3. **只查改动触及的部分。** `change-scope` 报告触及面,最小充分门禁集由此而来;穷尽性归 CI。
+4. **文档成对,否则变红。** 双语配对被 git blob 哈希钉住;单侧编辑无处藏身。
+
+常设规则见 [AGENTS.md](AGENTS.zh.md);机制详解见 [docs/architecture.md](docs/architecture.zh.md)。
+
+## 安装
 
 ```sh
 git clone <this-repo> my-project
@@ -38,6 +40,8 @@ docker run --rm -v "$PWD":/w -w /w bash:5 bash scripts/gates.sh --mode all
 docker run --rm -v "$PWD":/w -w /w mcr.microsoft.com/powershell pwsh -File scripts/gates.ps1 -Mode all
 ```
 
+检出固定为 LF 行尾(`.gitattributes`),内容寻址门禁在所有平台上行为一致。
+
 ## 接入你的工具链
 
 `gates.json` 把每个门禁声明为一个命令槽位。一个 Go 项目可以加:
@@ -48,6 +52,15 @@ docker run --rm -v "$PWD":/w -w /w mcr.microsoft.com/powershell pwsh -File scrip
 
 任何失败时以非零退出的命令都是门禁;纯数组在两种 shell 下都会执行。见 [docs/architecture.md](docs/architecture.zh.md)。
 
+## 里面有什么
+
+- `gates.json` + `scripts/gates.*` —— 声明式 DAG 门禁调度器:按依赖顺序并行执行、失败传播、任何子进程启动前先做 fail-loud 校验。
+- `.agents/notes/` —— Agent Notes:五段式决策记录,带生命周期与 sha256 封存的冻结归档。
+- `scripts/change-scope.*` —— 以稳定 JSON 报告一次改动触及的范围。
+- `scripts/verify-translation-pairing.*` —— 用 git blob 哈希钉住的双语配对。
+- `.agents/skills/` —— 声明式技能(pre-push 检查、代码评审、笔记归档)。
+- `scripts/verify-doc-budgets.*` —— 只降不升的词数上限。
+
 ## 来源
 
-这些机制蒸馏自 DeepSeek Harness 仓库,其治理公理是:agent 对强制门禁的遵从远高于对散文式约定的遵从。常设规则见 [AGENTS.md](AGENTS.zh.md)。
+这些机制蒸馏自 DeepSeek Harness 仓库——其"一切皆插件"的架构与治理公理(门禁优先于散文、机械强制执行)塑造了本模板的每一个部分。保留下来的是治理平面;留给你的是产品平面。
