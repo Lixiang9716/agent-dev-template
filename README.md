@@ -48,8 +48,6 @@ winget install --id Microsoft.PowerShell   # Windows
 brew install powershell                    # macOS
 ```
 
-Checkouts pin LF line endings (`.gitattributes`), so content-addressed gates behave identically everywhere.
-
 ## Adding your toolchain
 
 `gates.json` declares each gate as a command slot. A Go project might add:

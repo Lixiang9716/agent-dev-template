@@ -48,8 +48,6 @@ winget install --id Microsoft.PowerShell   # Windows
 brew install powershell                    # macOS
 ```
 
-检出固定为 LF 行尾(`.gitattributes`),内容寻址门禁在所有平台上行为一致。
-
 ## 接入你的工具链
 
 `gates.json` 把每个门禁声明为一个命令槽位。一个 Go 项目可以加:
