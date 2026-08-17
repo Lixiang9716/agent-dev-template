@@ -107,9 +107,10 @@ Expect-Eq 'transitive dependent is skipped' $script:Results['grandchild'].Status
 
 # A dependent gate runs only after its dependency passes (absolute marker).
 $dir = New-Item -ItemType Directory -Path (Join-Path ([IO.Path]::GetTempPath()) ("gates-order-" + [guid]::NewGuid()))
+$dirPath = $dir.FullName.Replace('\', '/')
 Invoke-Configured (New-Cfg @('"produce"', '"consume"') `
-  ('{"id":"produce","command":["pwsh","-NoProfile","-Command","New-Item -ItemType File -Path ''' + $dir.FullName + '/marker''"]},' +
-   '{"id":"consume","command":["pwsh","-NoProfile","-Command","if (-not (Test-Path ''' + $dir.FullName + '/marker'')) { exit 1 }"],"needs":["produce"]}')) `
+  ('{"id":"produce","command":["pwsh","-NoProfile","-Command","New-Item -ItemType File -Path ''' + $dirPath + '/marker''"]},' +
+   '{"id":"consume","command":["pwsh","-NoProfile","-Command","if (-not (Test-Path ''' + $dirPath + '/marker'')) { exit 1 }"],"needs":["produce"]}')) `
   @('produce', 'consume') 4 | Out-Null
 Expect-Eq 'producer passed' $script:Results['produce'].Status 'passed'
 Expect-Eq 'consumer passed after producer' $script:Results['consume'].Status 'passed'

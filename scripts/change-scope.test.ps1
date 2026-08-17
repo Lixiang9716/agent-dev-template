@@ -31,7 +31,7 @@ $repo = $script:Repo
 # An unstaged change must modify a tracked file; a never-added file is untracked.
 [IO.File]::WriteAllText((Join-Path $repo 'committed.txt'), "committed, then modified`n")
 [IO.File]::WriteAllText((Join-Path $repo 'untracked.txt'), "untracked`n")
-$scope = Get-ChangeScope $repo 'HEAD~1'
+$scope = (Get-ChangeScope $repo 'HEAD~1').Replace("`r", '')
 Expect-Contains 'format version pinned' $scope '"formatVersion": 1'
 Expect-Contains 'committed class lists the committed path' $scope '"committed": [
     "committed.txt"'
@@ -45,7 +45,7 @@ Remove-Item -Recurse -Force $repo
 # A clean tree reports empty path classes and a resolvable merge base.
 New-TempRepo
 $repo = $script:Repo
-$scope = Get-ChangeScope $repo 'HEAD'
+$scope = (Get-ChangeScope $repo 'HEAD').Replace("`r", '')
 $headSha = (& git -C $repo rev-parse HEAD).Trim()
 Expect-Contains 'clean tree has empty committed' $scope '"committed": []'
 Expect-Contains 'clean tree has empty staged' $scope '"staged": []'
