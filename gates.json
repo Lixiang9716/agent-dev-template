@@ -1,8 +1,8 @@
 {
   "modes": {
-    "all": ["self-test", "notes", "archive", "pairing", "budgets"],
+    "all": ["self-test", "notes", "archive", "pairing", "budgets", "links"],
     "quick": ["self-test"],
-    "docs": ["notes", "archive", "pairing", "budgets"]
+    "docs": ["notes", "archive", "pairing", "budgets", "links"]
   },
   "gates": [
     {
@@ -44,6 +44,14 @@
       "command": {
         "sh": ["bash", "scripts/verify-doc-budgets.sh"],
         "pwsh": ["pwsh", "-File", "scripts/verify-doc-budgets.ps1"]
+      }
+    },
+    {
+      "id": "links",
+      "label": "markdown link resolution",
+      "command": {
+        "sh": ["bash", "scripts/verify-md-links.sh"],
+        "pwsh": ["pwsh", "-File", "scripts/verify-md-links.ps1"]
       }
     }
   ]
