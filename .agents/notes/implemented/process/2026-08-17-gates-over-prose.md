@@ -8,7 +8,7 @@ Agents and humans drift from prose conventions at different rates, and conventio
 
 ## Decision
 
-Every mechanically checkable promise becomes a gate declared in `gates.json` and run by `scripts/gates.mjs`. AGENTS.md links to gates instead of restating them; uncheckable guidance belongs to review skills, stated as guidance.
+Every mechanically checkable promise becomes a gate declared in `gates.json` and run by `scripts/gates.sh` / `scripts/gates.ps1`. AGENTS.md links to gates instead of restating them; uncheckable guidance belongs to review skills, stated as guidance.
 
 ## Alternatives considered
 

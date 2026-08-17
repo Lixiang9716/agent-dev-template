@@ -8,28 +8,43 @@
     {
       "id": "self-test",
       "label": "governance self-test",
-      "command": ["node", "--test", "scripts/*.test.mjs"]
+      "command": {
+        "sh": ["bash", "scripts/self-test.sh"],
+        "pwsh": ["pwsh", "-File", "scripts/self-test.ps1"]
+      }
     },
     {
       "id": "notes",
       "label": "Agent Notes tree",
-      "command": ["node", "scripts/verify-agent-notes.mjs"]
+      "command": {
+        "sh": ["bash", "scripts/verify-agent-notes.sh"],
+        "pwsh": ["pwsh", "-File", "scripts/verify-agent-notes.ps1"]
+      }
     },
     {
       "id": "archive",
       "label": "archived notes seal",
-      "command": ["node", "scripts/archive-agent-notes.mjs"],
+      "command": {
+        "sh": ["bash", "scripts/archive-agent-notes.sh"],
+        "pwsh": ["pwsh", "-File", "scripts/archive-agent-notes.ps1"]
+      },
       "needs": ["notes"]
     },
     {
       "id": "pairing",
       "label": "translation pairing",
-      "command": ["node", "scripts/verify-translation-pairing.mjs"]
+      "command": {
+        "sh": ["bash", "scripts/verify-translation-pairing.sh"],
+        "pwsh": ["pwsh", "-File", "scripts/verify-translation-pairing.ps1"]
+      }
     },
     {
       "id": "budgets",
       "label": "doc word budgets",
-      "command": ["node", "scripts/verify-doc-budgets.mjs"]
+      "command": {
+        "sh": ["bash", "scripts/verify-doc-budgets.sh"],
+        "pwsh": ["pwsh", "-File", "scripts/verify-doc-budgets.ps1"]
+      }
     }
   ]
 }

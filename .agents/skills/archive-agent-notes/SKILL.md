@@ -26,4 +26,4 @@ It documents one-shot scaffolding, a narrow adapter detail, or a superseded mech
 1. Move the note to `archived/<class>/` keeping its filename.
 2. Insert `Archived: <date>` as line 4 (not earlier than the filename date); line 3 reads `Status: implemented`.
 3. Fix inbound links.
-4. Seal: `node scripts/archive-agent-notes.mjs --write`, then commit the manifest in the same change.
+4. Seal: `bash scripts/archive-agent-notes.sh --write` (pwsh twin: `pwsh -File scripts/archive-agent-notes.ps1 -Write`), then commit the manifest in the same change.

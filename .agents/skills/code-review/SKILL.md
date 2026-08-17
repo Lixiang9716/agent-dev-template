@@ -9,7 +9,7 @@ A short review with one substantiated blocker beats a list of nits. Machines alr
 
 ## Before reading the diff
 
-1. Run `node scripts/change-scope.mjs --base <verified-ref> --head <pr-head>` and read the scope first; a dirty worktree in the output means the PR author must either commit or exclude those files.
+1. Run `bash scripts/change-scope.sh --base <verified-ref> --head <pr-head>` (pwsh twin: `pwsh -File scripts/change-scope.ps1 -Base <verified-ref> -Head <pr-head>`) and read the scope first; a dirty worktree in the output means the PR author must either commit or exclude those files.
 2. Find the PR's Agent Note. A non-trivial change without a note in the same PR is a blocker by AGENTS.md rule 2. The note must carry `Alternatives considered` — a decision without what it beat invites re-litigation.
 
 ## What only a reviewer can check

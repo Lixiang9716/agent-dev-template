@@ -1,12 +1,12 @@
 # Agent Notes
 
-One kind of design doc lives here. An **Agent Note** records a decision or proposal that affects this repository — the *why* and *what we gave up*, the parts code and docs cannot carry. Agents and humans write them; `verify-agent-notes.mjs` enforces the format mechanically.
+One kind of design doc lives here. An **Agent Note** records a decision or proposal that affects this repository — the *why* and *what we gave up*, the parts code and docs cannot carry. Agents and humans write them; `verify-agent-notes.sh` / `verify-agent-notes.ps1` enforce the format mechanically.
 
 ## Layout
 
 A note's path encodes both of its axes: `{lifecycle}/{class}/yyyy-mm-dd-topic-title.md`.
 
-- **Lifecycle**: `proposed/` (review before implementation), `implemented/` (the decision that shipped; kept current with the shipped facts — update paths, names, and defaults in the same change that alters them, but never rewrite the decision itself), `rejected/` (kept only when the reasoning still blocks a tempting mistake), and `archived/` (frozen, sha256-sealed, owned by `archive-agent-notes.mjs`).
+- **Lifecycle**: `proposed/` (review before implementation), `implemented/` (the decision that shipped; kept current with the shipped facts — update paths, names, and defaults in the same change that alters them, but never rewrite the decision itself), `rejected/` (kept only when the reasoning still blocks a tempting mistake), and `archived/` (frozen, sha256-sealed, owned by `archive-agent-notes.sh` / `archive-agent-notes.ps1`).
 - **Class** (closed set): `feature`, `bug-fix`, `simplification`, `architecture`, `process`, `testing`.
 - The filename date is when the topic was **first proposed**. Notes are English-only in this template.
 

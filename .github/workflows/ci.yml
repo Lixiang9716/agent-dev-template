@@ -6,14 +6,28 @@ on:
 
 jobs:
   gates:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each leg validates its own port of the governance scripts: the bash
+        # twin on Linux, the pwsh twin on Linux and Windows.
+        include:
+          - os: ubuntu-latest
+            shell: sh
+          - os: ubuntu-latest
+            shell: pwsh
+          - os: windows-latest
+            shell: pwsh
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Run all gates
-        run: node scripts/gates.mjs --mode all
+      - name: Run all gates (bash)
+        if: matrix.shell == 'sh'
+        run: bash scripts/gates.sh --mode all
+      - name: Run all gates (pwsh)
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        run: pwsh -File scripts/gates.ps1 -Mode all
 
   # Always runs: GitHub counts a skipped required check as passing, so a
   # failed dependency must not silence the verdict.

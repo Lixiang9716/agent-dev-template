@@ -8,7 +8,7 @@ Facing a push, the reflex is to run everything; on a large repository that burns
 
 ## Decision
 
-`scripts/change-scope.mjs` reports the change scope as stable JSON: the verified base, merge base, and four path classes (committed, staged, unstaged, untracked). The pre-push-checks skill maps those paths to the smallest sufficient gate set. The base is an argument, never guessed or fetched — the caller passes a ref it verified.
+`scripts/change-scope.sh` / `scripts/change-scope.ps1` report the change scope as stable JSON: the verified base, merge base, and four path classes (committed, staged, unstaged, untracked). The pre-push-checks skill maps those paths to the smallest sufficient gate set. The base is an argument, never guessed or fetched — the caller passes a ref it verified.
 
 ## Alternatives considered
 

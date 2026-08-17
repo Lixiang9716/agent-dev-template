@@ -1,0 +1,121 @@
+#!/usr/bin/env pwsh
+# Validate the Agent Notes tree (pwsh port; bash twin: verify-agent-notes.sh):
+# closed lifecycle and class sets, dated filenames, the three-line header, and
+# the required sections per lifecycle. `archived/` is frozen and owned by
+# archive-agent-notes.ps1; this verifier never re-validates sealed content.
+# Failures are collected and reported all at once with file-relative paths.
+
+param([switch]$AsLib)
+
+$ErrorActionPreference = 'Stop'
+$script:Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$script:NotesDir = Join-Path $script:Root '.agents/notes'
+
+$script:Lifecycles = @('proposed', 'implemented', 'rejected')
+$script:Classes = @('feature', 'bug-fix', 'simplification', 'architecture', 'process', 'testing')
+$script:RequiredSections = @{
+  proposed    = @('Proposal', 'Alternatives considered', 'Acceptance criteria', 'Risks')
+  implemented = @('Decision', 'Alternatives considered', 'Consequences')
+  rejected    = @('Proposal', 'Alternatives considered')
+}
+$script:ForbiddenInImplemented = @('Proposal', 'Plan', 'Migration plan', 'Acceptance criteria')
+
+function Add-NoteViolation([System.Collections.Generic.List[string]]$violations, [string]$message) {
+  $violations.Add($message)
+}
+
+# Validate one note file's header, filename, and sections.
+function Test-AgentNote([string]$relPath, [string]$absPath, $violations) {
+  $lifecycle = ($relPath -split '/')[0]
+  $name = Split-Path -Leaf $relPath
+  if ($name -notmatch '^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*\.md$') {
+    Add-NoteViolation $violations "$relPath`: filename must be yyyy-mm-dd-topic.md (kebab-case topic, dated at first proposal)"
+    return
+  }
+  $lines = (Get-Content -LiteralPath $absPath -Raw) -split "`n"
+  $text = Get-Content -LiteralPath $absPath -Raw
+  if (-not $lines[0].StartsWith('# Agent Note: ')) {
+    Add-NoteViolation $violations "$relPath`: line 1 must be `"# Agent Note: <title>`""
+    return
+  }
+  if ($lines[1] -ne '') { Add-NoteViolation $violations "$relPath`: line 2 must be empty" }
+  $line3 = $lines[2]
+  if ($lifecycle -eq 'rejected') {
+    if ($line3 -notmatch '^Status: rejected — .+$') {
+      Add-NoteViolation $violations "$relPath`: line 3 for a rejected note must be `"Status: rejected — <why>`""
+    }
+  } elseif ($line3 -ne "Status: $lifecycle") {
+    Add-NoteViolation $violations "$relPath`: line 3 must be exactly `"Status: $lifecycle`""
+  }
+  $statusCount = ([regex]::Matches($text, '(?m)^Status: ')).Count
+  if ($statusCount -ne 1) { Add-NoteViolation $violations "$relPath`: exactly one `"Status:`" line is allowed" }
+  if ($lines[3] -ne '') { Add-NoteViolation $violations "$relPath`: line 4 must be empty" }
+
+  $sections = @([regex]::Matches($text, '(?m)^## (.+)$') | ForEach-Object { $_.Groups[1].Value })
+  if ($sections.Count -eq 0 -or $sections[0] -ne 'Problem') {
+    Add-NoteViolation $violations "$relPath`: the first section must be `"## Problem`""
+  }
+  foreach ($want in $script:RequiredSections[$lifecycle]) {
+    if ($sections -notcontains $want) {
+      Add-NoteViolation $violations "$relPath`: lifecycle `"$lifecycle`" requires a `"## $want`" section"
+    }
+  }
+  if ($lifecycle -eq 'implemented') {
+    foreach ($heading in $script:ForbiddenInImplemented) {
+      if ($sections -contains $heading) {
+        Add-NoteViolation $violations "$relPath`: `"## $heading`" is proposal-era; an implemented note states what is"
+      }
+    }
+  }
+}
+
+# Validate the whole notes tree under $notesDir (default: this repository's).
+function Get-AgentNotesViolations([string]$notesDir = $script:NotesDir) {
+  $violations = [System.Collections.Generic.List[string]]::new()
+  foreach ($entry in @(Get-ChildItem -LiteralPath $notesDir -Force | Sort-Object Name)) {
+    if ($entry.Name -eq 'README.md' -or $entry.Name -eq 'archived') { continue }
+    if ($entry.Name -eq 'INDEX.md') {
+      Add-NoteViolation $violations 'INDEX.md is forbidden: the tree layout is the index'
+      continue
+    }
+    if ($script:Lifecycles -notcontains $entry.Name) {
+      Add-NoteViolation $violations "$($entry.Name)/: unknown lifecycle directory; closed set is $($script:Lifecycles -join ', ')"
+      continue
+    }
+    foreach ($class in @(Get-ChildItem -LiteralPath $entry.FullName -Force | Sort-Object Name)) {
+      $rel = "$($entry.Name)/$($class.Name)"
+      if (-not $class.PSIsContainer) {
+        Add-NoteViolation $violations "${rel}: unexpected file directly under a lifecycle directory"
+        continue
+      }
+      if ($script:Classes -notcontains $class.Name) {
+        Add-NoteViolation $violations "${rel}/: unknown class; closed set is $($script:Classes -join ', ')"
+        continue
+      }
+      foreach ($file in @(Get-ChildItem -LiteralPath $class.FullName -Force | Sort-Object Name)) {
+        $rel = "$($entry.Name)/$($class.Name)/$($file.Name)"
+        if ($file.Name -eq 'INDEX.md') {
+          Add-NoteViolation $violations "${rel}: INDEX.md is forbidden"
+        } elseif ($file.Name -like '*.md') {
+          Test-AgentNote $rel $file.FullName $violations
+        } else {
+          Add-NoteViolation $violations "${rel}: notes are English-only Markdown; unexpected file type"
+        }
+      }
+    }
+  }
+  return $violations
+}
+
+function NotesMain {
+  $violations = Get-AgentNotesViolations
+  if ($violations.Count -eq 0) {
+    Write-Output 'verify-agent-notes: the notes tree is valid.'
+    exit 0
+  }
+  [Console]::Error.WriteLine("verify-agent-notes: $($violations.Count) violation(s):")
+  foreach ($v in $violations) { [Console]::Error.WriteLine("  $v") }
+  exit 1
+}
+
+if (-not $AsLib) { NotesMain }

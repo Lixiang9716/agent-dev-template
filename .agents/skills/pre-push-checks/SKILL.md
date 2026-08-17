@@ -8,10 +8,10 @@ description: Use before pushing, force-pushing, or marking a PR ready for review
 CI owns exhaustiveness; this skill owns coverage of the outgoing diff at the lowest cost.
 
 1. Establish the verified base. Use the ref you actually based on (`main`, or the parent PR's head in a stack). Never guess or fetch a base — `change-scope` refuses to.
-2. Report the scope:
+2. Report the scope (bash port shown; the pwsh twin is `pwsh -File scripts/change-scope.ps1 -Base <verified-ref>`):
 
    ```sh
-   node scripts/change-scope.mjs --base <verified-ref>
+   bash scripts/change-scope.sh --base <verified-ref>
    ```
 
 3. From the reported path classes, pick gates:
