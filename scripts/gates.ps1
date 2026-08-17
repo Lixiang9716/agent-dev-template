@@ -48,7 +48,7 @@ function Test-CommandSlot([string]$gateId, $command) {
       GatesThrow "gate `"$gateId`" command declares unknown shell `"$shell`"; the closed set is sh, pwsh"
     }
   }
-  $shVariant = $null
+  $useVariant = $null
   foreach ($shell in @('sh', 'pwsh')) {
     if ($shells -notcontains $shell) {
       GatesThrow "gate `"$gateId`" command must declare both `"sh`" and `"pwsh`" variants"
@@ -58,9 +58,10 @@ function Test-CommandSlot([string]$gateId, $command) {
     if ($variant.Count -eq 0 -or $variantNonStrings.Count -gt 0) {
       GatesThrow "gate `"$gateId`" `"$shell`" command must be a non-empty string array"
     }
-    if ($shell -eq 'sh') { $shVariant = $variant }
+    # This port runs the pwsh variant; the sh variant is validated, not run.
+    if ($shell -eq 'pwsh') { $useVariant = $variant }
   }
-  return , $shVariant
+  return , $useVariant
 }
 
 # Validate the whole gates.json content string into $script:Gates (ordered

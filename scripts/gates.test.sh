@@ -70,6 +70,11 @@ expect_reject 'empty variant array rejected' \
 expect_accept 'complete per-shell variants accepted' \
   "$(cfg '"a"' '{"id":"a","command":{"sh":["true"],"pwsh":["pwsh","-Version","1"]}}')"
 
+# The bash port runs the sh variant; the pwsh variant is validated, not run.
+out=$(bash -c 'source scripts/gates.sh 2>/dev/null; gates_validate "$1" && printf "%s" "${G_CMD[a]}"' _ \
+  "$(cfg '"a"' '{"id":"a","command":{"sh":["echo","sh-ran"],"pwsh":["echo","pwsh-ran"]}}')")
+expect_eq 'bash port selects the sh variant' "$out" $'echo\x01sh-ran'
+
 # --- scheduling ----------------------------------------------------------------
 
 # A failing dependency skips its dependents with the cause.

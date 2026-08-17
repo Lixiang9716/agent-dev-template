@@ -84,6 +84,10 @@ Expect-Reject 'empty variant array rejected' `
 Expect-Accept 'complete per-shell variants accepted' `
   (New-Cfg @('"a"') '{"id":"a","command":{"sh":["true"],"pwsh":["pwsh","-Version","1"]}}')
 
+# The pwsh port runs the pwsh variant; the sh variant is validated, not run.
+Invoke-ValidateConfig (New-Cfg @('"a"') '{"id":"a","command":{"sh":["echo","sh-ran"],"pwsh":["echo","pwsh-ran"]}}') | Out-Null
+Expect-Eq 'pwsh port selects the pwsh variant' ($script:Gates['a'].Argv -join ' ') 'echo pwsh-ran'
+
 # --- scheduling (real child processes) ------------------------------------------
 
 function Invoke-Configured([string]$gatesJson, [string[]]$selected, [int]$max) {
