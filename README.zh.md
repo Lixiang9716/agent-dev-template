@@ -19,25 +19,13 @@ agent 对强制门禁的遵从远高于对散文式约定的遵从——这是�
 
 ## 安装
 
-任何有 curl 或 wget 的主机,一行命令完成:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/Lixiang9716/agent-dev-template/master/install.sh | sh -s -- my-project
-```
-
-Windows PowerShell:
-
-```powershell
-irm https://raw.githubusercontent.com/Lixiang9716/agent-dev-template/master/install.ps1 | iex
-```
-
-或者直接从 GitHub 模板派生新仓库:
+从 GitHub 模板派生新仓库——一条命令,干净历史:
 
 ```sh
 gh repo create my-app --template Lixiang9716/agent-dev-template
 ```
 
-显式步骤:
+或者显式 clone:
 
 ```sh
 git clone https://github.com/Lixiang9716/agent-dev-template my-project
