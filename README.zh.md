@@ -19,6 +19,14 @@ agent 对强制门禁的遵从远高于对散文式约定的遵从——这是�
 
 ## 安装
 
+任何有 curl(或 wget)的主机,一行命令脚手架出一个已验证的项目:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Lixiang9716/agent-dev-template/master/install.sh | sh -s -- my-project
+```
+
+或者走显式步骤:
+
 ```sh
 git clone <this-repo> my-project
 cd my-project
@@ -27,7 +35,7 @@ bash scripts/gates.sh --mode all    # everything green, zero install
 sh scripts/install-hooks.sh         # pre-commit, pre-push, merge driver
 ```
 
-PowerShell 主机上,同一聚合通过孪生脚本运行:
+PowerShell 主机运行孪生脚本:
 
 ```sh
 pwsh -File scripts/gates.ps1 -Mode all
@@ -63,4 +71,4 @@ docker run --rm -v "$PWD":/w -w /w mcr.microsoft.com/powershell pwsh -File scrip
 
 ## 来源
 
-这些机制蒸馏自 DeepSeek Harness 仓库——其"一切皆插件"的架构与治理公理(门禁优先于散文、机械强制执行)塑造了本模板的每一个部分。保留下来的是治理平面;留给你的是产品平面。
+这些机制蒸馏自 DeepSeek Harness 仓库——其"一切皆插件"的架构与"门禁优先于散文"的公理塑造了本模板。保留:治理平面。留给你:产品平面。

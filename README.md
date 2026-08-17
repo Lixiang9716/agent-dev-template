@@ -19,6 +19,14 @@ Standing orders live in [AGENTS.md](AGENTS.md); the machinery in [docs/architect
 
 ## Installation
 
+From any host with curl (or wget), one line scaffolds a verified project:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Lixiang9716/agent-dev-template/master/install.sh | sh -s -- my-project
+```
+
+Or the explicit way:
+
 ```sh
 git clone <this-repo> my-project
 cd my-project
@@ -27,7 +35,7 @@ bash scripts/gates.sh --mode all    # everything green, zero install
 sh scripts/install-hooks.sh         # pre-commit, pre-push, merge driver
 ```
 
-On a PowerShell host the same aggregate runs through the twin:
+PowerShell hosts run the twin:
 
 ```sh
 pwsh -File scripts/gates.ps1 -Mode all
@@ -63,4 +71,4 @@ Any command that exits non-zero on failure is a gate; a plain array runs on both
 
 ## Origin
 
-The mechanisms are distilled from the DeepSeek Harness repository, whose plugin-everything architecture and governance axiom — gates over prose, enforced mechanically — shaped every part of this template. What is kept is the governance plane; what is left to you is the product plane.
+The mechanisms are distilled from the DeepSeek Harness repository, whose plugin-everything architecture and gates-over-prose axiom shaped this template. Kept: the governance plane. Left to you: the product plane.
