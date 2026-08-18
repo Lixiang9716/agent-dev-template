@@ -1,0 +1,74 @@
+{
+  "archive-agent-notes": {
+    "sh": "bee7b560f260e31f99b24ec1a204766c1db2947f",
+    "pwsh": "09b1c05e12ac21d01c37343cae702d8758129cee"
+  },
+  "change-scope": {
+    "sh": "5c9f69c27df3b323a1ec0cbc976b1bf51c1b7df4",
+    "pwsh": "25411d8d1a7796eb9135ed4ff003a88649cdf599"
+  },
+  "change-scope.test": {
+    "sh": "a51e0bae96cb258b68159b708c7bdd7d3a33c301",
+    "pwsh": "d1de71709af03c7e5cac491daf3710cccee580d3"
+  },
+  "ci.test": {
+    "sh": "9f445397812380438e4560863f37ff641cdd6c84",
+    "pwsh": "e838211470abf3433f1eacad9d4130d901fba6a7"
+  },
+  "gates": {
+    "sh": "8294dc9500055f8e021018fc24ca0e1b819caace",
+    "pwsh": "263696130265b623b703a19ec15dec7f776e41c4"
+  },
+  "gates.test": {
+    "sh": "e76120fc5097f5be099a07b31dad8b1701268273",
+    "pwsh": "04d544a8697533e86b5497a4cdb6b1bbe916e48e"
+  },
+  "lib": {
+    "sh": "0d6188ad2d071493bb3fdc32578fd11a99b0a86c",
+    "pwsh": "05bf8b960e1ff4564412a0da3012635a8ee8276b"
+  },
+  "self-test": {
+    "sh": "a6e07aa61dcb12006cb3298d813886a15d7e704d",
+    "pwsh": "2428230c94ac65ae4e0ff4d319d9c136500c8ca5"
+  },
+  "translation-pairing-merge": {
+    "sh": "1fd3774ffb1e9179efc73a10172a7b3fd2f3dece",
+    "pwsh": "3314ee2b202b25855fcebaa239e3ff13ceadeb61"
+  },
+  "verify-agent-notes": {
+    "sh": "218641f6d6da467860aca76fd601643fdf02bf11",
+    "pwsh": "cb3d54d3c08ce7274b9c2861432832300f73ab62"
+  },
+  "verify-agent-notes.test": {
+    "sh": "b778f45d93ebe8c45599d03469e77a65d1092c53",
+    "pwsh": "048ad21c4c66ab2f732fc19b206851221f4ecb26"
+  },
+  "verify-doc-budgets": {
+    "sh": "96d61dd10e843285c7e16bbaf02ff95bdda3021a",
+    "pwsh": "b175aaec158597e77173c5b130e33b9f63e09744"
+  },
+  "verify-md-links": {
+    "sh": "7cacdbe80cb81bab3d6572fac4fb78c4dd2a834e",
+    "pwsh": "d7d2d97090c4e40bc3601fff6cb8dee9edaadd1a"
+  },
+  "verify-md-links.test": {
+    "sh": "0516c58dc3b6c65f2da7b41df536533b948e8827",
+    "pwsh": "4a775f3235b28994fb9d33a8c00eb6a33348cdda"
+  },
+  "verify-script-pairs": {
+    "sh": "5a7146942c2bef1bb39fa77c21a58579008f4fd0",
+    "pwsh": "537dc86c706bf45c5cef0fb9a1fdd1316960e1c0"
+  },
+  "verify-script-pairs.test": {
+    "sh": "40eeebd14488106fc39e634bfab4ae3bb0bcdbef",
+    "pwsh": "d731c1393f7d8daf39c77e1828b06b439628017a"
+  },
+  "verify-translation-pairing": {
+    "sh": "d01ad51415359d0e760a568ef8a36615a4c5b907",
+    "pwsh": "ffc300e979475aa049468bc252eaaa8920a254e8"
+  },
+  "verify-translation-pairing.test": {
+    "sh": "111c33fa2e452b8aadb6c790317122ddd32a03d9",
+    "pwsh": "56c8eb2a1b3913043d60804757f94c55ecc63dd7"
+  }
+}

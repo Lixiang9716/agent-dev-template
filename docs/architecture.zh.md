@@ -4,7 +4,7 @@
 
 模板把两个平面分开。治理平面——门禁、笔记、配对、范围——是语言无关的机制,只操作 git、Markdown 和 JSON。产品平面是你的任何语言的代码;它只通过 `gates.json` 的命令槽位接入。
 
-每个治理脚本提供两份等价实现:bash 版(`scripts/*.sh`,要求 bash 5+)与 PowerShell 版(`scripts/*.ps1`,要求 pwsh 7+)。两者读取同一个 `gates.json`,产出同一套词汇表;CI 两者都跑。门禁槽位是纯命令数组(两种 shell 下相同)或按 shell 的变体;变体对象必须写全封闭集合里的每种 shell——缺变体直接中止,而不是在那个平台上静默跳过。
+每个治理脚本提供两份等价实现:bash 版(`scripts/*.sh`,要求 bash 5+)与 PowerShell 版(`scripts/*.ps1`,要求 pwsh 7+)。两者读取同一个 `gates.json`,产出同一套词汇表;CI 两者都跑。孪生配对一起确认:`scripts/script-pairs.json` 钉住两侧的 blob 哈希,漂移的配对会让门禁变红,直到同一改动内用 `--write` 重新确认——重确认就是"孪生文件已被考虑"的显式凭证。门禁槽位是纯命令数组(两种 shell 下相同)或按 shell 的变体;变体对象必须写全封闭集合里的每种 shell——缺变体直接中止,而不是在那个平台上静默跳过。
 
 ## 门禁调度器
 

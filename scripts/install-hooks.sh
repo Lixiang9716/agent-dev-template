@@ -18,6 +18,7 @@ cd "$root"
 git diff --cached --check || exit 1
 bash scripts/verify-agent-notes.sh || exit 1
 bash scripts/verify-translation-pairing.sh || exit 1
+bash scripts/verify-script-pairs.sh || exit 1
 EOF
 chmod +x "$hooks/pre-commit"
 
