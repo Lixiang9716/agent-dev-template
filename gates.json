@@ -1,57 +1,133 @@
 {
   "modes": {
-    "all": ["self-test", "notes", "archive", "pairing", "budgets", "links"],
-    "quick": ["self-test"],
-    "docs": ["notes", "archive", "pairing", "budgets", "links"]
+    "all": [
+      "self-test",
+      "script-pairs",
+      "notes",
+      "archive",
+      "pairing",
+      "budgets",
+      "links"
+    ],
+    "quick": [
+      "self-test",
+      "script-pairs"
+    ],
+    "docs": [
+      "notes",
+      "archive",
+      "pairing",
+      "budgets",
+      "links"
+    ]
   },
   "gates": [
     {
       "id": "self-test",
       "label": "governance self-test",
       "command": {
-        "sh": ["bash", "scripts/self-test.sh"],
-        "pwsh": ["pwsh", "-File", "scripts/self-test.ps1"]
+        "sh": [
+          "bash",
+          "scripts/self-test.sh"
+        ],
+        "pwsh": [
+          "pwsh",
+          "-File",
+          "scripts/self-test.ps1"
+        ]
       }
     },
     {
       "id": "notes",
       "label": "Agent Notes tree",
       "command": {
-        "sh": ["bash", "scripts/verify-agent-notes.sh"],
-        "pwsh": ["pwsh", "-File", "scripts/verify-agent-notes.ps1"]
+        "sh": [
+          "bash",
+          "scripts/verify-agent-notes.sh"
+        ],
+        "pwsh": [
+          "pwsh",
+          "-File",
+          "scripts/verify-agent-notes.ps1"
+        ]
       }
     },
     {
       "id": "archive",
       "label": "archived notes seal",
       "command": {
-        "sh": ["bash", "scripts/archive-agent-notes.sh"],
-        "pwsh": ["pwsh", "-File", "scripts/archive-agent-notes.ps1"]
+        "sh": [
+          "bash",
+          "scripts/archive-agent-notes.sh"
+        ],
+        "pwsh": [
+          "pwsh",
+          "-File",
+          "scripts/archive-agent-notes.ps1"
+        ]
       },
-      "needs": ["notes"]
+      "needs": [
+        "notes"
+      ]
     },
     {
       "id": "pairing",
       "label": "translation pairing",
       "command": {
-        "sh": ["bash", "scripts/verify-translation-pairing.sh"],
-        "pwsh": ["pwsh", "-File", "scripts/verify-translation-pairing.ps1"]
+        "sh": [
+          "bash",
+          "scripts/verify-translation-pairing.sh"
+        ],
+        "pwsh": [
+          "pwsh",
+          "-File",
+          "scripts/verify-translation-pairing.ps1"
+        ]
       }
     },
     {
       "id": "budgets",
       "label": "doc word budgets",
       "command": {
-        "sh": ["bash", "scripts/verify-doc-budgets.sh"],
-        "pwsh": ["pwsh", "-File", "scripts/verify-doc-budgets.ps1"]
+        "sh": [
+          "bash",
+          "scripts/verify-doc-budgets.sh"
+        ],
+        "pwsh": [
+          "pwsh",
+          "-File",
+          "scripts/verify-doc-budgets.ps1"
+        ]
       }
     },
     {
       "id": "links",
       "label": "markdown link resolution",
       "command": {
-        "sh": ["bash", "scripts/verify-md-links.sh"],
-        "pwsh": ["pwsh", "-File", "scripts/verify-md-links.ps1"]
+        "sh": [
+          "bash",
+          "scripts/verify-md-links.sh"
+        ],
+        "pwsh": [
+          "pwsh",
+          "-File",
+          "scripts/verify-md-links.ps1"
+        ]
+      }
+    },
+    {
+      "id": "script-pairs",
+      "label": "twin script pairs",
+      "command": {
+        "sh": [
+          "bash",
+          "scripts/verify-script-pairs.sh"
+        ],
+        "pwsh": [
+          "pwsh",
+          "-File",
+          "scripts/verify-script-pairs.ps1"
+        ]
       }
     }
   ]

@@ -4,7 +4,7 @@ English | [中文](architecture.zh.md)
 
 The template separates two planes. The governance plane — gates, notes, pairing, scope — is language-agnostic machinery that operates on git, Markdown, and JSON. The product plane is your code in any language; it connects only through command slots in `gates.json`.
 
-Every governance script ships as two equivalent ports: a bash twin (`scripts/*.sh`, bash >= 5) and a PowerShell twin (`scripts/*.ps1`, pwsh 7+). Both read the same `gates.json` and produce the same vocabulary; CI runs both. A gate slot is either a plain command array (identical on both shells) or per-shell variants, and a variant object must name every shell in the closed set — a missing variant aborts rather than silently skipping on that platform.
+Every governance script ships as two equivalent ports: a bash twin (`scripts/*.sh`, bash >= 5) and a PowerShell twin (`scripts/*.ps1`, pwsh 7+). Both read the same `gates.json` and produce the same vocabulary; CI runs both. Twin pairs confirm together: `scripts/script-pairs.json` pins each side's blob hash, and a drifted pair fails the gate until re-confirmed with `--write` in the same change — the re-confirm is the explicit "the twin was considered" acknowledgment. A gate slot is either a plain command array (identical on both shells) or per-shell variants, and a variant object must name every shell in the closed set — a missing variant aborts rather than silently skipping on that platform.
 
 ## The gate scheduler
 
