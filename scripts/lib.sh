@@ -250,11 +250,6 @@ expect_contains() { # <description> <haystack> <needle>
   [[ $2 == *"$3"* ]] || _fail "$1: [$2] does not contain [$3]"
 }
 
-expect_match() { # <description> <string> <extended regex>
-  T_TOTAL=$(( T_TOTAL + 1 ))
-  [[ $2 =~ $3 ]] || _fail "$1: [$2] does not match /$3/"
-}
-
 expect_status() { # <description> <expected-status> <actual-status>
   T_TOTAL=$(( T_TOTAL + 1 ))
   [[ $3 == "$2" ]] || _fail "$1: expected status $2, got $3"
