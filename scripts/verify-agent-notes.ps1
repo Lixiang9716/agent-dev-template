@@ -1,9 +1,12 @@
 #!/usr/bin/env pwsh
-# Validate the Agent Notes tree (pwsh port; bash twin: verify-agent-notes.sh):
-# closed lifecycle and class sets, dated filenames, the three-line header, and
-# the required sections per lifecycle. `archived/` is frozen and owned by
-# archive-agent-notes.ps1; this verifier never re-validates sealed content.
-# Failures are collected and reported all at once with file-relative paths.
+# Validate the Agent Notes tree (pwsh twin of verify-agent-notes.sh):
+# closed lifecycle and class sets, dated filenames, the three-line header, the
+# required sections per lifecycle, and the entry discipline — Claim entries
+# carry verifier/coverage/goal-link sub-bullets, Open entries carry settled-by,
+# and "not-refuted" statements carry rate/schedule/reviewer sampling in their
+# paragraph. `archived/` is frozen and owned by archive-agent-notes.ps1; this
+# verifier never re-validates sealed content. Failures are collected and
+# reported all at once with file-relative paths.
 
 param([switch]$AsLib)
 
@@ -67,6 +70,100 @@ function Test-AgentNote([string]$relPath, [string]$absPath, $violations) {
       }
     }
   }
+
+  Test-NoteDiscipline $relPath $text $violations
+}
+
+# --- entry discipline ---------------------------------------------------------
+#
+# Optional structured entries (any lifecycle; historical notes without them are
+# untouched — the rules bind only the entries that are present):
+#   - Claim: <text>      requires sub-bullets verifier / coverage / goal-link
+#   - Open: <text>       requires a sub-bullet settled-by
+#   a statement containing "not-refuted" requires rate / schedule / reviewer in
+#   the same paragraph (blank-line or heading delimited), inline or as
+#   sub-bullets.
+# A claim/open entry is its bullet plus the consecutive "  - " sub-bullets
+# that follow it; the entry text itself must be non-empty.
+
+function Test-SubBullet([string]$line) {
+  return $line.StartsWith('  - ')
+}
+
+function Get-SubBulletValue([string]$line, [string]$field) {
+  $prefix = "  - $field`: "
+  if (-not $line.StartsWith($prefix)) { return $null }
+  $value = $line.Substring($prefix.Length)
+  if ([string]::IsNullOrWhiteSpace($value)) { return $null }
+  return $value
+}
+
+function Test-ParagraphBreak([string]$line) {
+  return [string]::IsNullOrEmpty($line) -or $line.StartsWith('## ')
+}
+
+# Check one claim/open entry: its sub-bullet block must carry every required
+# field with a non-empty value. $noteLines holds the note's lines; $idx is the
+# entry's index.
+function Test-EntryBlock([string]$relPath, [string]$entry, [int]$idx, [string[]]$noteLines, $violations) {
+  $kind = 'Open'
+  $fields = @('settled-by')
+  if ($entry.StartsWith('- Claim: ')) {
+    $kind = 'Claim'
+    $fields = @('verifier', 'coverage', 'goal-link')
+  }
+  $missing = @($fields)
+  for ($j = $idx + 1; $j -lt $noteLines.Count; $j++) {
+    $line = $noteLines[$j]
+    if (-not (Test-SubBullet $line)) { break }
+    foreach ($f in $fields) {
+      if ($null -ne (Get-SubBulletValue $line $f)) {
+        $missing = @($missing | Where-Object { $_ -ne $f })
+      }
+    }
+  }
+  if ($missing.Count -gt 0) {
+    Add-NoteViolation $violations "$relPath`: $kind entry `"$($entry.Substring(2))`" missing sub-bullet(s): $($missing -join ' ')"
+  }
+}
+
+# Require rate/schedule/reviewer in the paragraph that carries "not-refuted".
+function Test-SamplingFields([string]$relPath, [string]$paragraph, $violations) {
+  $missing = @('rate', 'schedule', 'reviewer')
+  foreach ($line in @($paragraph -split "`n")) {
+    foreach ($f in @('rate', 'schedule', 'reviewer')) {
+      if ($line -match "(^|[^A-Za-z])$f`:\s*\S") {
+        $missing = @($missing | Where-Object { $_ -ne $f })
+      }
+    }
+  }
+  if ($missing.Count -gt 0) {
+    Add-NoteViolation $violations "$relPath`: statement containing `"not-refuted`" missing sampling field(s) in its paragraph: $($missing -join ' ')"
+  }
+}
+
+# Check a whole note body for the discipline rules.
+function Test-NoteDiscipline([string]$relPath, [string]$text, $violations) {
+  $noteLines = @($text -split "`n")
+  for ($i = 0; $i -lt $noteLines.Count; $i++) {
+    $line = $noteLines[$i]
+    if ($line.StartsWith('- Claim: ') -or $line.StartsWith('- Open: ')) {
+      Test-EntryBlock $relPath $line $i $noteLines $violations
+      $i++
+      while ($i -lt $noteLines.Count -and (Test-SubBullet $noteLines[$i])) { $i++ }
+      $i--
+    }
+  }
+  $para = ''
+  foreach ($line in @($text -split "`n")) {
+    if (Test-ParagraphBreak $line) {
+      if ($para.Contains('not-refuted')) { Test-SamplingFields $relPath $para $violations }
+      $para = ''
+    } else {
+      $para += "`n$line"
+    }
+  }
+  if ($para.Contains('not-refuted')) { Test-SamplingFields $relPath $para $violations }
 }
 
 # Validate the whole notes tree under $notesDir (default: this repository's).

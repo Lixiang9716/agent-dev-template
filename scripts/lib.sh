@@ -79,7 +79,7 @@ _json_string() {
 # True when $1 already has an object child named $2 (duplicate-key guard).
 _json_has_child() {
   local edge
-  for edge in "${JSON_CHILDREN[@]}"; do
+  for edge in "${JSON_CHILDREN[@]+"${JSON_CHILDREN[@]}"}"; do
     [[ $edge == "$1"$'\t'"$2" ]] && return 0
   done
   return 1
@@ -182,7 +182,7 @@ json_parse() {
 # Node type at an exact path (status 1 when absent).
 json_type() {
   local node
-  for node in "${JSON_NODES[@]}"; do
+  for node in "${JSON_NODES[@]+"${JSON_NODES[@]}"}"; do
     if [[ ${node%%$'\t'*} == "$1" ]]; then
       REPLY=${node#*$'\t'}; REPLY=${REPLY%%$'\t'*}; return 0
     fi
@@ -193,7 +193,7 @@ json_type() {
 # Scalar value at an exact path.
 json_get() {
   local node
-  for node in "${JSON_NODES[@]}"; do
+  for node in "${JSON_NODES[@]+"${JSON_NODES[@]}"}"; do
     if [[ ${node%%$'\t'*} == "$1" ]]; then
       REPLY=${node#*$'\t'*$'\t'}; return 0
     fi
@@ -205,7 +205,7 @@ json_get() {
 json_keys() {
   local edge prefix=$1$'\t'
   REPLY_LIST=()
-  for edge in "${JSON_CHILDREN[@]}"; do
+  for edge in "${JSON_CHILDREN[@]+"${JSON_CHILDREN[@]}"}"; do
     [[ $edge == "$prefix"* ]] && REPLY_LIST+=("${edge#"$prefix"}")
   done
 }
@@ -213,7 +213,7 @@ json_keys() {
 # Element count of an array path.
 json_len() {
   local edge prefix=$1$'\t' count=0
-  for edge in "${JSON_CHILDREN[@]}"; do
+  for edge in "${JSON_CHILDREN[@]+"${JSON_CHILDREN[@]}"}"; do
     [[ $edge == "$prefix"[0-9]* ]] && (( count++ ))
   done
   REPLY=$count

@@ -69,4 +69,104 @@ expect_eq 'write resolves every freshness violation' "$out" ''
 expect_eq 'manifest carries both pairs' "$(grep -c '": {' "$tree/scripts/script-pairs.json")" 2
 rm -rf "$tree"
 
+# --- versioned normalization (M3) ---------------------------------------------
+
+expect_eq 'normalizer registry is pinned' "$NORMALIZER_VERSIONS" 'timestamp:v1 whitespace:v1'
+
+twin_compare 'a b
+c' 'a b
+c'
+expect_status 'identical raw bytes match' 0 $?
+expect_eq 'no notice when raw bytes already match' "$PROBE_NOTICE" ''
+
+twin_compare 'a   b
+ c' 'a b
+c'
+expect_status 'whitespace normalization matches' 0 $?
+expect_contains 'whitespace-only raw differences raise a blind-spot notice' "$PROBE_NOTICE" 'blind-spot'
+
+twin_compare 'run at 2026-08-19T10:00:00' 'run at 2026-08-19T11:00:00Z'
+expect_status 'timestamp normalization matches' 0 $?
+expect_contains 'timestamp raw differences raise a blind-spot notice' "$PROBE_NOTICE" 'blind-spot'
+
+twin_compare 'line one' 'line DIFFERENT'
+expect_status 'real divergence fails' 1 $?
+expect_contains 'divergence names the first differing line' "$COMPARE_FIRST" 'first difference at normalized line 1'
+
+normalize_text 'x' magic >/dev/null 2>&1
+expect_status 'unknown normalizer fails loud' 1 $?
+
+# A fixture probe pair: alpha carries the probe; alpha.test is the confirmed
+# test-suite pair the probe runs.
+fixture_probe_tree() { # <probe-verb> — creates test suites unless told not to
+  new_tree
+  printf '#!/usr/bin/env bash\nprintf "3 check(s), 0 failed\\n"\n' > "$REPLY_TREE/scripts/alpha.test.sh"
+  printf '#!/usr/bin/env pwsh\nWrite-Output "3 check(s), 0 failed"\n' > "$REPLY_TREE/scripts/alpha.test.ps1"
+  printf '{\n  "alpha": {\n    "sh": "%s",\n    "pwsh": "%s",\n    "probe": "%s"\n  },\n  "alpha.test": {\n    "sh": "%s",\n    "pwsh": "%s"\n  }\n}\n' \
+    "$(git -C "$REPLY_TREE" hash-object "$REPLY_TREE/scripts/alpha.sh")" \
+    "$(git -C "$REPLY_TREE" hash-object "$REPLY_TREE/scripts/alpha.ps1")" "$1" \
+    "$(git -C "$REPLY_TREE" hash-object "$REPLY_TREE/scripts/alpha.test.sh")" \
+    "$(git -C "$REPLY_TREE" hash-object "$REPLY_TREE/scripts/alpha.test.ps1")" > "$REPLY_TREE/scripts/script-pairs.json"
+}
+
+# A probe pair whose twin test suites print identical outputs passes.
+fixture_probe_tree test
+out=$(violations_of "$REPLY_TREE")
+expect_eq 'a matching probe passes' "$out" ''
+rm -rf "$REPLY_TREE"
+
+# A probe whose twin outputs diverge fails naming the pair.
+fixture_probe_tree test
+tree=$REPLY_TREE
+printf '#!/usr/bin/env pwsh\nWrite-Output "4 check(s), 0 failed"\n' > "$tree/scripts/alpha.test.ps1"
+printf '{\n  "alpha": {\n    "sh": "%s",\n    "pwsh": "%s",\n    "probe": "test"\n  },\n  "alpha.test": {\n    "sh": "%s",\n    "pwsh": "%s"\n  }\n}\n' \
+  "$(git -C "$tree" hash-object "$tree/scripts/alpha.sh")" \
+  "$(git -C "$tree" hash-object "$tree/scripts/alpha.ps1")" \
+  "$(git -C "$tree" hash-object "$tree/scripts/alpha.test.sh")" \
+  "$(git -C "$tree" hash-object "$tree/scripts/alpha.test.ps1")" > "$tree/scripts/script-pairs.json"
+out=$(violations_of "$tree")
+expect_contains 'a diverging probe fails naming the pair' "$out" 'alpha: twin behaviors diverge after normalization'
+expect_contains 'divergence reports the differing line' "$out" 'first difference at normalized line 1'
+rm -rf "$tree"
+
+# A probe whose outputs differ only in timestamps passes.
+fixture_probe_tree test
+tree=$REPLY_TREE
+printf '#!/usr/bin/env bash\necho run at 2026-08-19T10:00:00\n' > "$tree/scripts/alpha.test.sh"
+printf '#!/usr/bin/env pwsh\nWrite-Output "run at 2026-08-19T11:00:00"\n' > "$tree/scripts/alpha.test.ps1"
+printf '{\n  "alpha": {\n    "sh": "%s",\n    "pwsh": "%s",\n    "probe": "test"\n  },\n  "alpha.test": {\n    "sh": "%s",\n    "pwsh": "%s"\n  }\n}\n' \
+  "$(git -C "$tree" hash-object "$tree/scripts/alpha.sh")" \
+  "$(git -C "$tree" hash-object "$tree/scripts/alpha.ps1")" \
+  "$(git -C "$tree" hash-object "$tree/scripts/alpha.test.sh")" \
+  "$(git -C "$tree" hash-object "$tree/scripts/alpha.test.ps1")" > "$tree/scripts/script-pairs.json"
+out=$(violations_of "$tree")
+expect_eq 'timestamp-only probe differences normalize away' "$out" ''
+rm -rf "$tree"
+
+# A probe without sibling test suites fails loud.
+new_tree
+tree=$REPLY_TREE
+printf '{\n  "alpha": {\n    "sh": "%s",\n    "pwsh": "%s",\n    "probe": "test"\n  }\n}\n' \
+  "$(git -C "$tree" hash-object "$tree/scripts/alpha.sh")" \
+  "$(git -C "$tree" hash-object "$tree/scripts/alpha.ps1")" > "$tree/scripts/script-pairs.json"
+out=$(violations_of "$tree")
+expect_contains 'probe without test siblings fails loud' "$out" 'probe "test" requires alpha.test.sh and alpha.test.ps1'
+rm -rf "$tree"
+
+# An unknown probe verb fails loud.
+fixture_probe_tree bogus
+out=$(violations_of "$REPLY_TREE")
+expect_contains 'unknown probe verb fails loud' "$out" 'unknown probe verb "bogus"; the closed set is test'
+rm -rf "$REPLY_TREE"
+
+# --write preserves a surviving pair's probe configuration.
+fixture_probe_tree test
+tree=$REPLY_TREE
+printf '#!/usr/bin/env pwsh\necho gamma\n' > "$tree/scripts/alpha.ps1"
+write_manifest "$tree" >/dev/null 2>&1
+expect_contains 'write preserves the probe setting' "$(cat "$tree/scripts/script-pairs.json")" '"probe": "test"'
+out=$(violations_of "$tree")
+expect_eq 'write re-confirms a probed pair cleanly' "$out" ''
+rm -rf "$tree"
+
 t_done
