@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 if (-not (Get-Variable -Name T_Total -Scope Script -ErrorAction SilentlyContinue)) {
   $script:T_Total = 0
   $script:T_Failed = 0
+  $script:T_Skipped = 0
 }
 
 function Fail([string]$desc) {
@@ -37,8 +38,18 @@ function Expect-Status([string]$desc, [int]$expected, [int]$actual) {
   if ($actual -ne $expected) { Fail "${desc}: expected status $expected, got $actual" }
 }
 
+# Count one loudly-skipped check — a visible non-check (e.g. a probe test
+# whose cross interpreter is absent), never a failure.
+function Expect-Skip([string]$desc) {
+  $script:T_Total++
+  $script:T_Skipped++
+  [Console]::Error.WriteLine("skipped: $desc")
+}
+
 function Complete-TestSuite {
-  [Console]::Error.WriteLine("$($script:T_Total) check(s), $($script:T_Failed) failed")
+  $summary = "$($script:T_Total) check(s), $($script:T_Failed) failed"
+  if ($script:T_Skipped -gt 0) { $summary += ", $($script:T_Skipped) skipped" }
+  [Console]::Error.WriteLine($summary)
   if ($script:T_Failed -gt 0) { exit 1 }
   exit 0
 }

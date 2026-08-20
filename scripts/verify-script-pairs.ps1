@@ -19,6 +19,14 @@
 # opt-in per pair: pairs without one stay covered by hash freshness and the
 # per-port suites.
 #
+# The probe is availability-aware: it runs only when the cross interpreter
+# (bash) is on PATH. When it is missing, the probe is loudly skipped — one
+# visible line per probed pair, exit code 0 — and the pair degrades to
+# hash/record confirmation, so a pwsh-only host passes every local gate.
+# GATES_FORCE_PROBE=1 (set by CI, which owns exhaustiveness per rule 9)
+# forces the probe and fails loud naming the pair when the cross
+# interpreter is missing.
+#
 # Fail loud: unconfirmed pairs, stale entries, drifted sides, unknown probe
 # verbs, and probe failures abort with the offending name.
 
@@ -29,6 +37,12 @@ $script:Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
 function Get-BlobHash([string]$absPath) {
   (& git hash-object $absPath).Trim()
+}
+
+# True when the cross interpreter (bash) is on PATH; the behavioral probe
+# needs both interpreters.
+function Test-BashAvailable {
+  return $null -ne (Get-Command bash -ErrorAction SilentlyContinue)
 }
 
 # --- versioned normalizers ------------------------------------------------------
@@ -98,11 +112,22 @@ function Compare-TwinOutputs([string]$rawA, [string]$rawB) {
 }
 
 # Run one pair's behavioral probe and compare both sides after normalization.
+# Loudly-skipped probes (cross interpreter absent, no force) are recorded in
+# $script:ProbeSkips — one line per probed pair, never a violation; a forced
+# probe (GATES_FORCE_PROBE=1) on such a host fails loud naming the pair.
 function Invoke-PairProbe([string]$root, [string]$name, $violations) {
   $shTest = Join-Path $root "scripts/$name.test.sh"
   $psTest = Join-Path $root "scripts/$name.test.ps1"
   if (-not (Test-Path -LiteralPath $shTest) -or -not (Test-Path -LiteralPath $psTest)) {
     $violations.Add("${name}: probe `"test`" requires $name.test.sh and $name.test.ps1")
+    return
+  }
+  if (-not (Test-BashAvailable)) {
+    if ($env:GATES_FORCE_PROBE -eq '1') {
+      $violations.Add("${name}: probe `"test`" cannot run — bash is not on PATH and GATES_FORCE_PROBE=1 forces the probe (CI owns exhaustiveness)")
+    } else {
+      $script:ProbeSkips.Add("probe skipped: ${name} — bash not on PATH; cross-port behavioral consistency is verified in CI (GATES_FORCE_PROBE=1)")
+    }
     return
   }
   $outA = & bash $shTest 2>&1
@@ -136,6 +161,13 @@ function Get-ScriptPairNames([string]$root = $script:Root) {
 function Get-ScriptPairViolations([string]$root = $script:Root) {
   $violations = [System.Collections.Generic.List[string]]::new()
   $script:ProbeNotices = [System.Collections.Generic.List[string]]::new()
+  $script:ProbeSkips = [System.Collections.Generic.List[string]]::new()
+
+  # The env knob's closed set is {unset, 1}: any other value is a
+  # misconfiguration and fails loud naming it (AGENTS.md rule 4).
+  if ($env:GATES_FORCE_PROBE -and $env:GATES_FORCE_PROBE -ne '1') {
+    $violations.Add("GATES_FORCE_PROBE=`"$($env:GATES_FORCE_PROBE)`": unknown value — the closed set is 1 (unset means no force)")
+  }
   $pairs = @(Get-ScriptPairNames $root)
   $manifestPath = Join-Path $root 'scripts/script-pairs.json'
   if (-not (Test-Path -LiteralPath $manifestPath)) {
@@ -217,6 +249,7 @@ function PairsMain([bool]$writeMode) {
     Write-Output "verify-script-pairs: recorded $count pair(s)."
   }
   $script:ProbeNotices = [System.Collections.Generic.List[string]]::new()
+  $script:ProbeSkips = [System.Collections.Generic.List[string]]::new()
   $violations = Get-ScriptPairViolations
   if ($violations.Count -gt 0) {
     [Console]::Error.WriteLine("verify-script-pairs: $($violations.Count) violation(s):")
@@ -225,6 +258,9 @@ function PairsMain([bool]$writeMode) {
   }
   foreach ($n in $script:ProbeNotices) {
     Write-Output "verify-script-pairs: notice: $n"
+  }
+  foreach ($s in $script:ProbeSkips) {
+    Write-Output $s
   }
   Write-Output 'verify-script-pairs: every twin pair confirmed at recorded contents.'
   exit 0

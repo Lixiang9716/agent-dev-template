@@ -10,6 +10,11 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 source scripts/lib.sh
 source scripts/verify-script-pairs.sh 2>/dev/null
 
+# The suite is hermetic: the availability tests manage GATES_FORCE_PROBE
+# explicitly, so an ambient value (CI sets 1) must not leak into the
+# manifest tests below.
+unset GATES_FORCE_PROBE
+
 # Create a temp repo with one confirmed pair (alpha) in scripts/.
 new_tree() {
   local dir
@@ -109,41 +114,61 @@ fixture_probe_tree() { # <probe-verb> — creates test suites unless told not to
     "$(git -C "$REPLY_TREE" hash-object "$REPLY_TREE/scripts/alpha.test.ps1")" > "$REPLY_TREE/scripts/script-pairs.json"
 }
 
-# A probe pair whose twin test suites print identical outputs passes.
-fixture_probe_tree test
-out=$(violations_of "$REPLY_TREE")
-expect_eq 'a matching probe passes' "$out" ''
-rm -rf "$REPLY_TREE"
+# The probe executes the cross interpreter (pwsh), so the probe tests below
+# are loudly skipped on a pwsh-less host — counted, never failed — because
+# CI's forced lane (GATES_FORCE_PROBE=1) owns cross-port exhaustiveness.
+probe_skip() { # <description>
+  expect_skip "$1 (skipped: pwsh not on PATH; GATES_FORCE_PROBE=1 forces probes in CI)"
+}
 
-# A probe whose twin outputs diverge fails naming the pair.
-fixture_probe_tree test
-tree=$REPLY_TREE
-printf '#!/usr/bin/env pwsh\nWrite-Output "4 check(s), 0 failed"\n' > "$tree/scripts/alpha.test.ps1"
-printf '{\n  "alpha": {\n    "sh": "%s",\n    "pwsh": "%s",\n    "probe": "test"\n  },\n  "alpha.test": {\n    "sh": "%s",\n    "pwsh": "%s"\n  }\n}\n' \
-  "$(git -C "$tree" hash-object "$tree/scripts/alpha.sh")" \
-  "$(git -C "$tree" hash-object "$tree/scripts/alpha.ps1")" \
-  "$(git -C "$tree" hash-object "$tree/scripts/alpha.test.sh")" \
-  "$(git -C "$tree" hash-object "$tree/scripts/alpha.test.ps1")" > "$tree/scripts/script-pairs.json"
-out=$(violations_of "$tree")
-expect_contains 'a diverging probe fails naming the pair' "$out" 'alpha: twin behaviors diverge after normalization'
-expect_contains 'divergence reports the differing line' "$out" 'first difference at normalized line 1'
-rm -rf "$tree"
+# Run one command as on a host without pwsh: the availability check is
+# overridden inside the subshell, so the simulation cannot leak out.
+simulate_no_pwsh() { # <command...>
+  ( pwsh_available() { return 1; }; "$@" )
+}
 
-# A probe whose outputs differ only in timestamps passes.
-fixture_probe_tree test
-tree=$REPLY_TREE
-printf '#!/usr/bin/env bash\necho run at 2026-08-19T10:00:00\n' > "$tree/scripts/alpha.test.sh"
-printf '#!/usr/bin/env pwsh\nWrite-Output "run at 2026-08-19T11:00:00"\n' > "$tree/scripts/alpha.test.ps1"
-printf '{\n  "alpha": {\n    "sh": "%s",\n    "pwsh": "%s",\n    "probe": "test"\n  },\n  "alpha.test": {\n    "sh": "%s",\n    "pwsh": "%s"\n  }\n}\n' \
-  "$(git -C "$tree" hash-object "$tree/scripts/alpha.sh")" \
-  "$(git -C "$tree" hash-object "$tree/scripts/alpha.ps1")" \
-  "$(git -C "$tree" hash-object "$tree/scripts/alpha.test.sh")" \
-  "$(git -C "$tree" hash-object "$tree/scripts/alpha.test.ps1")" > "$tree/scripts/script-pairs.json"
-out=$(violations_of "$tree")
-expect_eq 'timestamp-only probe differences normalize away' "$out" ''
-rm -rf "$tree"
+if command -v pwsh >/dev/null 2>&1; then
+  # A probe pair whose twin test suites print identical outputs passes.
+  fixture_probe_tree test
+  out=$(violations_of "$REPLY_TREE")
+  expect_eq 'a matching probe passes' "$out" ''
+  rm -rf "$REPLY_TREE"
 
-# A probe without sibling test suites fails loud.
+  # A probe whose twin outputs diverge fails naming the pair.
+  fixture_probe_tree test
+  tree=$REPLY_TREE
+  printf '#!/usr/bin/env pwsh\nWrite-Output "4 check(s), 0 failed"\n' > "$tree/scripts/alpha.test.ps1"
+  printf '{\n  "alpha": {\n    "sh": "%s",\n    "pwsh": "%s",\n    "probe": "test"\n  },\n  "alpha.test": {\n    "sh": "%s",\n    "pwsh": "%s"\n  }\n}\n' \
+    "$(git -C "$tree" hash-object "$tree/scripts/alpha.sh")" \
+    "$(git -C "$tree" hash-object "$tree/scripts/alpha.ps1")" \
+    "$(git -C "$tree" hash-object "$tree/scripts/alpha.test.sh")" \
+    "$(git -C "$tree" hash-object "$tree/scripts/alpha.test.ps1")" > "$tree/scripts/script-pairs.json"
+  out=$(violations_of "$tree")
+  expect_contains 'a diverging probe fails naming the pair' "$out" 'alpha: twin behaviors diverge after normalization'
+  expect_contains 'divergence reports the differing line' "$out" 'first difference at normalized line 1'
+  rm -rf "$tree"
+
+  # A probe whose outputs differ only in timestamps passes.
+  fixture_probe_tree test
+  tree=$REPLY_TREE
+  printf '#!/usr/bin/env bash\necho run at 2026-08-19T10:00:00\n' > "$tree/scripts/alpha.test.sh"
+  printf '#!/usr/bin/env pwsh\nWrite-Output "run at 2026-08-19T11:00:00"\n' > "$tree/scripts/alpha.test.ps1"
+  printf '{\n  "alpha": {\n    "sh": "%s",\n    "pwsh": "%s",\n    "probe": "test"\n  },\n  "alpha.test": {\n    "sh": "%s",\n    "pwsh": "%s"\n  }\n}\n' \
+    "$(git -C "$tree" hash-object "$tree/scripts/alpha.sh")" \
+    "$(git -C "$tree" hash-object "$tree/scripts/alpha.ps1")" \
+    "$(git -C "$tree" hash-object "$tree/scripts/alpha.test.sh")" \
+    "$(git -C "$tree" hash-object "$tree/scripts/alpha.test.ps1")" > "$tree/scripts/script-pairs.json"
+  out=$(violations_of "$tree")
+  expect_eq 'timestamp-only probe differences normalize away' "$out" ''
+  rm -rf "$tree"
+else
+  probe_skip 'a matching probe passes'
+  probe_skip 'a diverging probe fails naming the pair'
+  probe_skip 'divergence reports the differing line'
+  probe_skip 'timestamp-only probe differences normalize away'
+fi
+
+# A probe without sibling test suites fails loud (no interpreter involved).
 new_tree
 tree=$REPLY_TREE
 printf '{\n  "alpha": {\n    "sh": "%s",\n    "pwsh": "%s",\n    "probe": "test"\n  }\n}\n' \
@@ -159,14 +184,51 @@ out=$(violations_of "$REPLY_TREE")
 expect_contains 'unknown probe verb fails loud' "$out" 'unknown probe verb "bogus"; the closed set is test'
 rm -rf "$REPLY_TREE"
 
+# Availability semantics: with the cross interpreter absent and no force, a
+# probed pair is loudly skipped — one exact line, no violation, exit 0 — and
+# stays hash-confirmed.
+fixture_probe_tree test
+tree=$REPLY_TREE
+saved_force=${GATES_FORCE_PROBE-}
+unset GATES_FORCE_PROBE
+out=$(simulate_no_pwsh violations_of "$tree")
+expect_contains 'the skip is loud, names the pair, and points at CI' \
+  "$out" 'probe skipped: alpha — pwsh not on PATH; cross-port behavioral consistency is verified in CI (GATES_FORCE_PROBE=1)'
+expect_eq 'the missing-interpreter probe emits nothing else — no violation' \
+  "$out" 'probe skipped: alpha — pwsh not on PATH; cross-port behavioral consistency is verified in CI (GATES_FORCE_PROBE=1)'
+GATES_FORCE_PROBE=$saved_force
+rm -rf "$tree"
+
+# GATES_FORCE_PROBE=1 with the cross interpreter absent fails loud — CI owns
+# exhaustiveness (AGENTS.md rule 9).
+fixture_probe_tree test
+tree=$REPLY_TREE
+out=$(GATES_FORCE_PROBE=1 simulate_no_pwsh violations_of "$tree")
+expect_contains 'a forced probe without the cross interpreter fails loud' \
+  "$out" 'alpha: probe "test" cannot run — pwsh is not on PATH and GATES_FORCE_PROBE=1 forces the probe'
+rm -rf "$tree"
+
+# GATES_FORCE_PROBE has a closed set: {unset, 1}; any other value fails loud
+# naming the value (AGENTS.md rule 4).
+fixture_probe_tree test
+tree=$REPLY_TREE
+out=$(GATES_FORCE_PROBE=true violations_of "$tree")
+expect_contains 'an unknown GATES_FORCE_PROBE value fails loud' \
+  "$out" 'GATES_FORCE_PROBE="true": unknown value — the closed set is 1'
+rm -rf "$tree"
+
 # --write preserves a surviving pair's probe configuration.
 fixture_probe_tree test
 tree=$REPLY_TREE
 printf '#!/usr/bin/env pwsh\necho gamma\n' > "$tree/scripts/alpha.ps1"
 write_manifest "$tree" >/dev/null 2>&1
 expect_contains 'write preserves the probe setting' "$(cat "$tree/scripts/script-pairs.json")" '"probe": "test"'
-out=$(violations_of "$tree")
-expect_eq 'write re-confirms a probed pair cleanly' "$out" ''
+if command -v pwsh >/dev/null 2>&1; then
+  out=$(violations_of "$tree")
+  expect_eq 'write re-confirms a probed pair cleanly' "$out" ''
+else
+  probe_skip 'write re-confirms a probed pair cleanly'
+fi
 rm -rf "$tree"
 
 t_done

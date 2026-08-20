@@ -142,4 +142,17 @@ $stallOut = & pwsh -NoProfile -Command $stallScript 2>&1
 Expect-Status 'unselected dependency stalls loud' 1 $LASTEXITCODE
 Expect-Contains 'stall message names the defect' "$stallOut" 'validated graph stalled without a failed dependency'
 
+# A passing gate that emitted a loud skip surfaces the skip line — a skipped
+# probe is degraded verification and must never look like full coverage
+# (AGENTS.md rule 4).
+$savedVerbose = $env:GATE_VERBOSE
+$env:GATE_VERBOSE = $null
+$skipOut = Invoke-Configured (New-Cfg @('"skippy"') '{"id":"skippy","command":["pwsh","-NoProfile","-Command","Write-Output ''probe skipped: alpha — pwsh not on PATH; cross-port behavioral consistency is verified in CI (GATES_FORCE_PROBE=1)''"]}') @('skippy') 1
+Expect-Contains 'a passing gate surfaces its probe skip line' "$skipOut" 'probe skipped: alpha — pwsh not on PATH'
+
+# A passing gate without skip lines stays silent apart from its start line.
+$quietOut = Invoke-Configured (New-Cfg @('"quiet"') '{"id":"quiet","command":["pwsh","-NoProfile","-Command","Write-Output ''plain output''"]}') @('quiet') 1
+Expect-Eq 'a passing gate without skips stays silent' "$quietOut" 'gates: start quiet'
+$env:GATE_VERBOSE = $savedVerbose
+
 Complete-TestSuite

@@ -313,12 +313,17 @@ gates_skip_pending() {
   done
 }
 
-# Print one settled outcome (passes stay silent unless GATE_VERBOSE=1).
+# Print one settled outcome (passes stay silent unless GATE_VERBOSE=1; a
+# passing gate that emitted loud skip lines surfaces them — a skipped probe
+# is degraded verification and must never look like full coverage).
 gates_report() { # <id>
   local id=$1 secs argv
   secs=$(awk -v ms="${R_DUR[$id]}" 'BEGIN { printf "%.2f", ms / 1000 }')
   if [[ ${R_STATUS[$id]} == passed ]]; then
     [[ ${GATE_VERBOSE:-0} == 1 ]] && printf 'gates: PASS %s (%ss)\n' "${G_LABEL[$id]}" "$secs"
+    if [[ -s ${R_OUT[$id]:-} ]] && grep -q 'skipped:' "${R_OUT[$id]}"; then
+      grep 'skipped:' "${R_OUT[$id]}"
+    fi
     return 0
   fi
   IFS=$US read -ra argv <<< "${G_CMD[$id]}"

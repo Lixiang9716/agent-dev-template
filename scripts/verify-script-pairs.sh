@@ -19,6 +19,14 @@
 # opt-in per pair: pairs without one stay covered by hash freshness and the
 # per-port suites.
 #
+# The probe is availability-aware: it runs only when the cross interpreter
+# (pwsh) is on PATH. When it is missing, the probe is loudly skipped — one
+# visible line per probed pair, exit code 0 — and the pair degrades to
+# hash/record confirmation, so a bash-only host passes every local gate.
+# GATES_FORCE_PROBE=1 (set by CI, which owns exhaustiveness per rule 9)
+# forces the probe and fails loud naming the pair when the cross
+# interpreter is missing.
+#
 # Fail loud: unconfirmed pairs, stale entries, drifted sides, unknown probe
 # verbs, and probe failures abort with the offending name.
 
@@ -32,6 +40,10 @@ MANIFEST_REL=scripts/script-pairs.json
 
 PAIRS_VIOLATIONS=()
 pairs_violation() { PAIRS_VIOLATIONS+=("$1"); }
+
+# True when the cross interpreter (pwsh) is on PATH; the behavioral probe
+# needs both interpreters.
+pwsh_available() { command -v pwsh >/dev/null 2>&1; }
 
 # --- versioned normalizers ------------------------------------------------------
 # Pre-registered, versioned normalization applied to BOTH sides of a probe
@@ -100,6 +112,16 @@ run_probe() { # <root> <name>
     pairs_violation "$name: probe \"test\" requires $name.test.sh and $name.test.ps1"
     return 0
   fi
+  if ! pwsh_available; then
+    if [[ ${GATES_FORCE_PROBE:-} == 1 ]]; then
+      pairs_violation "$name: probe \"test\" cannot run — pwsh is not on PATH and GATES_FORCE_PROBE=1 forces the probe (CI owns exhaustiveness)"
+    else
+      # Loud skip: one visible line per probed pair, exit code 0 — the pair
+      # stays hash/record-confirmed.
+      echo "probe skipped: $name — pwsh not on PATH; cross-port behavioral consistency is verified in CI (GATES_FORCE_PROBE=1)"
+    fi
+    return 0
+  fi
   out_a=$(bash "$sh_test" 2>&1); rc_a=$?
   out_b=$(pwsh -NoProfile -File "$ps_test" 2>&1); rc_b=$?
   (( rc_a != 0 )) && side+='sh'
@@ -160,6 +182,12 @@ write_manifest() { # <root>
 collect_state() { # <root>
   local root=$1 name rec_sh rec_ps have drifted key probe
   discover_pairs "$root"
+
+  # The env knob's closed set is {unset, 1}: any other value is a
+  # misconfiguration and fails loud naming it (AGENTS.md rule 4).
+  if [[ -n ${GATES_FORCE_PROBE:-} && $GATES_FORCE_PROBE != 1 ]]; then
+    pairs_violation "GATES_FORCE_PROBE=\"$GATES_FORCE_PROBE\": unknown value — the closed set is 1 (unset means no force)"
+  fi
 
   local manifest="$root/$MANIFEST_REL"
   [[ -f $manifest ]] || { pairs_violation "$MANIFEST_REL: manifest missing — run --write and commit it"; return 0; }
