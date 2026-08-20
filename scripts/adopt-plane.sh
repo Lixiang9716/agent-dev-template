@@ -131,8 +131,9 @@ scaffold() { # <dir>
     printf 'adopt-plane scaffold\n' > "$dir/.adopt-plane-provenance" \
       || scaffold_fail "$dir" 'cannot write provenance marker'
 
-    # Drop the adopt-plane.test entry and the adopt-plane probe from the
-    # copied manifest: the excluded test files are their only referents.
+    # Drop the adopt-plane.test entry plus the adopt-plane probe and heavy
+    # marks from the copied manifest: the excluded test files are their only
+    # referents.
     # One line is buffered so that dropping the probe line (the entry's last
     # field) can also strip the dangling comma it leaves behind.
     manifest=$dir/scripts/script-pairs.json
@@ -143,7 +144,7 @@ scaffold() { # <dir>
         in_test { next }
         $0 == "  \"adopt-plane\": {" { in_plane = 1 }
         in_plane && ($0 == "  }," || $0 == "  }") { in_plane = 0 }
-        in_plane && $0 ~ /^    "probe": / {
+        in_plane && ($0 ~ /^    "probe": / || $0 ~ /^    "heavy": /) {
           if (pending ~ /,$/) pending = substr(pending, 1, length(pending) - 1)
           next
         }

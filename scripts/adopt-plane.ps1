@@ -144,8 +144,9 @@ function New-Scaffold([string]$dir) {
     # cannot be destroyed by a mistyped -Verify.
     [IO.File]::WriteAllText((Join-Path $dir '.adopt-plane-provenance'), "adopt-plane scaffold`n", (New-Object System.Text.UTF8Encoding($false)))
 
-    # Drop the adopt-plane.test entry and the adopt-plane probe from the
-    # copied manifest: the excluded test files are their only referents.
+    # Drop the adopt-plane.test entry plus the adopt-plane probe and heavy
+    # marks from the copied manifest: the excluded test files are their only
+    # referents.
     # Dropping the probe line (the entry's last field) also strips the
     # dangling comma it leaves on the preceding line.
     $manifest = Join-Path $dir 'scripts/script-pairs.json'
@@ -162,7 +163,7 @@ function New-Scaffold([string]$dir) {
         }
         if ($line -ceq '  "adopt-plane": {') { $inPlane = $true }
         if ($inPlane -and ($line -ceq '  },' -or $line -ceq '  }')) { $inPlane = $false }
-        if ($inPlane -and $line -match '^    "probe": ') {
+        if ($inPlane -and ($line -match '^    "probe": ' -or $line -match '^    "heavy": ')) {
           if ($out[$out.Count - 1].EndsWith(',')) {
             $out[$out.Count - 1] = $out[$out.Count - 1].Substring(0, $out[$out.Count - 1].Length - 1)
           }

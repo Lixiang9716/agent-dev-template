@@ -104,10 +104,17 @@ twin_compare() { # <raw-a> <raw-b>
 }
 
 # Run one pair's behavioral probe and compare both sides after normalization.
-run_probe() { # <root> <name>
-  local root=$1 name=$2 sh_test ps_test out_a out_b rc_a rc_b side=''
+run_probe() { # <root> <name> <heavy>
+  local root=$1 name=$2 heavy=$3 sh_test ps_test out_a out_b rc_a rc_b side=''
   sh_test="$root/scripts/$name.test.sh"
   ps_test="$root/scripts/$name.test.ps1"
+  # Light mode skips a heavy pair's probe loudly — the heavy lane is owned by
+  # the 12-hour scheduled CI job, and pushes touching the heavy channel force
+  # it on that leg.
+  if [[ $heavy == true && -z ${GATES_FORCE_HEAVY:-} ]]; then
+    echo "probe skipped: $name — heavy pair; GATES_FORCE_HEAVY=1 forces it in scheduled CI"
+    return 0
+  fi
   if [[ ! -f $sh_test || ! -f $ps_test ]]; then
     pairs_violation "$name: probe \"test\" requires $name.test.sh and $name.test.ps1"
     return 0
@@ -154,8 +161,8 @@ blob_hash() { # <abs-path>
 }
 
 # Write the manifest from current reality (sorted pairs, current hashes).
-# A surviving pair's probe setting is preserved: --write refreshes hashes,
-# never silently drops behavioral configuration.
+# A surviving pair's probe and heavy settings are preserved: --write
+# refreshes hashes, never silently drops behavioral configuration.
 write_manifest() { # <root>
   local root=$1 name i=0
   discover_pairs "$root"
@@ -170,6 +177,9 @@ write_manifest() { # <root>
       if json_get "\$.$name.probe" 2>/dev/null; then
         printf ',\n    "probe": "%s"' "$REPLY"
       fi
+      if json_get "\$.$name.heavy" 2>/dev/null; then
+        printf ',\n    "heavy": %s' "$REPLY"
+      fi
       printf '\n  }'
       (( ++i < ${#PAIR_NAMES[@]} )) && printf ',' || true
       printf '\n'
@@ -180,13 +190,16 @@ write_manifest() { # <root>
 
 # Verify the manifest under $1 against current reality.
 collect_state() { # <root>
-  local root=$1 name rec_sh rec_ps have drifted key probe
+  local root=$1 name rec_sh rec_ps have drifted key probe heavy
   discover_pairs "$root"
 
-  # The env knob's closed set is {unset, 1}: any other value is a
+  # The env knobs' closed sets are {unset, 1}: any other value is a
   # misconfiguration and fails loud naming it (AGENTS.md rule 4).
   if [[ -n ${GATES_FORCE_PROBE:-} && $GATES_FORCE_PROBE != 1 ]]; then
     pairs_violation "GATES_FORCE_PROBE=\"$GATES_FORCE_PROBE\": unknown value — the closed set is 1 (unset means no force)"
+  fi
+  if [[ ${GATES_FORCE_HEAVY+x} == x && $GATES_FORCE_HEAVY != 1 ]]; then
+    pairs_violation "GATES_FORCE_HEAVY=\"$GATES_FORCE_HEAVY\": unknown value — the closed set is {unset, 1} (unset means light)"
   fi
 
   local manifest="$root/$MANIFEST_REL"
@@ -194,10 +207,14 @@ collect_state() { # <root>
   json_parse "$(<"$manifest")" || { pairs_violation "$MANIFEST_REL: $JSON_ERROR"; return 0; }
 
   for name in "${PAIR_NAMES[@]}"; do
-    rec_sh='' rec_ps='' probe='' have=0
+    rec_sh='' rec_ps='' probe='' heavy='' have=0
     if json_get "\$.$name.sh" 2>/dev/null; then rec_sh=$REPLY; have=1; fi
     json_get "\$.$name.pwsh" 2>/dev/null && rec_ps=$REPLY
     json_get "\$.$name.probe" 2>/dev/null && probe=$REPLY
+    if json_type "\$.$name.heavy" 2>/dev/null; then
+      [[ $REPLY == bool ]] || { pairs_violation "$name: \"heavy\" must be a boolean"; continue; }
+      json_get "\$.$name.heavy"; heavy=$REPLY
+    fi
     if [[ -n $probe && $probe != test ]]; then
       pairs_violation "$name: unknown probe verb \"$probe\"; the closed set is test"
       continue
@@ -212,7 +229,7 @@ collect_state() { # <root>
     if (( ${#drifted[@]} > 0 )); then
       pairs_violation "$name: ${drifted[*]} side edited since the last confirmed state — re-confirm with --write in the same change, or revert"
     fi
-    [[ -n $probe ]] && run_probe "$root" "$name"
+    [[ -n $probe ]] && run_probe "$root" "$name" "$heavy"
   done
 
   # Stale entries: manifest names with no pair on disk.
@@ -223,6 +240,12 @@ collect_state() { # <root>
       [[ $key == "$name" ]] && { found=1; break; }
     done
     (( found )) || pairs_violation "$key: manifest entry has no pair on disk — refresh with --write"
+    # A heavy mark is load-bearing in every mode: its twin files must exist,
+    # so a deleted heavy suite is a named failure, never a silent skip.
+    if json_get "\$.$key.heavy" 2>/dev/null && [[ $REPLY == true ]]; then
+      [[ -f $root/scripts/$key.sh ]] || pairs_violation "$key: heavy pair's bash twin is missing — the heavy lane cannot run it"
+      [[ -f $root/scripts/$key.ps1 ]] || pairs_violation "$key: heavy pair's pwsh twin is missing — the heavy lane cannot run it"
+    fi
   done
 }
 
@@ -243,7 +266,7 @@ pairs_main() { # <args...>
     return 1
   fi
   local n
-  for n in "${PROBE_NOTICES[@]}"; do
+  for n in ${PROBE_NOTICES[@]+"${PROBE_NOTICES[@]}"}; do
     printf 'verify-script-pairs: notice: %s\n' "$n"
   done
   echo 'verify-script-pairs: every twin pair confirmed at recorded contents.'

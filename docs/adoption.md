@@ -45,8 +45,7 @@ bash scripts/change-scope.sh --base main  # the smallest sufficient check set
 # make your first real change, record it as an Agent Note, and:
 bash scripts/verify-translation-pairing.sh --write README.md   # after any doc edit
 git add -A && git commit                  # pre-commit runs the local gates
+GATES_FORCE_HEAVY=1 bash scripts/gates.sh --mode all   # the full adoption proof (CI runs it every 12h)
 ```
 
-Then open the first PR. Pre-push runs the quick mode; CI runs the full matrix on four OS legs. `scripts/adopt-plane.sh` re-runs this whole route on a copy of your repository — keep it green and the day-one story stays true.
-
-Pushing over SSH, GitHub closes a connection that sits idle while the pre-push hook runs; once the adoption suite is in, quick mode takes minutes, so push with `GIT_SSH_COMMAND='ssh -o ServerAliveInterval=60'` set, or use an https remote.
+Then open the first PR. Pre-push runs the quick mode; CI runs the light lane on every push and the heavy lane every 12 hours on a schedule. `scripts/adopt-plane.sh` re-runs this whole route on a copy of your repository — keep it green and the day-one story stays true. Local hooks stay light; only a manual heavy run takes long enough that an SSH push may need `GIT_SSH_COMMAND='ssh -o ServerAliveInterval=60'`.

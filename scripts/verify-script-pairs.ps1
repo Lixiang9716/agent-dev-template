@@ -115,9 +115,16 @@ function Compare-TwinOutputs([string]$rawA, [string]$rawB) {
 # Loudly-skipped probes (cross interpreter absent, no force) are recorded in
 # $script:ProbeSkips — one line per probed pair, never a violation; a forced
 # probe (GATES_FORCE_PROBE=1) on such a host fails loud naming the pair.
-function Invoke-PairProbe([string]$root, [string]$name, $violations) {
+# Light mode skips a heavy pair's probe loudly — the heavy lane is owned by
+# the 12-hour scheduled CI job, and pushes touching the heavy channel force
+# it on that leg.
+function Invoke-PairProbe([string]$root, [string]$name, [string]$heavy, $violations) {
   $shTest = Join-Path $root "scripts/$name.test.sh"
   $psTest = Join-Path $root "scripts/$name.test.ps1"
+  if ($heavy -eq 'true' -and -not $env:GATES_FORCE_HEAVY) {
+    $script:ProbeSkips.Add("probe skipped: ${name} — heavy pair; GATES_FORCE_HEAVY=1 forces it in scheduled CI")
+    return
+  }
   if (-not (Test-Path -LiteralPath $shTest) -or -not (Test-Path -LiteralPath $psTest)) {
     $violations.Add("${name}: probe `"test`" requires $name.test.sh and $name.test.ps1")
     return
@@ -163,10 +170,13 @@ function Get-ScriptPairViolations([string]$root = $script:Root) {
   $script:ProbeNotices = [System.Collections.Generic.List[string]]::new()
   $script:ProbeSkips = [System.Collections.Generic.List[string]]::new()
 
-  # The env knob's closed set is {unset, 1}: any other value is a
+  # The env knobs' closed sets are {unset, 1}: any other value is a
   # misconfiguration and fails loud naming it (AGENTS.md rule 4).
   if ($env:GATES_FORCE_PROBE -and $env:GATES_FORCE_PROBE -ne '1') {
     $violations.Add("GATES_FORCE_PROBE=`"$($env:GATES_FORCE_PROBE)`": unknown value — the closed set is 1 (unset means no force)")
+  }
+  if ($null -ne $env:GATES_FORCE_HEAVY -and $env:GATES_FORCE_HEAVY -ne '1') {
+    $violations.Add("GATES_FORCE_HEAVY=`"$($env:GATES_FORCE_HEAVY)`": unknown value — the closed set is {unset, 1} (unset means light)")
   }
   $pairs = @(Get-ScriptPairNames $root)
   $manifestPath = Join-Path $root 'scripts/script-pairs.json'
@@ -191,6 +201,14 @@ function Get-ScriptPairViolations([string]$root = $script:Root) {
     $entry = $manifest[$name]
     $probe = ''
     if ($entry -is [hashtable] -and $entry.ContainsKey('probe')) { $probe = [string]$entry['probe'] }
+    $heavy = ''
+    if ($entry -is [hashtable] -and $entry.ContainsKey('heavy')) {
+      if ($entry['heavy'] -isnot [bool]) {
+        $violations.Add("${name}: `"heavy`" must be a boolean")
+        continue
+      }
+      if ($entry['heavy']) { $heavy = 'true' }
+    }
     if ($probe -and $probe -ne 'test') {
       $violations.Add("${name}: unknown probe verb `"$probe`"; the closed set is test")
       continue
@@ -201,13 +219,24 @@ function Get-ScriptPairViolations([string]$root = $script:Root) {
     if ($drifted.Count -gt 0) {
       $violations.Add("${name}: $($drifted -join ' ') side edited since the last confirmed state — re-confirm with --write in the same change, or revert")
     }
-    if ($probe) { Invoke-PairProbe $root $name $violations }
+    if ($probe) { Invoke-PairProbe $root $name $heavy $violations }
   }
 
   # Stale entries: manifest names with no pair on disk.
   foreach ($key in @($manifest.Keys)) {
     if ($pairs -notcontains $key) {
       $violations.Add("${key}: manifest entry has no pair on disk — refresh with --write")
+    }
+    # A heavy mark is load-bearing in every mode: its twin files must exist,
+    # so a deleted heavy suite is a named failure, never a silent skip.
+    $entry = $manifest[$key]
+    if ($entry -is [hashtable] -and $entry.ContainsKey('heavy') -and $entry['heavy'] -eq $true) {
+      if (-not (Test-Path -LiteralPath (Join-Path $root "scripts/$key.sh"))) {
+        $violations.Add("${key}: heavy pair's bash twin is missing — the heavy lane cannot run it")
+      }
+      if (-not (Test-Path -LiteralPath (Join-Path $root "scripts/$key.ps1"))) {
+        $violations.Add("${key}: heavy pair's pwsh twin is missing — the heavy lane cannot run it")
+      }
     }
   }
 
@@ -216,8 +245,8 @@ function Get-ScriptPairViolations([string]$root = $script:Root) {
 
 # Write the manifest from current reality — byte-identical with the bash
 # port: sorted names, 2-space JSON, LF newlines. A surviving pair's probe
-# setting is preserved: -Write refreshes hashes, never silently drops
-# behavioral configuration.
+# and heavy settings are preserved: -Write refreshes hashes, never silently
+# drops behavioral configuration.
 function Write-ScriptPairManifest([string]$root = $script:Root) {
   $pairs = @(Get-ScriptPairNames $root)
   $old = @{}
@@ -233,6 +262,9 @@ function Write-ScriptPairManifest([string]$root = $script:Root) {
     [void]$sb.Append("  `"$($pairs[$i])`": {`n    `"sh`": `"$sh`",`n    `"pwsh`": `"$ps`"")
     if ($old.ContainsKey($pairs[$i]) -and $old[$pairs[$i]] -is [hashtable] -and $old[$pairs[$i]].ContainsKey('probe')) {
       [void]$sb.Append(",`n    `"probe`": `"$($old[$pairs[$i]]['probe'])`"")
+    }
+    if ($old.ContainsKey($pairs[$i]) -and $old[$pairs[$i]] -is [hashtable] -and $old[$pairs[$i]].ContainsKey('heavy')) {
+      if ($old[$pairs[$i]]['heavy']) { [void]$sb.Append(",`n    `"heavy`": true") } else { [void]$sb.Append(",`n    `"heavy`": false") }
     }
     [void]$sb.Append("`n  }")
     if ($i -lt $pairs.Count - 1) { [void]$sb.Append(',') }

@@ -13,6 +13,7 @@ $ErrorActionPreference = 'Stop'
 # explicitly, so an ambient value (CI sets 1) must not leak into the
 # manifest tests below.
 $env:GATES_FORCE_PROBE = $null
+$env:GATES_FORCE_HEAVY = $null
 
 # Create a temp repo with one confirmed pair (alpha) in scripts/.
 $script:Tree = $null
@@ -213,6 +214,68 @@ if (Test-BashAvailable) {
 } else {
   Probe-Skip 'write re-confirms a probed pair cleanly'
 }
+Remove-Item -Recurse -Force $tree
+
+# --- heavy/light lane -----------------------------------------------------------
+
+# A fixture probed pair with both entries marked heavy.
+function New-HeavyProbeTree {
+  New-PairTree
+  [IO.File]::WriteAllText("$script:Tree/scripts/alpha.test.sh", "#!/usr/bin/env bash`nprintf `"3 check(s), 0 failed\\n`"`n")
+  [IO.File]::WriteAllText("$script:Tree/scripts/alpha.test.ps1", "#!/usr/bin/env pwsh`nWrite-Output `"3 check(s), 0 failed`"`n")
+  $shA = (& git -C $script:Tree hash-object "$script:Tree/scripts/alpha.sh").Trim()
+  $psA = (& git -C $script:Tree hash-object "$script:Tree/scripts/alpha.ps1").Trim()
+  $shT = (& git -C $script:Tree hash-object "$script:Tree/scripts/alpha.test.sh").Trim()
+  $psT = (& git -C $script:Tree hash-object "$script:Tree/scripts/alpha.test.ps1").Trim()
+  [IO.File]::WriteAllText("$script:Tree/scripts/script-pairs.json",
+    "{`n  `"alpha`": {`n    `"sh`": `"$shA`",`n    `"pwsh`": `"$psA`",`n    `"probe`": `"test`",`n    `"heavy`": true`n  },`n  `"alpha.test`": {`n    `"sh`": `"$shT`",`n    `"pwsh`": `"$psT`",`n    `"heavy`": true`n  }`n}`n")
+}
+
+# Light mode: a heavy pair's probe is loudly skipped — one exact line, no
+# violation — and the pair stays hash-confirmed.
+New-HeavyProbeTree
+[void](Get-ViolationsText $script:Tree)
+$text = $script:ProbeSkips -join "`n"
+Expect-Eq 'light mode skips the heavy probe with one exact line' $text 'probe skipped: alpha — heavy pair; GATES_FORCE_HEAVY=1 forces it in scheduled CI'
+Remove-Item -Recurse -Force $script:Tree
+
+# Heavy mode: the heavy probe executes and its twin outputs must match.
+New-HeavyProbeTree
+$tree = $script:Tree
+if (Get-Command bash -ErrorAction SilentlyContinue) {
+  $env:GATES_FORCE_HEAVY = '1'
+  $text = Get-ViolationsText $tree
+  $env:GATES_FORCE_HEAVY = $null
+  Expect-Eq 'heavy mode runs the heavy probe cleanly' $text ''
+} else {
+  Probe-Skip 'heavy mode runs the heavy probe cleanly'
+}
+Remove-Item -Recurse -Force $tree
+
+# GATES_FORCE_HEAVY has a closed set: {unset, 1} with is-set semantics — an
+# unknown value and the empty string both fail loud naming the value
+# (AGENTS.md rule 4).
+New-HeavyProbeTree
+$tree = $script:Tree
+$env:GATES_FORCE_HEAVY = 'banana'
+$text = Get-ViolationsText $tree
+$env:GATES_FORCE_HEAVY = $null
+Expect-Contains 'an unknown GATES_FORCE_HEAVY value fails loud' $text 'GATES_FORCE_HEAVY="banana": unknown value — the closed set is {unset, 1}'
+Remove-Item -Recurse -Force $tree
+New-HeavyProbeTree
+$tree = $script:Tree
+$env:GATES_FORCE_HEAVY = ''
+$text = Get-ViolationsText $tree
+$env:GATES_FORCE_HEAVY = $null
+Expect-Contains 'an empty GATES_FORCE_HEAVY value fails loud' $text 'GATES_FORCE_HEAVY="": unknown value — the closed set is {unset, 1}'
+Remove-Item -Recurse -Force $tree
+
+# -Write preserves a surviving pair's heavy setting.
+New-HeavyProbeTree
+$tree = $script:Tree
+[IO.File]::WriteAllText("$tree/scripts/alpha.ps1", "#!/usr/bin/env pwsh`necho gamma`n")
+[void](Write-ScriptPairManifest $tree)
+Expect-Contains 'write preserves the heavy setting' ([IO.File]::ReadAllText("$tree/scripts/script-pairs.json")) '"heavy": true'
 Remove-Item -Recurse -Force $tree
 
 Complete-TestSuite

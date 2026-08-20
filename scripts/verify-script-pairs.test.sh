@@ -14,6 +14,7 @@ source scripts/verify-script-pairs.sh 2>/dev/null
 # explicitly, so an ambient value (CI sets 1) must not leak into the
 # manifest tests below.
 unset GATES_FORCE_PROBE
+unset GATES_FORCE_HEAVY
 
 # Create a temp repo with one confirmed pair (alpha) in scripts/.
 new_tree() {
@@ -229,6 +230,64 @@ if command -v pwsh >/dev/null 2>&1; then
 else
   probe_skip 'write re-confirms a probed pair cleanly'
 fi
+rm -rf "$tree"
+
+# --- heavy/light lane -----------------------------------------------------------
+
+# A fixture probed pair with both entries marked heavy.
+fixture_heavy_probe_tree() {
+  new_tree
+  printf '#!/usr/bin/env bash\nprintf "3 check(s), 0 failed\\n"\n' > "$REPLY_TREE/scripts/alpha.test.sh"
+  printf '#!/usr/bin/env pwsh\nWrite-Output "3 check(s), 0 failed"\n' > "$REPLY_TREE/scripts/alpha.test.ps1"
+  printf '{\n  "alpha": {\n    "sh": "%s",\n    "pwsh": "%s",\n    "probe": "test",\n    "heavy": true\n  },\n  "alpha.test": {\n    "sh": "%s",\n    "pwsh": "%s",\n    "heavy": true\n  }\n}\n' \
+    "$(git -C "$REPLY_TREE" hash-object "$REPLY_TREE/scripts/alpha.sh")" \
+    "$(git -C "$REPLY_TREE" hash-object "$REPLY_TREE/scripts/alpha.ps1")" \
+    "$(git -C "$REPLY_TREE" hash-object "$REPLY_TREE/scripts/alpha.test.sh")" \
+    "$(git -C "$REPLY_TREE" hash-object "$REPLY_TREE/scripts/alpha.test.ps1")" > "$REPLY_TREE/scripts/script-pairs.json"
+}
+
+# Light mode: a heavy pair's probe is loudly skipped — one exact line, no
+# violation — and the pair stays hash-confirmed.
+fixture_heavy_probe_tree
+tree=$REPLY_TREE
+out=$(violations_of "$tree")
+expect_eq 'light mode skips the heavy probe with one exact line' \
+  "$out" 'probe skipped: alpha — heavy pair; GATES_FORCE_HEAVY=1 forces it in scheduled CI'
+rm -rf "$tree"
+
+# Heavy mode: the heavy probe executes and its twin outputs must match.
+fixture_heavy_probe_tree
+tree=$REPLY_TREE
+if command -v pwsh >/dev/null 2>&1; then
+  out=$(GATES_FORCE_HEAVY=1 violations_of "$tree")
+  expect_eq 'heavy mode runs the heavy probe cleanly' "$out" ''
+else
+  probe_skip 'heavy mode runs the heavy probe cleanly'
+fi
+rm -rf "$tree"
+
+# GATES_FORCE_HEAVY has a closed set: {unset, 1} with is-set semantics — an
+# unknown value and the empty string both fail loud naming the value
+# (AGENTS.md rule 4).
+fixture_heavy_probe_tree
+tree=$REPLY_TREE
+out=$(GATES_FORCE_HEAVY=banana violations_of "$tree")
+expect_contains 'an unknown GATES_FORCE_HEAVY value fails loud' \
+  "$out" 'GATES_FORCE_HEAVY="banana": unknown value — the closed set is {unset, 1}'
+rm -rf "$tree"
+fixture_heavy_probe_tree
+tree=$REPLY_TREE
+out=$(GATES_FORCE_HEAVY='' violations_of "$tree")
+expect_contains 'an empty GATES_FORCE_HEAVY value fails loud' \
+  "$out" 'GATES_FORCE_HEAVY="": unknown value — the closed set is {unset, 1}'
+rm -rf "$tree"
+
+# --write preserves a surviving pair's heavy setting.
+fixture_heavy_probe_tree
+tree=$REPLY_TREE
+printf '#!/usr/bin/env pwsh\necho gamma\n' > "$tree/scripts/alpha.ps1"
+write_manifest "$tree" >/dev/null 2>&1
+expect_contains 'write preserves the heavy setting' "$(cat "$tree/scripts/script-pairs.json")" '"heavy": true'
 rm -rf "$tree"
 
 t_done

@@ -45,8 +45,7 @@ bash scripts/change-scope.sh --base main  # the smallest sufficient check set
 # make your first real change, record it as an Agent Note, and:
 bash scripts/verify-translation-pairing.sh --write README.md   # after any doc edit
 git add -A && git commit                  # pre-commit runs the local gates
+GATES_FORCE_HEAVY=1 bash scripts/gates.sh --mode all   # the full adoption proof (CI runs it every 12h)
 ```
 
-然后打开第一个 PR。Pre-push 运行 quick 模式;CI 在四个操作系统腿上运行完整矩阵。`scripts/adopt-plane.sh` 会在你仓库的一份副本上重跑整条路线——保持它全绿,第一天故事就始终为真。
-
-通过 SSH 推送时,pre-push 钩子运行期间连接若长时间空闲会被 GitHub 关闭;本模板的 quick 模式在加入采纳套件后需要几分钟,因此推送时请设置 `GIT_SSH_COMMAND='ssh -o ServerAliveInterval=60'`,或改用 https 远程。
+然后打开第一个 PR。Pre-push 运行 quick 模式;CI 在每次 push 上跑轻通道,每 12 小时按计划跑重通道。`scripts/adopt-plane.sh` 会在你仓库的一份副本上重跑整条路线——保持它全绿,第一天故事就始终为真。本地钩子保持轻;只有手动重跑耗时长到 SSH push 可能需要 `GIT_SSH_COMMAND='ssh -o ServerAliveInterval=60'`。
