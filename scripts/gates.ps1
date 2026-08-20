@@ -211,13 +211,18 @@ function Get-SignalName([int]$code) {
   return "SIG$n"
 }
 
-# Print one settled outcome (passes stay silent unless GATE_VERBOSE=1).
+# Print one settled outcome (passes stay silent unless GATE_VERBOSE=1; a
+# passing gate that emitted loud skip lines surfaces them — a skipped probe
+# is degraded verification and must never look like full coverage).
 function Show-GateResult([string]$id) {
   $gate = $script:Gates[$id]
   $result = $script:Results[$id]
   $secs = [Math]::Round($result.DurationMs / 1000, 2).ToString('F2', [Globalization.CultureInfo]::InvariantCulture)
   if ($result.Status -eq 'passed') {
     if ($env:GATE_VERBOSE -eq '1') { Write-Output "gates: PASS $($gate.Label) (${secs}s)" }
+    foreach ($line in @($result.Output -split "`n")) {
+      if ($line.IndexOf('skipped:', [StringComparison]::Ordinal) -ge 0) { Write-Output $line }
+    }
     return
   }
   $upper = $result.Status.ToUpperInvariant()

@@ -234,9 +234,10 @@ now_ms() {
 
 # --- test assertions for scripts/*.test.sh -----------------------------------
 # A test file sources lib.sh, registers checks, and ends with t_done, which
-# exits non-zero when any check failed. Checks print only failures.
+# exits non-zero when any check failed. Checks print only failures; skips
+# print a visible "skipped:" line and never fail the suite.
 
-T_FAILED=0 T_TOTAL=0
+T_FAILED=0 T_TOTAL=0 T_SKIPPED=0
 
 _fail() { T_FAILED=$(( T_FAILED + 1 )); printf 'FAIL %s\n' "$1" >&2; }
 
@@ -255,7 +256,19 @@ expect_status() { # <description> <expected-status> <actual-status>
   [[ $3 == "$2" ]] || _fail "$1: expected status $2, got $3"
 }
 
+# Count one loudly-skipped check — a visible non-check (e.g. a probe test
+# whose cross interpreter is absent), never a failure.
+expect_skip() { # <description>
+  T_TOTAL=$(( T_TOTAL + 1 ))
+  T_SKIPPED=$(( T_SKIPPED + 1 ))
+  printf 'skipped: %s\n' "$1" >&2
+}
+
 t_done() {
-  printf '%d check(s), %d failed\n' "$T_TOTAL" "$T_FAILED" >&2
+  if (( T_SKIPPED > 0 )); then
+    printf '%d check(s), %d failed, %d skipped\n' "$T_TOTAL" "$T_FAILED" "$T_SKIPPED" >&2
+  else
+    printf '%d check(s), %d failed\n' "$T_TOTAL" "$T_FAILED" >&2
+  fi
   (( T_FAILED == 0 ))
 }

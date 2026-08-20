@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 A language-agnostic template repository for agent-driven development: the governance plane that lets coding agents work fast in parallel while machines, not vigilance, hold the quality line.
 
-The template ships the governance plane only. It never prescribes your programming language, test framework, or package manager — your toolchain plugs in as command slots in `gates.json`. Every script ships as two equivalent ports, bash (`scripts/*.sh`, bash >= 5) and PowerShell (`scripts/*.ps1`, pwsh 7+): run whichever your host already has; no extra runtime, no install step.
+The template ships the governance plane only. It never prescribes your programming language, test framework, or package manager — your toolchain plugs in as command slots in `gates.json`. Every script ships as two equivalent ports, bash (`scripts/*.sh`, bash >= 5) and PowerShell (`scripts/*.ps1`, pwsh 7+): run whichever your host already has; no extra runtime, no install step. Pair probes run when the twin interpreter exists, skip loudly otherwise; CI forces them.
 
 ## The agent development mode
 

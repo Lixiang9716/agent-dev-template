@@ -10,6 +10,13 @@ on:
 
 jobs:
   gates:
+    # The pair gate's probes are availability-aware: locally, a bash-only or
+    # pwsh-only host loudly skips cross-interpreter probes, so a single
+    # interpreter passes every local gate. CI owns exhaustiveness (AGENTS.md
+    # rule 9), so every leg forces the probe lane — a leg whose cross
+    # interpreter is missing fails loud instead of skipping.
+    env:
+      GATES_FORCE_PROBE: '1'
     strategy:
       fail-fast: false
       matrix:
