@@ -28,6 +28,16 @@ A rejected note adds the reason on the Status line: `Status: rejected — <why>`
 
 `## Alternatives considered` is mandatory in every lifecycle: a decision recorded without what it beat invites re-litigation — the exact failure Agent Notes exist to prevent.
 
+## Entry disciplines
+
+Beyond the required sections, a note may carry structured entries. The verifier enforces these mechanically; the rules bind only the entries that are present, so notes written before this section was added are untouched. A claim/open entry is its bullet plus the consecutive two-space sub-bullets that follow it:
+
+- **Claim** — `- Claim: <text>` names a statement the note asserts; it must carry sub-bullets `  - verifier: <who checked it>`, `  - coverage: <what it covers>`, and `  - goal-link: <which Goal or Core it serves>`. A claim without its named verifier is a downgraded claim.
+- **Open** — `- Open: <question>` records an unresolved question; it must carry a sub-bullet `  - settled-by: <how it will be settled>`. An open question without a settlement path is a trap for the next reader.
+- **not-refuted** — a statement carrying the status `not-refuted` must name its sampling in the same paragraph (blank-line or heading delimited): `rate:`, `schedule:`, and `reviewer:` — inline (`not-refuted (rate: weekly, schedule: fridays, reviewer: oracle-a)`) or as sub-bullets. A not-refuted claim with no sample is a silent assertion.
+
+All field values must be non-empty. The entry markers are the exact forms `- Claim: `, `- Open: `, and the literal text `not-refuted`; a note that merely discusses the discipline without asserting it should avoid those forms.
+
 ## When to write one
 
 Every non-trivial change adds or updates at least one note in the same PR. When a note is fully superseded, the successor absorbs its unique rationale and links back, then the old note archives. There is no `INDEX.md`; the tree layout is the index.

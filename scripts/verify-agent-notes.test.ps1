@@ -111,10 +111,120 @@ Expect-Contains 'INDEX.md is rejected wherever it appears' (Get-ViolationsText $
 Remove-Item -Recurse -Force $script:Tree
 
 # The archived tree is never re-validated here.
-New-NotesTree 'implemented' 'process' '2026-01-01-x.md' $validImplemented
+New-NotesTree 'implemented' 'process' '2026-01-01-valid-note.md' $validImplemented
 New-Item -ItemType Directory -Path (Join-Path $script:Tree 'archived') -Force | Out-Null
 [IO.File]::WriteAllText((Join-Path $script:Tree 'archived/anything.md'), "not a note`n")
 Expect-Eq 'the archived tree is never re-validated' (Get-ViolationsText $script:Tree) ''
+Remove-Item -Recurse -Force $script:Tree
+
+# --- entry discipline ---------------------------------------------------------
+
+# An implemented note with a trailing extra section (claims/open/sampling).
+function New-NoteWith([string]$extra) {
+  return "$validImplemented`n$extra"
+}
+
+# A well-formed Claim entry passes.
+$body = New-NoteWith @'
+## Claims
+
+- Claim: the gate rejects every banned form.
+  - verifier: scripts/verify-vocabulary.test.sh
+  - coverage: en and zh families, all exemptions
+  - goal-link: invariant-3 (declaration-state vocabulary)
+'@
+New-NotesTree 'implemented' 'process' '2026-01-01-x.md' $body
+Expect-Eq 'a well-formed Claim entry passes' (Get-ViolationsText $script:Tree) ''
+Remove-Item -Recurse -Force $script:Tree
+
+# A Claim entry missing verifier is rejected naming the field.
+$body = New-NoteWith @'
+## Claims
+
+- Claim: the gate rejects every banned form.
+  - coverage: en and zh families
+  - goal-link: invariant-3
+'@
+New-NotesTree 'implemented' 'process' '2026-01-01-x.md' $body
+Expect-Contains 'Claim missing verifier is rejected' (Get-ViolationsText $script:Tree) 'Claim entry "Claim: the gate rejects every banned form." missing sub-bullet(s): verifier'
+Remove-Item -Recurse -Force $script:Tree
+
+# A Claim entry missing coverage and goal-link is rejected naming both.
+$body = New-NoteWith @'
+## Claims
+
+- Claim: the gate rejects every banned form.
+  - verifier: scripts/verify-vocabulary.test.sh
+'@
+New-NotesTree 'implemented' 'process' '2026-01-01-x.md' $body
+Expect-Contains 'Claim missing coverage and goal-link is rejected' (Get-ViolationsText $script:Tree) 'missing sub-bullet(s): coverage goal-link'
+Remove-Item -Recurse -Force $script:Tree
+
+# An Open entry without settled-by is rejected.
+$body = New-NoteWith @'
+## Open
+
+- Open: why is the window six characters?
+'@
+New-NotesTree 'implemented' 'process' '2026-01-01-x.md' $body
+Expect-Contains 'Open entry without settled-by is rejected' (Get-ViolationsText $script:Tree) 'Open entry "Open: why is the window six characters?" missing sub-bullet(s): settled-by'
+Remove-Item -Recurse -Force $script:Tree
+
+# An Open entry with settled-by passes.
+$body = New-NoteWith @'
+## Open
+
+- Open: why is the window six characters?
+  - settled-by: the next revision cycle
+'@
+New-NotesTree 'implemented' 'process' '2026-01-01-x.md' $body
+Expect-Eq 'an Open entry with settled-by passes' (Get-ViolationsText $script:Tree) ''
+Remove-Item -Recurse -Force $script:Tree
+
+# A not-refuted statement without sampling fields is rejected naming all three.
+$body = New-NoteWith @'
+## Verification
+
+- Status: not-refuted for now.
+'@
+New-NotesTree 'implemented' 'process' '2026-01-01-x.md' $body
+Expect-Contains 'not-refuted without sampling is rejected' (Get-ViolationsText $script:Tree) 'statement containing "not-refuted" missing sampling field(s) in its paragraph: rate schedule reviewer'
+Remove-Item -Recurse -Force $script:Tree
+
+# A not-refuted statement with inline sampling passes.
+$body = New-NoteWith @'
+## Verification
+
+- Status: not-refuted (rate: weekly, schedule: fridays, reviewer: oracle-a).
+'@
+New-NotesTree 'implemented' 'process' '2026-01-01-x.md' $body
+Expect-Eq 'not-refuted with inline sampling passes' (Get-ViolationsText $script:Tree) ''
+Remove-Item -Recurse -Force $script:Tree
+
+# A not-refuted statement with sampling sub-bullets passes.
+$body = New-NoteWith @'
+## Verification
+
+- Status: not-refuted.
+  - rate: 0.2
+  - schedule: weekly
+  - reviewer: oracle-a
+'@
+New-NotesTree 'implemented' 'process' '2026-01-01-x.md' $body
+Expect-Eq 'not-refuted with sampling sub-bullets passes' (Get-ViolationsText $script:Tree) ''
+Remove-Item -Recurse -Force $script:Tree
+
+# An empty sub-bullet value does not satisfy the requirement.
+$body = New-NoteWith @'
+## Claims
+
+- Claim: the gate rejects every banned form.
+  - verifier:
+  - coverage: en and zh families
+  - goal-link: invariant-3
+'@
+New-NotesTree 'implemented' 'process' '2026-01-01-x.md' $body
+Expect-Contains 'an empty sub-bullet value is still missing' (Get-ViolationsText $script:Tree) 'missing sub-bullet(s): verifier'
 Remove-Item -Recurse -Force $script:Tree
 
 Complete-TestSuite

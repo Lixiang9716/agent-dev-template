@@ -24,7 +24,7 @@
     "pwsh": "04d544a8697533e86b5497a4cdb6b1bbe916e48e"
   },
   "lib": {
-    "sh": "02a7178385f5323e752f1bb9d58eb5ce2b437708",
+    "sh": "d12d8d582d4095683d1a68b83832b1e5426c9f1d",
     "pwsh": "05bf8b960e1ff4564412a0da3012635a8ee8276b"
   },
   "self-test": {
@@ -36,12 +36,13 @@
     "pwsh": "3314ee2b202b25855fcebaa239e3ff13ceadeb61"
   },
   "verify-agent-notes": {
-    "sh": "218641f6d6da467860aca76fd601643fdf02bf11",
-    "pwsh": "cb3d54d3c08ce7274b9c2861432832300f73ab62"
+    "sh": "4b61f33bc4905763f5e4c150ddf13f56f90580cc",
+    "pwsh": "9fe27398e2f00f454d4fe090ecbb86ca790eba34",
+    "probe": "test"
   },
   "verify-agent-notes.test": {
-    "sh": "b778f45d93ebe8c45599d03469e77a65d1092c53",
-    "pwsh": "048ad21c4c66ab2f732fc19b206851221f4ecb26"
+    "sh": "54453dfca6b587aae2fcc1580b2304205637cdba",
+    "pwsh": "ee077944c11f0ad801e97737672e1ca7970b4b92"
   },
   "verify-doc-budgets": {
     "sh": "96d61dd10e843285c7e16bbaf02ff95bdda3021a",
@@ -56,12 +57,12 @@
     "pwsh": "4a775f3235b28994fb9d33a8c00eb6a33348cdda"
   },
   "verify-script-pairs": {
-    "sh": "5a7146942c2bef1bb39fa77c21a58579008f4fd0",
-    "pwsh": "537dc86c706bf45c5cef0fb9a1fdd1316960e1c0"
+    "sh": "4a7edf85df675b65d62249a50dab2b9dfca78083",
+    "pwsh": "18137c8030403c20eb8bf1dc9f717cc9f5e6f008"
   },
   "verify-script-pairs.test": {
-    "sh": "40eeebd14488106fc39e634bfab4ae3bb0bcdbef",
-    "pwsh": "d731c1393f7d8daf39c77e1828b06b439628017a"
+    "sh": "912166c294e109db3dbaa234166361ffb312012e",
+    "pwsh": "264c1a6642a0b86fd7998c777a469daef002bdb4"
   },
   "verify-translation-pairing": {
     "sh": "d01ad51415359d0e760a568ef8a36615a4c5b907",
@@ -70,5 +71,14 @@
   "verify-translation-pairing.test": {
     "sh": "111c33fa2e452b8aadb6c790317122ddd32a03d9",
     "pwsh": "56c8eb2a1b3913043d60804757f94c55ecc63dd7"
+  },
+  "verify-vocabulary": {
+    "sh": "67da5004f205b5ed589033b1c644e056e1252f46",
+    "pwsh": "8999c940024f8bd3c6c8fa8457f13c1a81646171",
+    "probe": "test"
+  },
+  "verify-vocabulary.test": {
+    "sh": "b0f7eea96c6e7d2aa1248f33bb4e3a0937cf3376",
+    "pwsh": "294b27f8d547e99dfa23d67fd924a36d2b6392c0"
   }
 }

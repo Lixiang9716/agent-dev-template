@@ -4,8 +4,10 @@
 # Hooks stay fast: pre-commit runs the staged-relevant checks in seconds;
 # CI owns the exhaustive matrix (bash + pwsh ports). Hooks run under git's
 # bundled sh and invoke the bash port of the governance scripts; the pwsh
-# twins are equivalent and run in CI. Re-run after moving the repository,
-# because the merge driver path is baked in absolute form.
+# twins are equivalent and run in CI. The pair gate's behavioral probes run
+# both shells, so pre-commit needs pwsh on PATH for probed pairs. Re-run
+# after moving the repository, because the merge driver path is baked in
+# absolute form.
 
 set -e
 root=$(cd "$(dirname "$0")/.." && pwd)

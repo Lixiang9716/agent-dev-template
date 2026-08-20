@@ -4,11 +4,11 @@ English | [中文](architecture.zh.md)
 
 The template separates two planes. The governance plane — gates, notes, pairing, scope — is language-agnostic machinery that operates on git, Markdown, and JSON. The product plane is your code in any language; it connects only through command slots in `gates.json`.
 
-Every governance script ships as two equivalent ports: a bash twin (`scripts/*.sh`, bash >= 5) and a PowerShell twin (`scripts/*.ps1`, pwsh 7+). Both read the same `gates.json` and produce the same vocabulary; CI runs both. Twin pairs confirm together: `scripts/script-pairs.json` pins each side's blob hash, and a drifted pair fails the gate until re-confirmed with `--write` in the same change — the re-confirm is the explicit "the twin was considered" acknowledgment. A gate slot is either a plain command array (identical on both shells) or per-shell variants, and a variant object must name every shell in the closed set — a missing variant aborts rather than silently skipping on that platform.
+Every governance script ships as two equivalent ports: a bash twin (`scripts/*.sh`, bash >= 5) and a PowerShell twin (`scripts/*.ps1`, pwsh 7+). Both read the same `gates.json` and produce the same vocabulary; CI runs both. Twin pairs confirm together: `scripts/script-pairs.json` pins each side's blob hash, and a drifted pair fails the gate until a fresh `--write` re-confirms both sides in the same change — the re-confirm is the explicit "the twin was considered" acknowledgment. A gate slot is either a plain command array (identical on both shells) or per-shell variants, and a variant object must name every shell in the closed set — a missing variant aborts rather than silently skipping on that platform.
 
 ## The gate scheduler
 
-`scripts/gates.sh --mode <name>` (pwsh: `scripts/gates.ps1 -Mode <name>`) reads `gates.json` and runs one mode (`all|quick|docs`). Gates form a DAG through `needs`: a gate starts once every dependency passed; a failed dependency marks dependents skipped with the cause instead of running them. The whole config is validated before any child process starts — duplicate ids, unknown needs, and cycles abort with the offending names. `allowFailure: true` keeps a gate's failure out of the blocking set for observational lanes.
+`scripts/gates.sh --mode <name>` (pwsh: `scripts/gates.ps1 -Mode <name>`) reads `gates.json` and runs one mode (`all|quick|docs`). Gates form a DAG through `needs`: a gate starts once every dependency passed; a failed dependency marks dependents skipped with the cause instead of running them. The whole config is checked before any child process starts — duplicate ids, unknown needs, and cycles abort with the offending names. `allowFailure: true` keeps a gate's failure out of the blocking set for observational lanes.
 
 Concurrency defaults to the CPU count and can be capped with `GATE_CONCURRENCY`. Output is captured per gate: passing gates stay silent (set `GATE_VERBOSE=1` to see them), failing gates print command, outcome, and output.
 
@@ -33,3 +33,7 @@ The governance plane is a floor, not a ceiling: derived projects extend it with 
 | A new fact needs a home | pick its tier first ([tiers.md](tiers.md)), land it once |
 
 Closed sets (note classes, lifecycles) grow by deliberate acts that update the verifier and the notes README together. Word budgets bound the growth: adding a home means feeding it a ceiling.
+
+## Checkpoint discipline
+
+Long-running work keeps a numbered, append-only checkpoint record. Every checkpoint entry carries a verifier (who checked it), a coverage scope (what it covers), and a goal-link (which Goal or Core it serves). Numbering is sequential 1..N and never edited or renumbered; recovery resumes from the highest-numbered entry with an intact chain, and an entry whose chain is broken is not a restore point.

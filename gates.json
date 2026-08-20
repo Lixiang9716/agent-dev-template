@@ -7,7 +7,8 @@
       "archive",
       "pairing",
       "budgets",
-      "links"
+      "links",
+      "vocabulary"
     ],
     "quick": [
       "self-test",
@@ -18,7 +19,8 @@
       "archive",
       "pairing",
       "budgets",
-      "links"
+      "links",
+      "vocabulary"
     ]
   },
   "gates": [
@@ -127,6 +129,21 @@
           "pwsh",
           "-File",
           "scripts/verify-script-pairs.ps1"
+        ]
+      }
+    },
+    {
+      "id": "vocabulary",
+      "label": "declaration-state vocabulary",
+      "command": {
+        "sh": [
+          "bash",
+          "scripts/verify-vocabulary.sh"
+        ],
+        "pwsh": [
+          "pwsh",
+          "-File",
+          "scripts/verify-vocabulary.ps1"
         ]
       }
     }

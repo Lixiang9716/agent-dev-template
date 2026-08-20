@@ -17,6 +17,7 @@ A short review with one substantiated blocker beats a list of nits. Machines alr
 - **Guardrail proof**: for every new gate or assertion, is there a test proving it rejects an invalid case? A guard that has never failed is decoration.
 - **Docs standing at HEAD**: no change narration, no citations of drafts or sessions, no reviewer-addressed justification in prose.
 - **Pairing honesty**: if a `.zh.md` changed, its sidecar must be re-recorded in the same PR; "I will translate later" fails the pair gate and the PR.
+- **Vocabulary**: changes touching the scanned docs surface (AGENTS.md, AGENTS.zh.md, docs/*.md) must clear the declaration-state vocabulary gate; a new claim word there is a blocker, and the pre-registered exemption ladder (meta-annotation, ban-definition sentence, backtick reference) is the only way in — a doc that defines the ban may say the word, a doc that asserts may not.
 - **Silent skips**: any new code path that ignores an unknown value instead of failing loud is a blocker regardless of convenience.
 - **Budgets**: a ceiling raised in `scripts/doc-budgets.json` needs an argued reason in the PR description, not just a number bump.
 

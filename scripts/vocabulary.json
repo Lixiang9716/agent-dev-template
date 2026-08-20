@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "scan": [
+    "AGENTS.md",
+    "AGENTS.zh.md",
+    "docs/*.md"
+  ],
+  "banned": {
+    "en": [
+      "verified",
+      "confirmed",
+      "proven",
+      "certified",
+      "validated",
+      "corroborated"
+    ],
+    "zh": [
+      "已验证",
+      "已证实",
+      "已确认",
+      "被证实",
+      "已经验证",
+      "经过验证",
+      "验证通过",
+      "确认无误",
+      "确证有效",
+      "已证明",
+      "经证实",
+      "经验证",
+      "核查通过",
+      "已核验",
+      "证实有效",
+      "确认有效"
+    ]
+  },
+  "metaWhitelist": [
+    "验证状态",
+    "已验证状态",
+    "已证实状态",
+    "已确认状态",
+    "verification status",
+    "confirmation status"
+  ],
+  "definitionMarkers": [
+    "禁用",
+    "禁止",
+    "禁令",
+    "禁词",
+    "禁用词",
+    "门禁",
+    "严禁",
+    "ban",
+    "banned",
+    "forbid",
+    "forbidden",
+    "prohibit",
+    "prohibited",
+    "bar"
+  ],
+  "definitionWindow": 6
+}
