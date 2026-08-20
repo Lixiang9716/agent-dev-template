@@ -1,9 +1,10 @@
 {
-  "README.md": 481,
+  "README.md": 510,
   "AGENTS.md": 800,
   "docs/architecture.md": 700,
   "docs/tiers.md": 400,
   "docs/defensive-patterns.md": 241,
   "docs/postmortem/README.md": 350,
-  "docs/i18n/README.md": 400
+  "docs/i18n/README.md": 400,
+  "docs/adoption.md": 650
 }

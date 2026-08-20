@@ -48,6 +48,10 @@ winget install --id Microsoft.PowerShell   # Windows
 brew install powershell                    # macOS
 ```
 
+## 第一天
+
+第一天路线:[docs/adoption.md](docs/adoption.zh.md) —— 平面给你什么、要校准什么、以及到第一次 pull request 的步骤。
+
 ## 接入你的工具链
 
 `gates.json` 把每个门禁声明为一个命令槽位。一个 Go 项目可以加:

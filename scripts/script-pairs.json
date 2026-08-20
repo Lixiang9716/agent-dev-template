@@ -1,4 +1,13 @@
 {
+  "adopt-plane": {
+    "sh": "55a570fc8c63c79526f910d2f5544fe29ca51fce",
+    "pwsh": "66027cb01fade7f0b5dd80de2a8e8fd181fb840e",
+    "probe": "test"
+  },
+  "adopt-plane.test": {
+    "sh": "78ee8a579f6168cfbb2a59b753f001c257eea67d",
+    "pwsh": "8b61a7fe961bb021edc0aee4eee31036edf3d334"
+  },
   "archive-agent-notes": {
     "sh": "bee7b560f260e31f99b24ec1a204766c1db2947f",
     "pwsh": "09b1c05e12ac21d01c37343cae702d8758129cee"
@@ -20,7 +29,7 @@
     "pwsh": "ffc00dd5a7081e63f00293f567ee465d08ae62c8"
   },
   "gates.test": {
-    "sh": "0ff29760372bba16a277c6752f11e7c1b374b992",
+    "sh": "e813ed7447242380c8a934e3c95fc93b350a5c48",
     "pwsh": "d6e7cb7e9ec68f4922cbd992630ad0d66ded1622"
   },
   "lib": {

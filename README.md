@@ -48,6 +48,10 @@ winget install --id Microsoft.PowerShell   # Windows
 brew install powershell                    # macOS
 ```
 
+## First day
+
+The day-one route: [docs/adoption.md](docs/adoption.md) — what the plane gives you, what to calibrate, and the steps to your first pull request.
+
 ## Adding your toolchain
 
 `gates.json` declares each gate as a command slot. A Go project might add:

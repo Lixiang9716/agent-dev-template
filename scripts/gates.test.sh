@@ -124,8 +124,7 @@ if result_blocking self-kill; then expect_eq 'signal kill blocking' blocking blo
 # A mode selecting a gate whose needs are unselected fails loud, not silently.
 gates_validate '{"modes":{"all":["a","b"],"lonely":["b"]},"gates":[{"id":"a","command":["true"]},{"id":"b","command":["true"],"needs":["a"]}]}' || exit 1
 G_SELECTED=(b)
-out=$(run_gates 1 2>&1)
-rm -rf "$GATE_TMPDIR"
+out=$(trap 'rm -rf "$GATE_TMPDIR"' EXIT; run_gates 1 2>&1)
 expect_contains 'unselected dependency stalls loud' "$out" 'validated graph stalled without a failed dependency'
 
 # A passing gate that emitted a loud skip surfaces the skip line — a skipped
@@ -133,15 +132,13 @@ expect_contains 'unselected dependency stalls loud' "$out" 'validated graph stal
 # (AGENTS.md rule 4).
 gates_validate "$(cfg '"skippy"' '{"id":"skippy","command":["bash","-c","echo \"probe skipped: alpha — pwsh not on PATH; cross-port behavioral consistency is verified in CI (GATES_FORCE_PROBE=1)\""]}')" || exit 1
 G_SELECTED=(skippy)
-GATE_VERBOSE=0 out=$(run_gates 1 2>&1)
-rm -rf "$GATE_TMPDIR"
+GATE_VERBOSE=0 out=$(trap 'rm -rf "$GATE_TMPDIR"' EXIT; run_gates 1 2>&1)
 expect_contains 'a passing gate surfaces its probe skip line' "$out" 'probe skipped: alpha — pwsh not on PATH'
 
 # A passing gate without skip lines stays silent apart from its start line.
 gates_validate "$(cfg '"quiet"' '{"id":"quiet","command":["echo","plain output"]}')" || exit 1
 G_SELECTED=(quiet)
-GATE_VERBOSE=0 out=$(run_gates 1 2>&1)
-rm -rf "$GATE_TMPDIR"
+GATE_VERBOSE=0 out=$(trap 'rm -rf "$GATE_TMPDIR"' EXIT; run_gates 1 2>&1)
 expect_eq 'a passing gate without skips stays silent' "$out" 'gates: start quiet'
 
 t_done
