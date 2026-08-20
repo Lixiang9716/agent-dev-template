@@ -48,3 +48,5 @@ git add -A && git commit                  # pre-commit runs the local gates
 ```
 
 Then open the first PR. Pre-push runs the quick mode; CI runs the full matrix on four OS legs. `scripts/adopt-plane.sh` re-runs this whole route on a copy of your repository — keep it green and the day-one story stays true.
+
+Pushing over SSH, GitHub closes a connection that sits idle while the pre-push hook runs; once the adoption suite is in, quick mode takes minutes, so push with `GIT_SSH_COMMAND='ssh -o ServerAliveInterval=60'` set, or use an https remote.
