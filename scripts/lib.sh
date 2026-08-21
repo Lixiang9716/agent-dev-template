@@ -226,10 +226,16 @@ sha256_of() {
   else echo 'lib: no sha256 hasher found (need sha256sum or shasum)' >&2; return 1; fi
 }
 
-# Wall-clock milliseconds since the epoch (bash >= 5).
+# Wall-clock milliseconds since the epoch (EPOCHREALTIME on bash >= 5; the
+# seconds-resolution fallback keeps macOS's bash 3.2 usable for timing).
 now_ms() {
-  local us=${EPOCHREALTIME/./}
-  REPLY=$(( us / 1000 ))
+  local us
+  if [[ -n ${EPOCHREALTIME:-} ]]; then
+    us=${EPOCHREALTIME/./}
+    REPLY=$(( us / 1000 ))
+  else
+    REPLY=$(( $(date +%s) * 1000 ))
+  fi
 }
 
 # --- test assertions for scripts/*.test.sh -----------------------------------

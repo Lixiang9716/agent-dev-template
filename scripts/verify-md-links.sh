@@ -10,7 +10,7 @@
 LC_ALL=C
 set -u
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-shopt -s globstar nullglob
+shopt -s nullglob
 
 MDLINKS_VIOLATIONS=()
 mdlinks_violation() { MDLINKS_VIOLATIONS+=("$1"); }
@@ -24,6 +24,7 @@ strip_fences() { # <text>
 # definition targets (`[label]: target` lines).
 extract_all_targets() { # <text>
   local rest=$1 target line
+  local ref_re='^[[:space:]]*\[[^]]+\]:[[:space:]]*([^[:space:]]+)'
   while [[ $rest == *']('* ]]; do
     rest=${rest#*']('}
     [[ $rest == *')'* ]] || break
@@ -32,7 +33,7 @@ extract_all_targets() { # <text>
     rest=${rest#*')'}
   done
   while IFS= read -r line; do
-    [[ $line =~ ^[[:space:]]*\[[^]]+\]:[[:space:]]*([^[:space:]]+) ]] \
+    [[ $line =~ $ref_re ]] \
       && printf '%s\n' "${BASH_REMATCH[1]}"
   done <<< "$1"
 }
@@ -40,9 +41,8 @@ extract_all_targets() { # <text>
 # GitHub-style heading slug: lowercase, spaces to hyphens, ASCII punctuation
 # dropped, non-ASCII (CJK) preserved.
 slugify() { # <heading-text>
-  local s=${1,,} out='' i c
-  s=${s%%}
-  s=$(sed 's/[[:space:]]*$//' <<< "$s")
+  local s out='' i c
+  s=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]]*$//')
   for (( i = 0; i < ${#s}; i++ )); do
     c=${s:i:1}
     if [[ $c == ' ' ]]; then out+='-'
@@ -55,19 +55,23 @@ slugify() { # <heading-text>
 
 # All heading slugs of one text, deduplicated GitHub-style (second -1, third -2).
 heading_slugs() { # <text> — sets REPLY_SLUGS
-  local line slug
-  declare -A seen=()
+  local line slug orig count i
+  local head_re='^#{1,6}[[:space:]]+(.*)$'
+  local seen=()
   REPLY_SLUGS=''
   while IFS= read -r line; do
-    [[ $line =~ ^#{1,6}[[:space:]]+(.*)$ ]] || continue
+    [[ $line =~ $head_re ]] || continue
     slug=$(slugify "${BASH_REMATCH[1]}")
     [[ -n $slug ]] || continue
-    if [[ -n ${seen[$slug]+x} ]]; then
-      seen[$slug]=$(( ${seen[$slug]} + 1 ))
-      slug="$slug-${seen[$slug]}"
-    else
-      seen[$slug]=0
+    orig=$slug
+    count=0
+    for (( i = 0; i < ${#seen[@]}; i++ )); do
+      [[ ${seen[i]} == "$slug" ]] && (( count++ ))
+    done
+    if (( count > 0 )); then
+      slug="$slug-$count"
     fi
+    seen+=("$orig")
     REPLY_SLUGS+="$slug"$'\n'
   done <<< "$1"
 }
@@ -77,11 +81,11 @@ collect_violations() { # <root>
   local root=${1:-$ROOT} f text target path anchor base target_abs rel
   MDLINKS_VIOLATIONS=()
   local files=()
-  for f in "$root"/*.md "$root"/docs/**/*.md "$root"/.agents/**/*.md; do
+  while IFS= read -r f; do
     [[ -f $f ]] || continue
     [[ $f == "$root"/.agents/notes/archived/* ]] && continue
     files+=("${f#"$root"/}")
-  done
+  done < <(find "$root" -type f -name '*.md' 2>/dev/null | sort)
   for f in "${files[@]}"; do
     text=$(strip_fences "$(<"$root/$f")")
     while IFS= read -r target; do

@@ -12,7 +12,11 @@
 # per-shell variants and must name every shell in the closed set (sh, pwsh) —
 # a missing variant aborts instead of silently skipping on that platform.
 #
-# Zero runtime dependencies beyond bash >= 5. See docs/architecture.md.
+# bash 3.2 compatibility is load-bearing: the macOS hooks dispatch to the
+# system bash (3.2), so no associative arrays, no mapfile, no ${var,,}, and
+# every empty-array expansion is guarded. Gate properties live in parallel
+# indexed arrays keyed by each gate's position in G_IDS. Zero runtime
+# dependencies beyond bash >= 3.2. See docs/architecture.md.
 
 LC_ALL=C
 set -u
@@ -25,6 +29,68 @@ US=$'\x01' # argv/needs separator; control characters in ids or commands abort v
 
 # Die with a message on stderr.
 gates_die() { printf 'gates: %s\n' "$1" >&2; exit 1; }
+
+# Index of gate $1 in G_IDS; REPLY=index, status 1 when absent.
+gates_index() { # <id>
+  local id=$1 i
+  for (( i = 0; i < ${#G_IDS[@]}; i++ )); do
+    [[ ${G_IDS[i]} == "$id" ]] && { REPLY=$i; return 0; }
+  done
+  return 1
+}
+
+gates_has_id() { gates_index "$1" >/dev/null 2>&1; }
+gates_label() { gates_index "$1" && printf '%s' "${G_LABELS[$REPLY]}"; }
+gates_needs() { gates_index "$1" && printf '%s' "${G_NEEDS[$REPLY]}"; }
+gates_cmd() { gates_index "$1" && printf '%s' "${G_CMDS[$REPLY]}"; }
+gates_allow() { gates_index "$1" && printf '%s' "${G_ALLOWS[$REPLY]}"; }
+
+gates_mode_exists() { # <mode>
+  local mode=$1 i
+  for (( i = 0; i < ${#G_MODE_NAMES[@]}; i++ )); do
+    [[ ${G_MODE_NAMES[i]} == "$mode" ]] && return 0
+  done
+  return 1
+}
+
+# The US-separated gate id list of mode $1.
+gates_mode_ids() { # <mode>
+  local mode=$1 i
+  for (( i = 0; i < ${#G_MODE_NAMES[@]}; i++ )); do
+    if [[ ${G_MODE_NAMES[i]} == "$mode" ]]; then
+      printf '%s' "${G_MODE_IDS[i]}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Split $1 on the US separator into SPLIT_PARTS. read -ra with a
+# control-character IFS does not split on bash 3.2 (macOS), so the decode is
+# done by hand.
+us_split() { # <string>
+  local rest=$1 part
+  SPLIT_PARTS=()
+  [[ -n $rest ]] || return 0
+  while [[ $rest == *$US* ]]; do
+    part=${rest%%$US*}
+    SPLIT_PARTS+=("$part")
+    rest=${rest#*$US}
+  done
+  SPLIT_PARTS+=("$rest")
+}
+
+# --- runtime state (parallel to G_IDS) -----------------------------------------
+r_status() { gates_index "$1" && printf '%s' "${R_STATUS[$REPLY]:-}"; }
+r_settled() { gates_index "$1" && [[ -n ${R_STATUS[$REPLY]:-} ]]; }
+r_reason() { gates_index "$1" && printf '%s' "${R_REASON[$REPLY]:-}"; }
+r_dur() { gates_index "$1" && printf '%s' "${R_DUR[$REPLY]:-}"; }
+r_out() { gates_index "$1" && printf '%s' "${R_OUT[$REPLY]:-}"; }
+r_set() { # <id> <status> <reason>
+  gates_index "$1" || return 1
+  R_STATUS[$REPLY]=$2
+  R_REASON[$REPLY]=$3
+}
 
 # --- config validation --------------------------------------------------------
 
@@ -87,8 +153,8 @@ gates_validate() { # <json text>
   json_type '$.modes' || gates_die 'invalid gates.json: modes must be an object mapping mode names to gate id arrays'
   [[ $REPLY == object ]] || gates_die 'invalid gates.json: modes must be an object mapping mode names to gate id arrays'
 
-  G_IDS=()
-  declare -gA G_MODES=() G_LABEL=() G_ALLOW=() G_NEEDS=() G_CMD=()
+  G_IDS=() G_LABELS=() G_ALLOWS=() G_NEEDS=() G_CMDS=()
+  G_MODE_NAMES=() G_MODE_IDS=()
 
   for (( i = 0; i < n; i++ )); do
     local gp="$.gates[$i]"
@@ -100,7 +166,7 @@ gates_validate() { # <json text>
     json_get "$gp.id"; gid=$REPLY
     [[ -n $gid ]] || gates_die 'invalid gates.json: gate id must be a non-empty string'
     [[ $gid == *$US* ]] && gates_die "invalid gates.json: gate id \"$gid\" must not contain control characters"
-    [[ -z ${G_LABEL[$gid]+x} ]] || gates_die "invalid gates.json: duplicate gate id \"$gid\""
+    gates_has_id "$gid" && gates_die "invalid gates.json: duplicate gate id \"$gid\""
 
     label=$gid
     if json_type "$gp.label" && [[ $REPLY == string ]]; then
@@ -130,14 +196,18 @@ gates_validate() { # <json text>
       json_get "$gp.allowFailure"; allow=$REPLY
     fi
 
-    G_LABEL[$gid]=$label G_ALLOW[$gid]=$allow G_NEEDS[$gid]=$needs_str G_CMD[$gid]=$CMD_ARGV
     G_IDS+=("$gid")
+    G_LABELS+=("$label")
+    G_ALLOWS+=("$allow")
+    G_NEEDS+=("$needs_str")
+    G_CMDS+=("$CMD_ARGV")
   done
 
   for gid in "${G_IDS[@]}"; do
-    IFS=$US read -ra deps <<< "${G_NEEDS[$gid]}"
-    for dep in "${deps[@]}"; do
-      [[ -n ${G_LABEL[$dep]+x} ]] || gates_die "invalid gates.json: gate \"$gid\" depends on unknown gate \"$dep\""
+    us_split "$(gates_needs "$gid")"
+    deps=("${SPLIT_PARTS[@]+"${SPLIT_PARTS[@]}"}")
+    for dep in "${deps[@]+"${deps[@]}"}"; do
+      gates_has_id "$dep" || gates_die "invalid gates.json: gate \"$gid\" depends on unknown gate \"$dep\""
     done
   done
 
@@ -154,33 +224,41 @@ gates_validate() { # <json text>
       json_type "\$.modes.$mode[$j]" || gates_die "invalid gates.json: mode \"$mode\" must be a non-empty array of known gate ids"
       [[ $REPLY == string ]] || gates_die "invalid gates.json: mode \"$mode\" must be a non-empty array of known gate ids"
       json_get "\$.modes.$mode[$j]"
-      [[ -n ${G_LABEL[$REPLY]+x} ]] || gates_die "invalid gates.json: mode \"$mode\" must be a non-empty array of known gate ids"
-      ids+=${ids:+$US}$REPLY
+      mode_gate=$REPLY
+      # gates_has_id clobbers REPLY with the gate's index; capture first.
+      gates_has_id "$mode_gate" || gates_die "invalid gates.json: mode \"$mode\" must be a non-empty array of known gate ids"
+      ids+=${ids:+$US}$mode_gate
     done
-    G_MODES[$mode]=$ids
+    G_MODE_NAMES+=("$mode")
+    G_MODE_IDS+=("$ids")
   done
-  [[ -n ${G_MODES[all]+x} ]] || gates_die 'invalid gates.json: modes must define "all"'
+  gates_mode_exists all || gates_die 'invalid gates.json: modes must define "all"'
 }
 
 # Set REPLY to the first dependency cycle as "a -> b -> a", or return 1.
 gates_find_cycle() {
   local id
-  declare -A _COLOR=()
+  _COLORS=()
   _PATH=()
   for id in "${G_IDS[@]}"; do
-    [[ ${_COLOR[$id]:-0} -eq 0 ]] || continue
+    gates_index "$id" || continue
+    [[ ${_COLORS[$REPLY]:-0} -eq 0 ]] || continue
     gates_visit "$id" && return 0
   done
   return 1
 }
 
 gates_visit() { # returns 0 when a cycle was found with REPLY set
-  local id=$1 dep i deps from out
-  _COLOR[$id]=1
+  local id=$1 dep i deps from out idx
+  gates_index "$id" || return 1
+  idx=$REPLY
+  _COLORS[$idx]=1
   _PATH+=("$id")
-  IFS=$US read -ra deps <<< "${G_NEEDS[$id]}"
-  for dep in "${deps[@]}"; do
-    case ${_COLOR[$dep]:-0} in
+  us_split "$(gates_needs "$id")"
+  deps=("${SPLIT_PARTS[@]+"${SPLIT_PARTS[@]}"}")
+  for dep in "${deps[@]+"${deps[@]}"}"; do
+    gates_index "$dep" || continue
+    case ${_COLORS[$REPLY]:-0} in
       0)
         gates_visit "$dep" && return 0
         ;;
@@ -198,7 +276,7 @@ gates_visit() { # returns 0 when a cycle was found with REPLY set
     esac
   done
   unset "_PATH[$(( ${#_PATH[@]} - 1 ))]"
-  _COLOR[$id]=2
+  _COLORS[$idx]=2
   return 1
 }
 
@@ -207,48 +285,82 @@ gates_visit() { # returns 0 when a cycle was found with REPLY set
 # Execute one gate as a real child process, capturing combined output.
 # Tests may override this to fake outcomes or check scheduling order.
 gate_execute() { # <id>
-  local id=$1 argv
-  IFS=$US read -ra argv <<< "${G_CMD[$id]}"
-  R_OUT[$id]=$GATE_TMPDIR/$id.out
-  printf 'gates: start %s\n' "${G_LABEL[$id]}"
-  ( "${argv[@]}" >"${R_OUT[$id]}" 2>&1 ) &
-  R_PID[$!]=$id
+  local id=$1 idx
+  gates_index "$id" || return 1
+  idx=$REPLY
+  us_split "$(gates_cmd "$id")"
+  argv=("${SPLIT_PARTS[@]+"${SPLIT_PARTS[@]}"}")
+  R_OUT[$idx]=$GATE_TMPDIR/$id.out
+  printf 'gates: start %s\n' "$(gates_label "$id")"
+  ( "${argv[@]}" >"${R_OUT[$idx]}" 2>&1 ) &
+  PIDS+=("$!")
+  PID_GATES+=("$idx")
   now_ms
-  A_START[$!]=$REPLY
+  PID_STARTS+=("$REPLY")
+}
+
+# Count the live children in PIDS (cleared entries never shrink the array,
+# so ${#PIDS[@]} stays stable and every loop iterates the full range).
+live_pids() {
+  local n=0 p
+  for (( p = 0; p < ${#PIDS[@]}; p++ )); do
+    [[ -n ${PIDS[p]:-} ]] && (( n++ ))
+  done
+  REPLY=$n
+}
+
+# True when $1 already has a live child in PIDS — the launch loop must
+# never start a second copy of a gate that is still running.
+gate_running() { # <id>
+  gates_index "$1" || return 1
+  local idx=$REPLY p
+  for (( p = 0; p < ${#PIDS[@]}; p++ )); do
+    [[ -n ${PIDS[p]:-} ]] || continue
+    [[ ${PID_GATES[p]:-} == "$idx" ]] && return 0
+  done
+  return 1
 }
 
 # True when every need of $1 has passed (unset needs are not passed).
 gates_ready() { # <id>
   local dep deps
-  IFS=$US read -ra deps <<< "${G_NEEDS[$1]}"
-  for dep in "${deps[@]}"; do
-    [[ ${R_STATUS[$dep]:-} == passed ]] || return 1
+  us_split "$(gates_needs "$1")"
+  deps=("${SPLIT_PARTS[@]+"${SPLIT_PARTS[@]}"}")
+  for dep in "${deps[@]+"${deps[@]}"}"; do
+    [[ $(r_status "$dep") == passed ]] || return 1
   done
   return 0
 }
 
 # A settled outcome blocks the aggregate unless allowFailure covers it.
-result_blocking() { [[ ${R_STATUS[$1]:-} != passed && ${G_ALLOW[$1]} != true ]]; }
+result_blocking() { [[ $(r_status "$1") != passed && $(gates_allow "$1") != true ]]; }
 
 # Run the selected gate list (G_SELECTED): start ready gates up to $1
 # concurrent children, settle them as they finish, and skip pending gates
 # whose dependencies did not pass.
 run_gates() { # <max-active>
-  local max=$1 id pid rc end sig running_pids reapable
-  declare -gA R_PID=() A_START=()
-  declare -gA R_STATUS=() R_REASON=() R_DUR=() R_OUT=()
+  local max=$1 id pid rc end sig running_pids reapable p gate_idx start_ms
+  PIDS=() PID_GATES=() PID_STARTS=()
+  R_STATUS=() R_REASON=() R_DUR=() R_OUT=()
   GATE_TMPDIR=$(mktemp -d)
 
   while :; do
     # Launch every pending gate whose needs passed, up to the limit.
+    live_pids
+    local live=$REPLY
     for id in "${G_SELECTED[@]}"; do
-      (( ${#R_PID[@]} >= max )) && break
-      [[ ${R_STATUS[$id]+x} ]] && continue
+      (( live >= max )) && break
+      r_settled "$id" && continue
+      gate_running "$id" && continue
       gates_ready "$id" || continue
       gate_execute "$id"
+      # The cap must track the live count as launches happen: a stale
+      # snapshot would start every ready gate in the same round.
+      live=$(( live + 1 ))
     done
 
-    if (( ${#R_PID[@]} == 0 )); then
+    live_pids
+    if (( $REPLY == 0 )); then
       gates_skip_pending
       break
     fi
@@ -258,26 +370,32 @@ run_gates() { # <max-active>
     while (( ! reapable )); do
       running_pids=$(jobs -pr)
       reapable=1
-      for pid in "${!R_PID[@]}"; do
-        grep -qx "$pid" <<< "$running_pids" && { reapable=0; break; }
+      for (( p = 0; p < ${#PIDS[@]}; p++ )); do
+        [[ -n ${PIDS[p]:-} ]] || continue
+        grep -qx "${PIDS[p]}" <<< "$running_pids" && { reapable=0; break; }
       done
       (( reapable )) || sleep 0.05
     done
-    for pid in "${!R_PID[@]}"; do
+    for (( p = 0; p < ${#PIDS[@]}; p++ )); do
+      pid=${PIDS[p]:-}
+      [[ -n $pid ]] || continue
       grep -qx "$pid" <<< "$running_pids" && continue
-      id=${R_PID[$pid]}
+      gate_idx=${PID_GATES[p]:-}
+      [[ -n $gate_idx ]] || continue
+      id=${G_IDS[gate_idx]}
       wait "$pid"; rc=$?
-      unset "R_PID[$pid]"
+      start_ms=${PID_STARTS[p]:-0}
+      PIDS[p]='' PID_GATES[p]='' PID_STARTS[p]=''
       now_ms; end=$REPLY
-      R_DUR[$id]=$(( end - A_START[$pid] ))
+      R_DUR[$gate_idx]=$(( end - start_ms ))
       if (( rc == 0 )); then
-        R_STATUS[$id]=passed R_REASON[$id]=''
+        r_set "$id" passed ''
       elif (( rc > 128 )); then
         sig=$(kill -l $(( rc - 128 )) 2>/dev/null || echo "?")
         [[ $sig == SIG* ]] || sig="SIG$sig"
-        R_STATUS[$id]=failed R_REASON[$id]="signal $sig"
+        r_set "$id" failed "signal $sig"
       else
-        R_STATUS[$id]=failed R_REASON[$id]="exit $rc"
+        r_set "$id" failed "exit $rc"
       fi
       gates_report "$id"
     done
@@ -293,23 +411,25 @@ gates_skip_pending() {
   while (( changed )); do
     changed=0
     for id in "${G_SELECTED[@]}"; do
-      [[ ${R_STATUS[$id]+x} ]] && continue
+      r_settled "$id" && continue
       failed_deps=''
-      IFS=$US read -ra deps <<< "${G_NEEDS[$id]}"
-      for dep in "${deps[@]}"; do
-        [[ ${R_STATUS[$dep]:-pending} == failed || ${R_STATUS[$dep]:-pending} == skipped ]] \
+      us_split "$(gates_needs "$id")"
+      deps=("${SPLIT_PARTS[@]+"${SPLIT_PARTS[@]}"}")
+      for dep in "${deps[@]+"${deps[@]}"}"; do
+        [[ $(r_status "$dep") == failed || $(r_status "$dep") == skipped ]] \
           && failed_deps+="${failed_deps:+, }$dep"
       done
       [[ -n $failed_deps ]] || continue
-      R_STATUS[$id]=skipped
-      R_REASON[$id]="dependency failed or skipped: $failed_deps"
-      R_DUR[$id]=0 R_OUT[$id]=''
+      r_set "$id" skipped "dependency failed or skipped: $failed_deps"
+      gates_index "$id" || continue
+      R_DUR[$REPLY]=0
+      R_OUT[$REPLY]=''
       gates_report "$id"
       changed=1
     done
   done
   for id in "${G_SELECTED[@]}"; do
-    [[ ${R_STATUS[$id]+x} ]] || gates_die 'validated graph stalled without a failed dependency'
+    r_settled "$id" || gates_die 'validated graph stalled without a failed dependency'
   done
 }
 
@@ -317,25 +437,28 @@ gates_skip_pending() {
 # passing gate that emitted loud skip lines surfaces them — a skipped probe
 # is degraded verification and must never look like full coverage).
 gates_report() { # <id>
-  local id=$1 secs argv
-  secs=$(awk -v ms="${R_DUR[$id]}" 'BEGIN { printf "%.2f", ms / 1000 }')
-  if [[ ${R_STATUS[$id]} == passed ]]; then
-    [[ ${GATE_VERBOSE:-0} == 1 ]] && printf 'gates: PASS %s (%ss)\n' "${G_LABEL[$id]}" "$secs"
-    if [[ -s ${R_OUT[$id]:-} ]] && grep -q 'skipped:' "${R_OUT[$id]}"; then
-      grep 'skipped:' "${R_OUT[$id]}"
+  local id=$1 secs argv out
+  secs=$(awk -v ms="$(r_dur "$id")" 'BEGIN { printf "%.2f", ms / 1000 }')
+  if [[ $(r_status "$id") == passed ]]; then
+    [[ ${GATE_VERBOSE:-0} == 1 ]] && printf 'gates: PASS %s (%ss)\n' "$(gates_label "$id")" "$secs"
+    out=$(r_out "$id")
+    if [[ -s $out ]] && grep -q 'skipped:' "$out"; then
+      grep 'skipped:' "$out"
     fi
     return 0
   fi
-  IFS=$US read -ra argv <<< "${G_CMD[$id]}"
-  if [[ ${R_STATUS[$id]} == failed ]]; then
-    printf '\n== FAILED %s (%ss) ==\n' "${G_LABEL[$id]}" "$secs" >&2
+  us_split "$(gates_cmd "$id")"
+  argv=("${SPLIT_PARTS[@]+"${SPLIT_PARTS[@]}"}")
+  if [[ $(r_status "$id") == failed ]]; then
+    printf '\n== FAILED %s (%ss) ==\n' "$(gates_label "$id")" "$secs" >&2
     printf 'command: %s\n' "${argv[*]}" >&2
-    printf 'outcome: %s\n' "${R_REASON[$id]:-unknown}" >&2
-    [[ -s ${R_OUT[$id]:-} ]] && cat "${R_OUT[$id]}" >&2
+    printf 'outcome: %s\n' "$(r_reason "$id")" >&2
+    out=$(r_out "$id")
+    [[ -s $out ]] && cat "$out" >&2
   else
-    printf '\n== SKIPPED %s (%ss) ==\n' "${G_LABEL[$id]}" "$secs"
+    printf '\n== SKIPPED %s (%ss) ==\n' "$(gates_label "$id")" "$secs"
     printf 'command: %s\n' "${argv[*]}"
-    printf 'outcome: %s\n' "${R_REASON[$id]:-unknown}"
+    printf 'outcome: %s\n' "$(r_reason "$id")"
   fi
 }
 
@@ -355,16 +478,15 @@ gates_main() { # <args...>
   raw=$(cat "$CONFIG_PATH" 2>/dev/null) || gates_die "cannot read gates.json"
   gates_validate "$raw"
 
-  [[ -n ${G_MODES[$mode]+x} ]] || {
+  gates_mode_exists "$mode" || {
     local known='' m
-    while IFS= read -r m; do known+=${known:+, }$m; done < <(printf '%s\n' "${!G_MODES[@]}" | sort)
+    while IFS= read -r m; do known+=${known:+, }$m; done < <(printf '%s\n' "${G_MODE_NAMES[@]}" | sort)
     gates_die "unknown mode \"$mode\"; known modes: $known"
   }
 
   G_SELECTED=()
-  # Inline IFS: a persistent IFS with a control character breaks quoted
-  # array expansions on bash 5.1, so it must never outlive this read.
-  IFS=$US read -ra G_SELECTED <<< "${G_MODES[$mode]}"
+  us_split "$(gates_mode_ids "$mode")"
+  G_SELECTED=("${SPLIT_PARTS[@]+"${SPLIT_PARTS[@]}"}")
 
   local cpu max_active
   cpu=$(getconf _NPROCESSORS_ONLN 2>/dev/null) || cpu=$(nproc 2>/dev/null) \
@@ -389,7 +511,7 @@ gates_main() { # <args...>
   local elapsed=$(( REPLY - started ))
   local passed=0 failed=0 skipped=0 id blocking=0
   for id in "${G_SELECTED[@]}"; do
-    case ${R_STATUS[$id]} in
+    case $(r_status "$id") in
       passed) (( passed++ )) ;;
       failed) (( failed++ )) ;;
       skipped) (( skipped++ )) ;;
@@ -404,8 +526,8 @@ gates_main() { # <args...>
     for id in "${G_SELECTED[@]}"; do
       result_blocking "$id" || continue
       printf '  - %s %s (%s)\n' \
-        "$([ "${R_STATUS[$id]}" = failed ] && echo FAILED || echo SKIPPED)" \
-        "${G_LABEL[$id]}" "${R_REASON[$id]:-unknown}" >&2
+        "$([ "$(r_status "$id")" = failed ] && echo FAILED || echo SKIPPED)" \
+        "$(gates_label "$id")" "$(r_reason "$id")" >&2
     done
     exit 1
   fi

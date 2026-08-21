@@ -1,7 +1,7 @@
 {
   "adopt-plane": {
-    "sh": "add5d4650090c861c0af171b97fa871bf92e2109",
-    "pwsh": "5008abfa29b9e73b8ebd90805d647964b501af98",
+    "sh": "567b70ca93501fd0d4aec245471a91941b9edf5b",
+    "pwsh": "0871e1dd8ca552199ff96922b45fa345b6500896",
     "probe": "test",
     "heavy": true
   },
@@ -11,7 +11,7 @@
     "heavy": true
   },
   "archive-agent-notes": {
-    "sh": "bee7b560f260e31f99b24ec1a204766c1db2947f",
+    "sh": "0aecc33ce91e0eb6d84113adb4008f95d10bb46f",
     "pwsh": "09b1c05e12ac21d01c37343cae702d8758129cee"
   },
   "change-scope": {
@@ -27,24 +27,24 @@
     "pwsh": "627b8cf488436be809f6cf5485ab345be33076f8"
   },
   "gates": {
-    "sh": "e75274b3009a394c202eef7bdf345718c2afcf71",
+    "sh": "a4e67a003eec83727b7bea4131ca315d8e975f70",
     "pwsh": "ffc00dd5a7081e63f00293f567ee465d08ae62c8"
   },
   "gates.test": {
-    "sh": "e813ed7447242380c8a934e3c95fc93b350a5c48",
-    "pwsh": "d6e7cb7e9ec68f4922cbd992630ad0d66ded1622"
+    "sh": "06041e74390dbc630224758cc6f49e3f75af0905",
+    "pwsh": "b096c1472a61a89c50b18ce10489bb090cf373c8"
   },
   "heavy-lane.test": {
     "sh": "73851c57d4ac9040c59be74b5c1432907df10961",
     "pwsh": "8ba28a762e4b2212b05ca4cd6202dd9d13943088"
   },
   "lib": {
-    "sh": "df2cc85cf9d9f69a3fad09bca11819e5a65fb793",
+    "sh": "6f525601c531fecd8ab2adc408f8798902316276",
     "pwsh": "789314238987375d9b24a6975d1ce7c9b8a8a0ac"
   },
   "self-test": {
     "sh": "38b12f1b49cfdc79d54d32db9c7573cab189f197",
-    "pwsh": "eedb7e7d7766a8cdd8341fd93669d289a3d758be"
+    "pwsh": "2e579f8acf1bc66de60c90ad1fab3a915e8253ea"
   },
   "translation-pairing-merge": {
     "sh": "1fd3774ffb1e9179efc73a10172a7b3fd2f3dece",
@@ -64,7 +64,7 @@
     "pwsh": "b175aaec158597e77173c5b130e33b9f63e09744"
   },
   "verify-md-links": {
-    "sh": "7cacdbe80cb81bab3d6572fac4fb78c4dd2a834e",
+    "sh": "915c5f5d286367e62b1ae481653e4714c425cd65",
     "pwsh": "d7d2d97090c4e40bc3601fff6cb8dee9edaadd1a"
   },
   "verify-md-links.test": {
@@ -73,14 +73,14 @@
   },
   "verify-script-pairs": {
     "sh": "d5b5c986bf5c18094d030871b0d4acf96cd4d1ba",
-    "pwsh": "828902293842dacc3a2b632dcc43aa33def9bef2"
+    "pwsh": "9d67d6cfb63935c5b157205bd103805718c08a4d"
   },
   "verify-script-pairs.test": {
     "sh": "c41bf8a89c89df87d1b417019bbd97004724cc4d",
     "pwsh": "6a975478eacb5b573b225ca4d8568d4f754519b0"
   },
   "verify-translation-pairing": {
-    "sh": "d01ad51415359d0e760a568ef8a36615a4c5b907",
+    "sh": "666b4402a77da9c224837d31f20152238e18c489",
     "pwsh": "ffc300e979475aa049468bc252eaaa8920a254e8"
   },
   "verify-translation-pairing.test": {
@@ -88,7 +88,7 @@
     "pwsh": "56c8eb2a1b3913043d60804757f94c55ecc63dd7"
   },
   "verify-vocabulary": {
-    "sh": "67da5004f205b5ed589033b1c644e056e1252f46",
+    "sh": "d3ca3b1ebb596a6912174eafb264112f173947f3",
     "pwsh": "8999c940024f8bd3c6c8fa8457f13c1a81646171",
     "probe": "test"
   },

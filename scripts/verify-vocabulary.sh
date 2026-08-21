@@ -113,7 +113,7 @@ in_backtick_span() { # <start> <end-minus-1>
 # (the term itself is preceded by a structural delimiter or line start).
 meta_excused() { # <line> <start> <end>
   local line=$1 s=$2 e=$3 term tpos prev
-  for term in "${META_WHITELIST[@]}"; do
+  for term in "${META_WHITELIST[@]+"${META_WHITELIST[@]}"}"; do
     tpos=0
     while :; do
       find_token "$line" "$term" "$tpos" cs || break
@@ -132,7 +132,7 @@ meta_excused() { # <line> <start> <end>
 # True when a definition marker ends within the window BEFORE the token start.
 definition_excused() { # <line> <start>
   local line=$1 s=$2 m mpos mend
-  for m in "${DEFINITION_MARKERS[@]}"; do
+  for m in "${DEFINITION_MARKERS[@]+"${DEFINITION_MARKERS[@]}"}"; do
     mpos=0
     while :; do
       find_token "$line" "$m" "$mpos" cs || break
@@ -162,7 +162,7 @@ token_excused() { # <line> <start> <end>
 # 经验证 do not double-report.
 scan_line() { # <rel> <lineno> <line>
   local rel=$1 lineno=$2 line=$3 token i start end rest cands=() c cursor ctx
-  for token in "${BANNED_EN[@]}"; do
+  for token in "${BANNED_EN[@]+"${BANNED_EN[@]}"}"; do
     i=0
     while :; do
       find_token "$line" "$token" "$i" ci || break
@@ -173,7 +173,7 @@ scan_line() { # <rel> <lineno> <line>
       i=$end
     done
   done
-  for token in "${BANNED_ZH[@]}"; do
+  for token in "${BANNED_ZH[@]+"${BANNED_ZH[@]}"}"; do
     i=0
     while :; do
       find_token "$line" "$token" "$i" ci || break
@@ -189,7 +189,7 @@ scan_line() { # <rel> <lineno> <line>
   cands=()
   while IFS= read -r c; do cands+=("$c"); done <<< "$sorted"
   cursor=0
-  for c in "${cands[@]}"; do
+  for c in "${cands[@]+"${cands[@]}"}"; do
     start=${c%%$'\t'*}
     rest=${c#*$'\t'}
     end=${rest%%$'\t'*}
@@ -218,7 +218,7 @@ scan_file() { # <rel> <abs-path>
 scan_surface() {
   local entry f matched
   shopt -s nullglob
-  for entry in "${SCAN_LIST[@]}"; do
+  for entry in "${SCAN_LIST[@]+"${SCAN_LIST[@]}"}"; do
     if [[ $entry == *'*'* ]]; then
       matched=0
       for f in "$ROOT"/$entry; do

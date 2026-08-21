@@ -9,6 +9,10 @@
 # GATES_FORCE_HEAVY=1 (closed set {unset, 1}; any other value fails loud
 # naming it) runs them. CI owns the heavy lane on a 12-hour schedule and
 # forces it on any push or PR whose diff touches the heavy channel itself.
+#
+# Every suite execution is guarded by a stage-named timeout (600 s): on
+# expiry the process tree is killed and the suite reports FAIL with the
+# partial output instead of hanging forever (Windows pipe-handle hang).
 
 param([switch]$AsLib)
 
@@ -16,6 +20,44 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $script:Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $PSScriptRoot 'lib.ps1')
+$env:GIT_TERMINAL_PROMPT = '0'
+$env:GIT_OPTIONAL_LOCKS = '0'
+
+# Run $command in $dir with a stage-named timeout; output is redirected to
+# files (never pipes — an inherited pipe handle hangs the reader on
+# Windows) and on timeout the process tree is killed and TimedOutStage is
+# set so the caller reports the FAIL with the captured output.
+function Invoke-InDirTimed([string]$dir, [string]$stage, [int]$timeoutSeconds, [string]$command, [string[]]$arguments) {
+  $script:TimedOutStage = $null
+  $outFile = Join-Path ([IO.Path]::GetTempPath()) ('st-' + $stage + '-' + [Guid]::NewGuid().ToString('N'))
+  $errFile = "$outFile.err"
+  $proc = Start-Process -FilePath $command -ArgumentList $arguments -WorkingDirectory $dir `
+    -RedirectStandardOutput $outFile -RedirectStandardError $errFile -PassThru -NoNewWindow
+  $deadline = [DateTime]::UtcNow.AddSeconds($timeoutSeconds)
+  $timedOut = $false
+  while (-not $proc.HasExited) {
+    if ([DateTime]::UtcNow -gt $deadline) { $timedOut = $true; break }
+    Start-Sleep -Milliseconds 250
+  }
+  if ($timedOut) {
+    if ($IsWindows) {
+      $null = & taskkill /PID $proc.Id /T /F 2>$null
+    } else {
+      Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+    }
+    $proc.WaitForExit()
+    $script:Captured = @("TIMEOUT after $timeoutSeconds s",
+      (Get-Content -LiteralPath $outFile -Raw -ErrorAction SilentlyContinue),
+      (Get-Content -LiteralPath $errFile -Raw -ErrorAction SilentlyContinue))
+    $script:CapturedRc = 124
+    $script:TimedOutStage = $stage
+  } else {
+    $script:Captured = @((Get-Content -LiteralPath $outFile -Raw -ErrorAction SilentlyContinue),
+      (Get-Content -LiteralPath $errFile -Raw -ErrorAction SilentlyContinue))
+    $script:CapturedRc = $proc.ExitCode
+  }
+  Remove-Item -LiteralPath $outFile, $errFile -Force -ErrorAction SilentlyContinue
+}
 
 $script:ManifestRel = 'scripts/script-pairs.json'
 
@@ -88,8 +130,14 @@ function Invoke-SelfTest {
       $skipped++
       continue
     }
-    & pwsh -NoProfile -File $t.FullName
-    if ($LASTEXITCODE -eq 0) {
+    Invoke-InDirTimed $script:Root "suite:$name" 600 'pwsh' @('-NoProfile', '-File', $t.FullName)
+    if ($script:TimedOutStage) {
+      [Console]::Error.WriteLine("self-test: FAIL $($t.Name) (timeout after 600s)")
+      [Console]::Error.WriteLine(($script:Captured -join "`n"))
+      $failed++
+      continue
+    }
+    if ($script:CapturedRc -eq 0) {
       Write-Output "self-test: PASS $($t.Name)"
     } else {
       [Console]::Error.WriteLine("self-test: FAIL $($t.Name)")

@@ -14,7 +14,7 @@
 LC_ALL=C
 set -u
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-shopt -s globstar nullglob
+shopt -s nullglob
 
 PAIRING_VIOLATIONS=()
 pairing_violation() { PAIRING_VIOLATIONS+=("$1"); }
@@ -40,18 +40,22 @@ expand_scope() { # <root>
       [[ $f == *.zh.md ]] && continue
       printf '%s\n' "${f#"$root"/}"
     done
-    for f in "$root"/docs/**/*.md; do
+    # Recursive docs scan via find: globstar is a bash 4+ option and the
+    # macOS hooks run the sh twins under bash 3.2.
+    while IFS= read -r f; do
       [[ -f $f ]] || continue
       [[ $f == *.zh.md ]] && continue
       printf '%s\n' "${f#"$root"/}"
-    done
+    done < <(find "$root/docs" -type f -name '*.md' 2>/dev/null | sort)
   } | sort
 }
 
 # Read the exact sidecar shape: pair:\n  en: <hash>\n  zh: <hash>\n.
 parse_sidecar() { # <path> — sets SIDECAR_EN / SIDECAR_ZH, or returns 1 with message in REPLY
-  local lines
-  mapfile -t lines < "$1"
+  local line lines=()
+  while IFS= read -r line || [[ -n $line ]]; do
+    lines+=("$line")
+  done < "$1"
   if (( ${#lines[@]} != 3 )) \
     || [[ ${lines[0]} != 'pair:' ]] \
     || [[ ${lines[1]} != '  en: '* ]] \
@@ -142,13 +146,17 @@ links_counterpart() { # <text> <counterpart-name>
 # Verify every pair in scope. <root> <english-side-path...>
 collect_violations() {
   local root=$1; shift
-  local sources=("$@")
+  local sources=() rel
   PAIRING_VIOLATIONS=()
-  if (( ${#sources[@]} == 0 )); then
-    mapfile -t sources < <(expand_scope "$root")
+  if (( $# == 0 )); then
+    while IFS= read -r rel; do
+      [[ -n $rel ]] && sources+=("$rel")
+    done < <(expand_scope "$root")
+  else
+    sources=("$@")
   fi
-  local rel base en_rel zh_rel sidecar_rel en_path zh_path sidecar_path missing=()
-  for rel in "${sources[@]}"; do
+  local base en_rel zh_rel sidecar_rel en_path zh_path sidecar_path missing=()
+  for rel in "${sources[@]+"${sources[@]}"}"; do
     base=${rel%.md}
     en_rel=$rel
     zh_rel=$base.zh.md

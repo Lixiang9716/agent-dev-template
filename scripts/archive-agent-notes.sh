@@ -28,11 +28,12 @@ archived_files() { # <archive-dir>
   done < <(find "$dir" -type f -name '*.md' | sort)
 }
 
-# Read manifest.json into MANIFEST_KEYS (document order); a missing or
-# unparseable manifest reads as empty — --write then seals everything.
+# The loaded seal lives in two parallel arrays (MANIFEST_KEYS and
+# MANIFEST_SHA_VALUES): associative arrays are a bash 4+ feature and the
+# macOS hooks run the sh twins under bash 3.2.
 read_manifest() {
   MANIFEST_KEYS=()
-  declare -gA MANIFEST_SHA=()
+  MANIFEST_SHA_VALUES=()
   [[ -f $MANIFEST_PATH ]] || return 0
   local raw
   raw=$(<"$MANIFEST_PATH") || return 0
@@ -40,19 +41,49 @@ read_manifest() {
   json_type '$.files' || return 0
   json_keys '$.files'
   local key
-  MANIFEST_KEYS=("${REPLY_LIST[@]}")
-  for key in "${MANIFEST_KEYS[@]}"; do
+  MANIFEST_KEYS=("${REPLY_LIST[@]+"${REPLY_LIST[@]}"}")
+  for key in "${MANIFEST_KEYS[@]+"${MANIFEST_KEYS[@]}"}"; do
     if json_get "\$.files.$key.sha256"; then
-      MANIFEST_SHA[$key]=$REPLY
+      MANIFEST_SHA_VALUES+=("$REPLY")
+    else
+      MANIFEST_SHA_VALUES+=('')
     fi
   done
+}
+
+# sha256 of $1 in the loaded manifest; status 1 when unsealed.
+manifest_sha() { # <rel>
+  local rel=$1 i
+  for (( i = 0; i < ${#MANIFEST_KEYS[@]}; i++ )); do
+    if [[ ${MANIFEST_KEYS[i]} == "$rel" ]]; then
+      REPLY=${MANIFEST_SHA_VALUES[i]}
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Record or overwrite the sha256 of $1 in the loaded manifest.
+manifest_set_sha() { # <rel> <sha256>
+  local rel=$1 digest=$2 i
+  for (( i = 0; i < ${#MANIFEST_KEYS[@]}; i++ )); do
+    if [[ ${MANIFEST_KEYS[i]} == "$rel" ]]; then
+      MANIFEST_SHA_VALUES[i]=$digest
+      return 0
+    fi
+  done
+  MANIFEST_KEYS+=("$rel")
+  MANIFEST_SHA_VALUES+=("$digest")
+  return 0
 }
 
 # Validate header shape: line 1 title, line 3 implemented status, line 4 the
 # archive date, which must not predate the filename date.
 check_header() { # <rel-path> <abs-path>
-  local rel=$1 path=$2 lines name filename_date archived_date
-  mapfile -t lines < "$path"
+  local rel=$1 path=$2 line name filename_date archived_date lines=()
+  while IFS= read -r line || [[ -n $line ]]; do
+    lines+=("$line")
+  done < "$path"
   [[ ${lines[0]-} == '# Agent Note: '* ]] \
     || archive_violation "$rel: line 1 must be \"# Agent Note: <title>\""
   [[ ${lines[2]-} == 'Status: implemented' ]] \
@@ -84,21 +115,20 @@ archive_main() { # <mode>
     [[ -n $rel ]] || continue
     sha256_of "$ARCHIVE_DIR/$rel" || return 1
     digest=$REPLY
-    if [[ -z ${MANIFEST_SHA[$rel]+x} ]]; then
+    if ! manifest_sha "$rel"; then
       if [[ $mode == write ]]; then
-        MANIFEST_SHA[$rel]=$digest
-        MANIFEST_KEYS+=("$rel")
+        manifest_set_sha "$rel" "$digest"
         sealed_new=1
         echo "archive-agent-notes: sealed $rel"
       else
         archive_violation "$rel: not sealed; run \"bash scripts/archive-agent-notes.sh --write\" and commit the manifest"
       fi
-    elif [[ ${MANIFEST_SHA[$rel]} != "$digest" ]]; then
+    elif [[ $REPLY != "$digest" ]]; then
       archive_violation "$rel: content changed after sealing; a sealed note is never edited — restore it or supersede it with a new note"
     fi
   done <<< "$files"
 
-  for rel in "${MANIFEST_KEYS[@]}"; do
+  for rel in "${MANIFEST_KEYS[@]+"${MANIFEST_KEYS[@]}"}"; do
     grep -qx "$rel" <<< "$files" \
       || archive_violation "$rel: manifest entry has no file; seals are never removed"
   done
@@ -116,8 +146,8 @@ archive_main() { # <mode>
     {
       printf '{\n  "files": {\n'
       local i=0
-      for rel in "${MANIFEST_KEYS[@]}"; do
-        printf '    "%s": {\n      "sha256": "%s"\n    }' "$rel" "${MANIFEST_SHA[$rel]}"
+      for rel in "${MANIFEST_KEYS[@]+"${MANIFEST_KEYS[@]}"}"; do
+        printf '    "%s": {\n      "sha256": "%s"\n    }' "$rel" "${MANIFEST_SHA_VALUES[i]}"
         (( ++i < ${#MANIFEST_KEYS[@]} )) && printf ',' || true
         printf '\n'
       done

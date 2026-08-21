@@ -71,7 +71,7 @@ expect_accept 'complete per-shell variants accepted' \
   "$(cfg '"a"' '{"id":"a","command":{"sh":["true"],"pwsh":["pwsh","-Version","1"]}}')"
 
 # The bash port runs the sh variant; the pwsh variant is validated, not run.
-out=$(bash -c 'source scripts/gates.sh 2>/dev/null; gates_validate "$1" && printf "%s" "${G_CMD[a]}"' _ \
+out=$(bash -c 'source scripts/gates.sh 2>/dev/null; gates_validate "$1" && printf "%s" "$(gates_cmd a)"' _ \
   "$(cfg '"a"' '{"id":"a","command":{"sh":["echo","sh-ran"],"pwsh":["echo","pwsh-ran"]}}')")
 expect_eq 'bash port selects the sh variant' "$out" $'echo\x01sh-ran'
 
@@ -85,21 +85,25 @@ gates_validate "$(cfg '"root","child","grandchild"' \
 G_SELECTED=(root child grandchild)
 run_gates 2 >/dev/null 2>&1
 rm -rf "$GATE_TMPDIR"
-expect_eq 'failing root is failed' "${R_STATUS[root]}" failed
-expect_eq 'dependent is skipped' "${R_STATUS[child]}" skipped
-expect_eq 'skip reason names the dependency' "${R_REASON[child]}" 'dependency failed or skipped: root'
-expect_eq 'transitive dependent is skipped' "${R_STATUS[grandchild]}" skipped
+expect_eq 'failing root is failed' "$(r_status root)" failed
+expect_eq 'dependent is skipped' "$(r_status child)" skipped
+expect_eq 'skip reason names the dependency' "$(r_reason child)" 'dependency failed or skipped: root'
+expect_eq 'transitive dependent is skipped' "$(r_status grandchild)" skipped
 
 # A dependent gate runs only after its dependency passes (absolute marker).
 dir=$(mktemp -d)
-gates_validate "$(cfg '"produce","consume"' \
+# The config is captured in a variable first: bash 3.2's parser mangles the
+# \"-escaped JSON when a double-quoted command substitution is nested inside
+# another double-quoted argument (the macOS hooks run this suite under 3.2).
+cfgout=$(cfg '"produce","consume"' \
   "{\"id\":\"produce\",\"command\":[\"bash\",\"-c\",\"touch $dir/marker\"]},
-   {\"id\":\"consume\",\"command\":[\"bash\",\"-c\",\"test -f $dir/marker\"],\"needs\":[\"produce\"]}")" || exit 1
+   {\"id\":\"consume\",\"command\":[\"bash\",\"-c\",\"test -f $dir/marker\"],\"needs\":[\"produce\"]}")
+gates_validate "$cfgout" || exit 1
 G_SELECTED=(produce consume)
 run_gates 4 >/dev/null 2>&1
 rm -rf "$GATE_TMPDIR"
-expect_eq 'producer passed' "${R_STATUS[produce]}" passed
-expect_eq 'consumer passed after producer' "${R_STATUS[consume]}" passed
+expect_eq 'producer passed' "$(r_status produce)" passed
+expect_eq 'consumer passed after producer' "$(r_status consume)" passed
 rm -rf "$dir"
 
 # allowFailure keeps a failed gate out of the blocking set.
@@ -108,7 +112,7 @@ gates_validate "$(cfg '"observational"' \
 G_SELECTED=(observational)
 run_gates 1 >/dev/null 2>&1
 rm -rf "$GATE_TMPDIR"
-expect_eq 'observational gate still fails' "${R_STATUS[observational]}" failed
+expect_eq 'observational gate still fails' "$(r_status observational)" failed
 if result_blocking observational; then expect_eq 'allowFailure not blocking' 'blocking' 'not blocking'; else expect_eq 'allowFailure not blocking' ok ok; fi
 
 # A signal kill is reported with the signal fact.
@@ -117,8 +121,8 @@ gates_validate "$(cfg '"self-kill"' \
 G_SELECTED=(self-kill)
 run_gates 1 >/dev/null 2>&1
 rm -rf "$GATE_TMPDIR"
-expect_eq 'signal kill is failed' "${R_STATUS[self-kill]}" failed
-expect_eq 'signal reason names SIGKILL' "${R_REASON[self-kill]}" 'signal SIGKILL'
+expect_eq 'signal kill is failed' "$(r_status self-kill)" failed
+expect_eq 'signal reason names SIGKILL' "$(r_reason self-kill)" 'signal SIGKILL'
 if result_blocking self-kill; then expect_eq 'signal kill blocking' blocking blocking; else expect_eq 'signal kill blocking' not-blocking blocking; fi
 
 # A mode selecting a gate whose needs are unselected fails loud, not silently.
@@ -140,5 +144,19 @@ gates_validate "$(cfg '"quiet"' '{"id":"quiet","command":["echo","plain output"]
 G_SELECTED=(quiet)
 GATE_VERBOSE=0 out=$(trap 'rm -rf "$GATE_TMPDIR"' EXIT; run_gates 1 2>&1)
 expect_eq 'a passing gate without skips stays silent' "$out" 'gates: start quiet'
+
+# The concurrency cap is honored per launch: with one worker, three ready
+# gates run sequentially — a stale live-count snapshot would start them all
+# in the same round and finish in one sleep period.
+gates_validate "$(cfg '"s1","s2","s3"' \
+  '{"id":"s1","command":["bash","-c","sleep 1.0"]},
+   {"id":"s2","command":["bash","-c","sleep 1.0"]},
+   {"id":"s3","command":["bash","-c","sleep 1.0"]}')" || exit 1
+G_SELECTED=(s1 s2 s3)
+t0=$(date +%s)
+out=$(trap 'rm -rf "$GATE_TMPDIR"' EXIT; run_gates 1 2>&1)
+elapsed=$(( $(date +%s) - t0 ))
+expect_eq 'the cap starts all three gates' "$(printf '%s\n' "$out" | grep -c 'gates: start')" 3
+expect_eq 'the cap serializes them (total at least two sleep periods)' "$(( elapsed >= 2 ))" 1
 
 t_done

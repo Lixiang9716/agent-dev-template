@@ -159,7 +159,7 @@ scaffold() { # <dir>
     say 'scaffold files copied'
 
     if ! git -C "$dir" init -q --initial-branch=main 2>/dev/null \
-       || ! git -C "$dir" config user.name 'adopt-plane proof' 2>/dev/null \
+       || ! git -C "$dir" config user.name 'adopt-plane-proof' 2>/dev/null \
        || ! git -C "$dir" config user.email 'adopt-plane-proof@example.invalid' 2>/dev/null; then
       scaffold_fail "$dir" 'scaffold git init failed'
     fi
@@ -219,7 +219,7 @@ battery_stage() { # <dir> <stage> <gate-script> <inject-fn> <revert-fn> <commit-
   fi
   if (( commit_test )); then
     capture_in_dir "$dir" git add -A
-    capture_in_dir "$dir" git -c commit.gpgsign=false commit -m 'adopt-plane: rejected commit'
+    capture_in_dir "$dir" git -c commit.gpgsign=false commit -m 'adopt-plane-rejected-commit'
     if (( CAPTURED_RC == 0 )); then
       say "pre-commit MISSED stage=$stage"
       BATTERY_FAILED=1
@@ -288,7 +288,7 @@ verify() { # <dir>
     say 'pre-commit FAIL'
     failed=1
   else
-    capture_in_dir "$dir" git -c commit.gpgsign=false commit -m 'adopt-plane: proof commit'
+    capture_in_dir "$dir" git -c commit.gpgsign=false commit -m 'adopt-plane-proof-commit'
     if (( CAPTURED_RC == 0 )); then
       say 'pre-commit PASS'
     else

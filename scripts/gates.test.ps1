@@ -155,4 +155,18 @@ $quietOut = Invoke-Configured (New-Cfg @('"quiet"') '{"id":"quiet","command":["p
 Expect-Eq 'a passing gate without skips stays silent' "$quietOut" 'gates: start quiet'
 $env:GATE_VERBOSE = $savedVerbose
 
+# The concurrency cap is honored per launch: with one worker, three ready
+# gates run sequentially — a stale live-count snapshot would start them all
+# in the same round and finish in one sleep period.
+$serialOut = Invoke-Configured (New-Cfg @('"s1"', '"s2"', '"s3"') '{"id":"s1","command":["bash","-c","sleep 1.0"]},
+   {"id":"s2","command":["bash","-c","sleep 1.0"]},
+   {"id":"s3","command":["bash","-c","sleep 1.0"]}') @('s1', 's2', 's3') 1
+$t0 = Get-Date
+[void](Invoke-Configured (New-Cfg @('"s1"', '"s2"', '"s3"') '{"id":"s1","command":["bash","-c","sleep 1.0"]},
+   {"id":"s2","command":["bash","-c","sleep 1.0"]},
+   {"id":"s3","command":["bash","-c","sleep 1.0"]}') @('s1', 's2', 's3') 1)
+$elapsed = ((Get-Date) - $t0).TotalSeconds
+Expect-Eq 'the cap starts all three gates' @(([regex]::Matches(($serialOut -join "`n"), 'gates: start'))).Count 3
+Expect-Eq 'the cap serializes them (total at least two sleep periods)' $(if ($elapsed -ge 2) { 1 } else { 0 }) 1
+
 Complete-TestSuite

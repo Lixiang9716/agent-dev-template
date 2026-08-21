@@ -36,7 +36,11 @@ $ErrorActionPreference = 'Stop'
 $script:Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
 function Get-BlobHash([string]$absPath) {
-  (& git hash-object $absPath).Trim()
+  Invoke-InDirTimed ([IO.Path]::GetDirectoryName($absPath)) 'hash' 60 'git' @('hash-object', [IO.Path]::GetFileName($absPath))
+  if ($script:TimedOutStage) {
+    throw "verify-script-pairs: blob hash of $absPath timed out after 60 s"
+  }
+  return ($script:Captured -split "`n")[0]
 }
 
 # True when the cross interpreter (bash) is on PATH; the behavioral probe
@@ -137,10 +141,22 @@ function Invoke-PairProbe([string]$root, [string]$name, [string]$heavy, $violati
     }
     return
   }
-  $outA = & bash $shTest 2>&1
-  $rcA = $LASTEXITCODE
-  $outB = & pwsh -NoProfile -File $psTest 2>&1
-  $rcB = $LASTEXITCODE
+  Invoke-InDirTimed $root "probe:$name" 600 'bash' @($shTest)
+  if ($script:TimedOutStage) {
+    $violations.Add("${name}: probe `"test`" timed out after 600 s on the sh side")
+    $violations.Add(($script:Captured -join "`n"))
+    return
+  }
+  $outA = $script:Captured
+  $rcA = $script:CapturedRc
+  Invoke-InDirTimed $root "probe:$name" 600 'pwsh' @('-NoProfile', '-File', $psTest)
+  if ($script:TimedOutStage) {
+    $violations.Add("${name}: probe `"test`" timed out after 600 s on the pwsh side")
+    $violations.Add(($script:Captured -join "`n"))
+    return
+  }
+  $outB = $script:Captured
+  $rcB = $script:CapturedRc
   $side = @()
   if ($rcA -ne 0) { $side += 'sh' }
   if ($rcB -ne 0) { $side += 'pwsh' }
@@ -148,7 +164,7 @@ function Invoke-PairProbe([string]$root, [string]$name, [string]$heavy, $violati
     $violations.Add("${name}: probe `"test`" failed on $($side -join ', ') (run the test suites directly for detail)")
     return
   }
-  if (Compare-TwinOutputs ($outA -join "`n") ($outB -join "`n")) {
+  if (Compare-TwinOutputs $outA $outB) {
     if ($script:ProbeNotice) {
       $script:ProbeNotices.Add("${name}: $($script:ProbeNotice)")
     }
@@ -158,6 +174,47 @@ function Invoke-PairProbe([string]$root, [string]$name, [string]$heavy, $violati
 }
 
 # Discover pair names: every scripts/<name>.sh with a sibling <name>.ps1.
+# Run $command with $arguments and cwd $dir, capturing combined output into
+# $script:Captured and its status into $script:CapturedRc. Output is
+# redirected to files (a descendant holding a pipe handle would hang the
+# reader on Windows); on timeout the process tree is killed and
+# $script:TimedOutStage is set so the caller can fail loud naming the pair.
+function Invoke-InDirTimed([string]$dir, [string]$stage, [int]$timeoutSeconds, [string]$command, [string[]]$arguments) {
+  $script:TimedOutStage = $null
+  $outFile = Join-Path ([IO.Path]::GetTempPath()) ('vsp-' + $stage + '-' + [Guid]::NewGuid().ToString('N'))
+  $errFile = "$outFile.err"
+  $proc = Start-Process -FilePath $command -ArgumentList $arguments -WorkingDirectory $dir `
+    -RedirectStandardOutput $outFile -RedirectStandardError $errFile -PassThru -NoNewWindow
+  $deadline = [DateTime]::UtcNow.AddSeconds($timeoutSeconds)
+  $timedOut = $false
+  while (-not $proc.HasExited) {
+    if ([DateTime]::UtcNow -gt $deadline) { $timedOut = $true; break }
+    Start-Sleep -Milliseconds 250
+  }
+  if ($timedOut) {
+    if ($IsWindows) {
+      $null = & taskkill /PID $proc.Id /T /F 2>$null
+    } else {
+      Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+    }
+    $proc.WaitForExit()
+    $script:Captured = @("TIMEOUT after $timeoutSeconds s",
+      (Get-Content -LiteralPath $outFile -Raw -ErrorAction SilentlyContinue),
+      (Get-Content -LiteralPath $errFile -Raw -ErrorAction SilentlyContinue))
+    $script:CapturedRc = 124
+    $script:TimedOutStage = $stage
+  } else {
+    $script:Captured = @((Get-Content -LiteralPath $outFile -Raw -ErrorAction SilentlyContinue),
+      (Get-Content -LiteralPath $errFile -Raw -ErrorAction SilentlyContinue))
+    $script:CapturedRc = $proc.ExitCode
+  }
+  Remove-Item -LiteralPath $outFile, $errFile -Force -ErrorAction SilentlyContinue
+}
+
+# git must never sit waiting on a credential prompt or an index lock.
+$env:GIT_TERMINAL_PROMPT = '0'
+$env:GIT_OPTIONAL_LOCKS = '0'
+
 function Get-ScriptPairNames([string]$root = $script:Root) {
   @(Get-ChildItem -LiteralPath (Join-Path $root 'scripts') -File -Filter '*.sh' | Sort-Object Name | ForEach-Object {
     $ps1 = Join-Path $_.DirectoryName ($_.BaseName + '.ps1')
