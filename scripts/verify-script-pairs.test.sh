@@ -99,6 +99,28 @@ twin_compare 'line one' 'line DIFFERENT'
 expect_status 'real divergence fails' 1 $?
 expect_contains 'divergence names the first differing line' "$COMPARE_FIRST" 'first difference at normalized line 1'
 
+# Trailing blank lines are symmetric tolerance, not a verdict: the Windows
+# guarded capture preserves a trailing newline the direct capture strips.
+twin_compare 'a b
+c
+' 'a b
+c'
+expect_status 'trailing-newline asymmetry matches' 0 $?
+expect_eq 'trailing-newline asymmetry raises no blind-spot notice' "$PROBE_NOTICE" ''
+twin_compare 'a b
+c
+
+' 'a b
+c'
+expect_status 'multiple trailing blank lines match' 0 $?
+# A real divergence with trailing blanks still fails after the trim.
+twin_compare 'a
+b
+' 'a
+c'
+expect_status 'real divergence with trailing blanks fails' 1 $?
+expect_contains 'the divergence names the line after the trim' "$COMPARE_FIRST" 'first difference at normalized line 2'
+
 normalize_text 'x' magic >/dev/null 2>&1
 expect_status 'unknown normalizer fails loud' 1 $?
 

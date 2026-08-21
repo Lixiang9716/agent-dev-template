@@ -226,6 +226,15 @@ sha256_of() {
   else echo 'lib: no sha256 hasher found (need sha256sum or shasum)' >&2; return 1; fi
 }
 
+# Last $2 lines (default 15) of $1 joined with |: failure evidence for the
+# probe and self-test channels. The twin suites print deterministic lines,
+# so the tail names the failing check without paths or timestamps.
+tail_join() { # <text> [<lines>]
+  local text=$1 n=${2:-15}
+  REPLY=$(printf '%s\n' "$text" | tail -n "$n" | tr '\n' '|')
+  REPLY=${REPLY%|}
+}
+
 # Wall-clock milliseconds since the epoch (EPOCHREALTIME on bash >= 5; the
 # seconds-resolution fallback keeps macOS's bash 3.2 usable for timing).
 now_ms() {

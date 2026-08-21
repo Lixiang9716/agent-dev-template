@@ -168,7 +168,11 @@ function Invoke-SelfTest {
     if ($script:CapturedRc -eq 0) {
       Write-Output "self-test: PASS $($t.Name)"
     } else {
-      [Console]::Error.WriteLine("self-test: FAIL $($t.Name)")
+      # Evidence over pointers: the failure tail (last 15 lines, |-joined)
+      # names the failing check in the CI log without a replay.
+      $tailText = (@($script:Captured -split "`n") | Select-Object -Last 15) -join '|'
+      if ($tailText.EndsWith('|')) { $tailText = $tailText.Substring(0, $tailText.Length - 1) }
+      [Console]::Error.WriteLine("self-test: FAIL $($t.Name) (tail: $tailText)")
       $failed++
     }
   }

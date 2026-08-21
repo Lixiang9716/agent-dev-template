@@ -85,10 +85,17 @@ self_test_main() {
       (( skipped++ )) || true
       continue
     fi
-    if bash "$t"; then
+    out=$(bash "$t" 2>&1); rc=$?
+    if (( rc == 0 )); then
       echo "self-test: PASS ${t#"$ROOT"/}"
+      # Re-surface the suite's loud skip lines — a skipped probe must never
+      # look like full coverage (the gate prints 'skipped:' lines from a
+      # passing self-test).
+      grep 'skipped:' <<< "$out" || true
     else
-      echo "self-test: FAIL ${t#"$ROOT"/}" >&2
+      # Evidence over pointers: the failure tail names the failing check.
+      tail_join "$out" 15
+      echo "self-test: FAIL ${t#"$ROOT"/} (tail: $REPLY)" >&2
       (( failed++ )) || true
     fi
   done

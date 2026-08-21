@@ -39,12 +39,12 @@
     "pwsh": "8ba28a762e4b2212b05ca4cd6202dd9d13943088"
   },
   "lib": {
-    "sh": "6f525601c531fecd8ab2adc408f8798902316276",
+    "sh": "52f1a81389428167e612eaca4f2c6ed9bce0a688",
     "pwsh": "789314238987375d9b24a6975d1ce7c9b8a8a0ac"
   },
   "self-test": {
-    "sh": "38b12f1b49cfdc79d54d32db9c7573cab189f197",
-    "pwsh": "ab573e85c9c219d538cb2f383c54239c42b95f8b"
+    "sh": "921504ea27bbe351664ffed74674792582274f9d",
+    "pwsh": "297ecee92bcef84dc0a97344d357fa6452b8bb24"
   },
   "translation-pairing-merge": {
     "sh": "1fd3774ffb1e9179efc73a10172a7b3fd2f3dece",
@@ -72,12 +72,12 @@
     "pwsh": "4a775f3235b28994fb9d33a8c00eb6a33348cdda"
   },
   "verify-script-pairs": {
-    "sh": "ca1b8038df0fd894130dfca9302693bc9635ceeb",
-    "pwsh": "15d37afd6e2b7dccefa514ed74622a0127c65db3"
+    "sh": "a76427e21fed9b4b82ad312b2fb2bacc56cb8398",
+    "pwsh": "ff57db34bc055e53759e3a82b8e9b9cbd6131e06"
   },
   "verify-script-pairs.test": {
-    "sh": "74bbbc0ffde98559939ec8fb1c6f330537a7403a",
-    "pwsh": "ef66e561065754b086323c0ae5b67aa05f8c9c16"
+    "sh": "4d1e25b1930b2c0d27d154a61867d65952ab4a49",
+    "pwsh": "255134c5f35fac3bba9c6588399631e76cbc43ea"
   },
   "verify-translation-pairing": {
     "sh": "666b4402a77da9c224837d31f20152238e18c489",

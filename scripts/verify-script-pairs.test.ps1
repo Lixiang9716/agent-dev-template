@@ -93,6 +93,18 @@ $ok = Compare-TwinOutputs 'line one' 'line DIFFERENT'
 Expect-Eq 'real divergence fails' $false $ok
 Expect-Contains 'divergence names the first differing line' $script:CompareFirst 'first difference at normalized line 1'
 
+# Trailing blank lines are symmetric tolerance, not a verdict: the Windows
+# guarded capture preserves a trailing newline the direct capture strips.
+$ok = Compare-TwinOutputs "a b`nc`n" "a b`nc"
+Expect-Eq 'trailing-newline asymmetry matches' $true $ok
+Expect-Eq 'trailing-newline asymmetry raises no blind-spot notice' $script:ProbeNotice ''
+$ok = Compare-TwinOutputs "a b`nc`n`n" "a b`nc"
+Expect-Eq 'multiple trailing blank lines match' $true $ok
+# A real divergence with trailing blanks still fails after the trim.
+$ok = Compare-TwinOutputs "a`nb`n" "a`nc"
+Expect-Eq 'real divergence with trailing blanks fails' $false $ok
+Expect-Contains 'the divergence names the line after the trim' $script:CompareFirst 'first difference at normalized line 2'
+
 $threw = $false
 try { [void](Convert-NormalizedText 'x' 'magic') } catch { $threw = $true }
 Expect-Eq 'unknown normalizer fails loud' $true $threw

@@ -78,15 +78,23 @@ normalize_all() { # <text>
 }
 
 # Compare two probe outputs after normalization. Status 0 when normalized
-# equal (PROBE_NOTICE set when raw bytes differ — blind-spot candidate);
-# status 1 with COMPARE_FIRST naming the first differing normalized line.
+# equal (PROBE_NOTICE set when the trimmed raw bytes differ — blind-spot
+# candidate); status 1 with COMPARE_FIRST naming the first differing
+# normalized line. Trailing blank lines are stripped from both sides first
+# (the Windows guarded capture preserves a trailing newline the direct
+# capture strips — symmetric tolerance, never a verdict).
 twin_compare() { # <raw-a> <raw-b>
   local a b na nb a_line b_line i width
-  a=$(normalize_all "$1") || return 2
-  b=$(normalize_all "$2") || return 2
+  trim_trailing_blanks "$1"
+  a=$(normalize_all "$REPLY") || return 2
+  trim_trailing_blanks "$2"
+  b=$(normalize_all "$REPLY") || return 2
   PROBE_NOTICE='' COMPARE_FIRST=''
   if [[ $a == "$b" ]]; then
-    [[ $1 != "$2" ]] && PROBE_NOTICE='raw outputs differ but normalized equal (normalization blind-spot candidate)'
+    trim_trailing_blanks "$1"
+    local ra=$REPLY
+    trim_trailing_blanks "$2"
+    [[ $ra != "$REPLY" ]] && PROBE_NOTICE='raw outputs differ but normalized equal (normalization blind-spot candidate)'
     return 0
   fi
   na=(); while IFS= read -r l || [[ -n $l ]]; do na+=("$l"); done <<< "$a"
@@ -106,10 +114,19 @@ twin_compare() { # <raw-a> <raw-b>
 # Last 15 lines of a captured output, joined with | (the probe failure
 # evidence: the twin suites print deterministic lines, so the tail names the
 # failing check; no paths or timestamps appear in suite output).
-probe_tail() { # <text>
+probe_tail() { tail_join "$1" 15; }
+
+# Strip every trailing newline from a text: the Windows guarded capture
+# (Start-Process file redirect) preserves a trailing newline that the direct
+# capture strips, and the comparison must tolerate the difference
+# symmetrically — the outputs themselves are unchanged, only the comparison
+# gains the tolerance.
+trim_trailing_blanks() { # <text>
   local text=$1
-  REPLY=$(printf '%s\n' "$text" | tail -n 15 | tr '\n' '|')
-  REPLY=${REPLY%|}
+  while [[ $text == *$'\n' ]]; do
+    text=${text%$'\n'}
+  done
+  REPLY=$text
 }
 
 # Run one pair's behavioral probe and compare both sides after normalization.

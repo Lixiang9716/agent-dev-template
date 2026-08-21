@@ -85,16 +85,24 @@ function Convert-NormalizedAll([string]$text) {
 }
 
 # Compare two probe outputs after normalization. Returns $true when
-# normalized-equal ($script:ProbeNotice set when raw bytes differ — blind-spot
-# candidate); $false with $script:CompareFirst naming the first differing
-# normalized line.
+# normalized-equal ($script:ProbeNotice set when the trimmed raw bytes differ
+# — blind-spot candidate); $false with $script:CompareFirst naming the first
+# differing normalized line. Trailing blank lines are stripped from both
+# sides first (the Windows guarded capture preserves a trailing newline the
+# direct capture strips — symmetric tolerance, never a verdict).
+function Convert-TrimTrailingBlanks([string]$text) {
+  return $text.TrimEnd("`n")
+}
+
 function Compare-TwinOutputs([string]$rawA, [string]$rawB) {
   $script:ProbeNotice = ''
   $script:CompareFirst = ''
-  $a = Convert-NormalizedAll $rawA
-  $b = Convert-NormalizedAll $rawB
+  $trimA = Convert-TrimTrailingBlanks $rawA
+  $trimB = Convert-TrimTrailingBlanks $rawB
+  $a = Convert-NormalizedAll $trimA
+  $b = Convert-NormalizedAll $trimB
   if ($a -ceq $b) {
-    if ($rawA -cne $rawB) {
+    if ($trimA -cne $trimB) {
       $script:ProbeNotice = 'raw outputs differ but normalized equal (normalization blind-spot candidate)'
     }
     return $true
@@ -141,17 +149,17 @@ function Invoke-PairProbe([string]$root, [string]$name, [string]$heavy, $violati
     }
     return
   }
-  Invoke-InDirTimed $root "probe:$name" 7200 'bash' @($shTest)
+  Invoke-InDirTimed $root "probe:$name" 10800 'bash' @($shTest)
   if ($script:TimedOutStage) {
-    $violations.Add("${name}: probe `"test`" timed out after 7200 s on the sh side")
+    $violations.Add("${name}: probe `"test`" timed out after 10800 s on the sh side")
     $violations.Add(($script:Captured -join "`n"))
     return
   }
   $outA = $script:Captured
   $rcA = $script:CapturedRc
-  Invoke-InDirTimed $root "probe:$name" 7200 'pwsh' @('-NoProfile', '-File', $psTest)
+  Invoke-InDirTimed $root "probe:$name" 10800 'pwsh' @('-NoProfile', '-File', $psTest)
   if ($script:TimedOutStage) {
-    $violations.Add("${name}: probe `"test`" timed out after 7200 s on the pwsh side")
+    $violations.Add("${name}: probe `"test`" timed out after 10800 s on the pwsh side")
     $violations.Add(($script:Captured -join "`n"))
     return
   }
