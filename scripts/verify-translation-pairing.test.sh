@@ -87,7 +87,7 @@ printf 'pair:\n  en: %s\n  zh: %s\n' \
   "$(git -C "$REPLY_REPO" hash-object "$REPLY_REPO/README.zh.md")" > "$REPLY_REPO/README.i18n.yaml"
 out=$(pairing_violations_of "$REPLY_REPO")
 expect_eq 'anchored counterpart links pass clean' "$out" ''
-sed -i 's|#section|#other|' "$REPLY_REPO/README.zh.md"
+sed 's|#section|#other|' "$REPLY_REPO/README.zh.md" > "$REPLY_REPO/README.zh.md.tmp" && mv "$REPLY_REPO/README.zh.md.tmp" "$REPLY_REPO/README.zh.md"
 printf 'pair:\n  en: %s\n  zh: %s\n' \
   "$(git -C "$REPLY_REPO" hash-object "$REPLY_REPO/README.md")" \
   "$(git -C "$REPLY_REPO" hash-object "$REPLY_REPO/README.zh.md")" > "$REPLY_REPO/README.i18n.yaml"

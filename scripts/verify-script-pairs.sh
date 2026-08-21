@@ -103,6 +103,15 @@ twin_compare() { # <raw-a> <raw-b>
   return 1
 }
 
+# Last 15 lines of a captured output, joined with | (the probe failure
+# evidence: the twin suites print deterministic lines, so the tail names the
+# failing check; no paths or timestamps appear in suite output).
+probe_tail() { # <text>
+  local text=$1
+  REPLY=$(printf '%s\n' "$text" | tail -n 15 | tr '\n' '|')
+  REPLY=${REPLY%|}
+}
+
 # Run one pair's behavioral probe and compare both sides after normalization.
 run_probe() { # <root> <name> <heavy>
   local root=$1 name=$2 heavy=$3 sh_test ps_test out_a out_b rc_a rc_b side=''
@@ -134,7 +143,14 @@ run_probe() { # <root> <name> <heavy>
   (( rc_a != 0 )) && side+='sh'
   (( rc_b != 0 )) && side+="${side:+, }pwsh"
   if [[ -n $side ]]; then
-    pairs_violation "$name: probe \"test\" failed on $side (run the test suites directly for detail)"
+    # Evidence over pointers: the failure tail (last 15 lines, |-joined) is
+    # appended so the CI log names the failing check without a replay.
+    if (( rc_a != 0 )); then
+      probe_tail "$out_a"
+    else
+      probe_tail "$out_b"
+    fi
+    pairs_violation "$name: probe \"test\" failed on $side (tail: $REPLY)"
     return 0
   fi
   if twin_compare "$out_a" "$out_b"; then

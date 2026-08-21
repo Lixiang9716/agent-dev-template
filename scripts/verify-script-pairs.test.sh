@@ -149,6 +149,17 @@ if command -v pwsh >/dev/null 2>&1; then
   expect_contains 'divergence reports the differing line' "$out" 'first difference at normalized line 1'
   rm -rf "$tree"
 
+  # A failing probe side names the check: the violation carries the failure
+  # tail (last 15 lines, |-joined), not just a pointer.
+  fixture_probe_tree test
+  tree=$REPLY_TREE
+  printf '#!/usr/bin/env bash\nprintf "boom line 1\\nboom line 2\\nboom line 3\\n"\nexit 1\n' > "$tree/scripts/alpha.test.sh"
+  printf '#!/usr/bin/env pwsh\nWrite-Output "ok"\n' > "$tree/scripts/alpha.test.ps1"
+  out=$(violations_of "$tree")
+  expect_contains 'a failing probe side carries the output tail' \
+    "$out" 'alpha: probe "test" failed on sh (tail: boom line 1|boom line 2|boom line 3)'
+  rm -rf "$tree"
+
   # A probe whose outputs differ only in timestamps passes.
   fixture_probe_tree test
   tree=$REPLY_TREE

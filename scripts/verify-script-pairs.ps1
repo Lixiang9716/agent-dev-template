@@ -161,7 +161,17 @@ function Invoke-PairProbe([string]$root, [string]$name, [string]$heavy, $violati
   if ($rcA -ne 0) { $side += 'sh' }
   if ($rcB -ne 0) { $side += 'pwsh' }
   if ($side.Count -gt 0) {
-    $violations.Add("${name}: probe `"test`" failed on $($side -join ', ') (run the test suites directly for detail)")
+    # Evidence over pointers: the failure tail (last 15 lines, |-joined) is
+    # appended so the CI log names the failing check without a replay. The
+    # bash twin strips exactly one trailing separator; mirror it exactly.
+    $tailText = ''
+    if ($rcA -ne 0) {
+      $tailText = (@($outA -split "`n") | Select-Object -Last 15) -join '|'
+    } else {
+      $tailText = (@($outB -split "`n") | Select-Object -Last 15) -join '|'
+    }
+    if ($tailText.EndsWith('|')) { $tailText = $tailText.Substring(0, $tailText.Length - 1) }
+    $violations.Add("${name}: probe `"test`" failed on $($side -join ', ') (tail: $tailText)")
     return
   }
   if (Compare-TwinOutputs $outA $outB) {

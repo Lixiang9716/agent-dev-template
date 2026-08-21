@@ -35,11 +35,11 @@ cat > "$tree/README.zh.md" <<'EOF'
 
 ## 第一节
 EOF
-sed -i 's/# 标题/# 标题/' "$tree/README.zh.md"
+sed 's/# 标题/# 标题/' "$tree/README.zh.md" > "$tree/README.zh.md.tmp" && mv "$tree/README.zh.md.tmp" "$tree/README.zh.md"
 mkdir -p "$tree/docs"
 printf '# Guide\n\n## Overview\n' > "$tree/docs/guide.md"
 # The zh side anchors #section-one; give the en file that slug via its heading.
-sed -i '1s/# Title/# Title/' "$tree/README.md"
+sed '1s/# Title/# Title/' "$tree/README.md" > "$tree/README.md.tmp" && mv "$tree/README.md.tmp" "$tree/README.md"
 # README.md heading "# Title" has slug title; README.zh.md needs a heading
 # whose slug is section-one for the cross-file anchor in README.md.
 printf '\n## Section one\n' >> "$tree/README.zh.md"

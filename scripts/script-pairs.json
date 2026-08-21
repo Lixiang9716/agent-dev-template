@@ -68,23 +68,23 @@
     "pwsh": "d7d2d97090c4e40bc3601fff6cb8dee9edaadd1a"
   },
   "verify-md-links.test": {
-    "sh": "0516c58dc3b6c65f2da7b41df536533b948e8827",
+    "sh": "a466ae12183f394c0f8f3929104172d29aa610f5",
     "pwsh": "4a775f3235b28994fb9d33a8c00eb6a33348cdda"
   },
   "verify-script-pairs": {
-    "sh": "d5b5c986bf5c18094d030871b0d4acf96cd4d1ba",
-    "pwsh": "f625011dedc8d612852915d02e0e9911f9b437f4"
+    "sh": "ca1b8038df0fd894130dfca9302693bc9635ceeb",
+    "pwsh": "66518818d13b5bf99578d8b1171c9b7b0e183699"
   },
   "verify-script-pairs.test": {
-    "sh": "c41bf8a89c89df87d1b417019bbd97004724cc4d",
-    "pwsh": "6a975478eacb5b573b225ca4d8568d4f754519b0"
+    "sh": "74bbbc0ffde98559939ec8fb1c6f330537a7403a",
+    "pwsh": "ef66e561065754b086323c0ae5b67aa05f8c9c16"
   },
   "verify-translation-pairing": {
     "sh": "666b4402a77da9c224837d31f20152238e18c489",
     "pwsh": "ffc300e979475aa049468bc252eaaa8920a254e8"
   },
   "verify-translation-pairing.test": {
-    "sh": "111c33fa2e452b8aadb6c790317122ddd32a03d9",
+    "sh": "bd241b4f6a3c2797cc86253b2849d1ba9795d8b3",
     "pwsh": "56c8eb2a1b3913043d60804757f94c55ecc63dd7"
   },
   "verify-vocabulary": {

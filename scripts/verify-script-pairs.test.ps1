@@ -132,6 +132,18 @@ if (Test-BashAvailable) {
   Expect-Contains 'divergence reports the differing line' $text 'first difference at normalized line 1'
   Remove-Item -Recurse -Force $tree
 
+  # A failing probe side names the check: the violation carries the failure
+  # tail (last 15 lines, |-joined), not just a pointer.
+  New-PairTree
+  $tree = $script:Tree
+  [IO.File]::WriteAllText("$tree/scripts/alpha.test.sh", "#!/usr/bin/env bash`nprintf `"boom line 1`nboom line 2`nboom line 3`n`"`nexit 1`n")
+  [IO.File]::WriteAllText("$tree/scripts/alpha.test.ps1", "#!/usr/bin/env pwsh`nWrite-Output `"ok`"`n")
+  [IO.File]::WriteAllText("$tree/scripts/script-pairs.json",
+    "{`n  `"alpha`": {`n    `"sh`": `"$(Get-BlobHash "$tree/scripts/alpha.sh")`",`n    `"pwsh`": `"$(Get-BlobHash "$tree/scripts/alpha.ps1")`",`n    `"probe`": `"test`"`n  }`n}`n")
+  $text = Get-ViolationsText $tree
+  Expect-Contains 'a failing probe side carries the output tail' $text 'alpha: probe "test" failed on sh (tail: boom line 1|boom line 2|boom line 3)'
+  Remove-Item -Recurse -Force $tree
+
   # A probe whose outputs differ only in timestamps passes.
   New-FixtureProbeTree
   $tree = $script:Tree
