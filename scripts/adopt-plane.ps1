@@ -312,12 +312,11 @@ function Invoke-RevertScriptPairs([string]$dir) { Restore-Path $dir 'scripts/ado
 # One battery stage: <dir> <stage> <gate-script> <inject-fn> <revert-fn>
 # <commit-test 0|1>. The commit test proves the installed pre-commit rejects
 # the mutation with a real `git commit`.
-function Invoke-BatteryStage([string]$dir, [string]$stage, [string]$gate, [string]$inject, [string]$revert, [int]$commitTest) {
-  Invoke-Timed $dir "gate-$stage" 900 'pwsh' @('-NoProfile', '-File', "scripts/$gate")
-  $pre = $script:CapturedRc
+function Invoke-BatteryStage([string]$dir, [string]$stage, [string]$gate, [string]$inject, [string]$revert, [int]$commitTest, [int]$preResult) {
+  $pre = $preResult
   if ($pre -eq 0) {
     & $inject $dir
-    Invoke-Timed $dir "gate-$stage" 900 'pwsh' @('-NoProfile', '-File', "scripts/$gate")
+    Invoke-Timed $dir "gate-$stage" 300 'pwsh' @('-NoProfile', '-File', "scripts/$gate")
     if ($script:CapturedRc -eq 0) {
       Write-Say "FAIL stage=$stage MISSED"
       $script:BatteryFailed = 1
@@ -328,8 +327,8 @@ function Invoke-BatteryStage([string]$dir, [string]$stage, [string]$gate, [strin
     Write-Say "FAIL stage=$stage"
   }
   if ($commitTest -eq 1) {
-    Invoke-Timed $dir 'git-add' 300 'git' @('--no-optional-locks', 'add', '-A')
-    Invoke-Timed $dir 'commit' 600 'git' @('--no-optional-locks', '-c', 'commit.gpgsign=false', 'commit', '-m', 'adopt-plane-rejected-commit')
+    Invoke-Timed $dir 'git-add' 600 'git' @('--no-optional-locks', 'add', '-A')
+    Invoke-Timed $dir 'commit' 1200 'git' @('--no-optional-locks', '-c', 'commit.gpgsign=false', 'commit', '-m', 'adopt-plane-rejected-commit')
     if ($script:CapturedRc -eq 0) {
       Write-Say "pre-commit MISSED stage=$stage"
       $script:BatteryFailed = 1
@@ -375,48 +374,76 @@ function Invoke-Verify([string]$dir) {
       Write-Say 'FAIL plane-file .gitignore'
       $failed = 1
     }
-    # (a) zero-install green: gates all on the foreign soil.
-    Invoke-Timed $dir 'gate-all' 900 'pwsh' @('-NoProfile', '-File', 'scripts/gates.ps1', '-Mode', 'all')
-    if ($script:CapturedRc -eq 0) {
-      Write-Say 'gate all PASS'
-      $gateAllOk = 1
-    } else {
-      Write-Say 'gate all FAIL'
+    # (a) Silent pre-check pass: the directed verifiers detect any mutation
+    # the dir already carries. The full foreign gates run only once, on a
+    # pristine dir — a mutated dir's verification is the directed verifiers
+    # plus the pre-commit commit tests, so the battery stays light on slow
+    # hosts (Windows: a foreign gates run takes 15-40 minutes; six full runs
+    # would not fit the job).
+    Invoke-Timed $dir 'precheck-pairing' 300 'pwsh' @('-NoProfile', '-File', 'scripts/verify-translation-pairing.ps1')
+    $prePairing = $script:CapturedRc
+    Invoke-Timed $dir 'precheck-vocabulary' 300 'pwsh' @('-NoProfile', '-File', 'scripts/verify-vocabulary.ps1')
+    $preVocabulary = $script:CapturedRc
+    Invoke-Timed $dir 'precheck-notes' 300 'pwsh' @('-NoProfile', '-File', 'scripts/verify-agent-notes.ps1')
+    $preNotes = $script:CapturedRc
+    Invoke-Timed $dir 'precheck-script-pairs' 300 'pwsh' @('-NoProfile', '-File', 'scripts/verify-script-pairs.ps1')
+    $preScriptPairs = $script:CapturedRc
+    $mutated = $false
+    if ($prePairing -ne 0 -or $preVocabulary -ne 0 -or $preNotes -ne 0 -or $preScriptPairs -ne 0) {
+      $mutated = $true
+      # A dir that already carries a mutation is a broken tree: the verdict
+      # is FAIL even though every battery rejection below is expected.
       $failed = 1
     }
 
-    # (b) hook install and one real commit through the installed pre-commit.
-    Invoke-Timed $dir 'install-hooks' 300 'sh' @('scripts/install-hooks.sh')
+    # (b) zero-install green: gates all on the foreign soil — the pristine
+    # proof only.
+    if (-not $mutated) {
+      Invoke-Timed $dir 'gate-all' 3600 'pwsh' @('-NoProfile', '-File', 'scripts/gates.ps1', '-Mode', 'all')
+      if ($script:CapturedRc -eq 0) {
+        Write-Say 'gate all PASS'
+        $gateAllOk = 1
+      } else {
+        Write-Say 'gate all FAIL'
+        $failed = 1
+      }
+    }
+
+    # (c) hook install (the commit tests need the hooks) and one real commit
+    # through the installed pre-commit on the pristine tree.
+    Invoke-Timed $dir 'install-hooks' 600 'sh' @('scripts/install-hooks.sh')
     if ($script:CapturedRc -eq 0) {
       Write-Say 'install-hooks PASS'
     } else {
       Write-Say 'install-hooks FAIL'
       $failed = 1
     }
-    Invoke-Timed $dir 'git-add' 300 'git' @('--no-optional-locks', 'add', '-A')
-    if ($script:CapturedRc -ne 0) {
-      Write-Say 'pre-commit FAIL'
-      $failed = 1
-    } else {
-      Invoke-Timed $dir 'commit' 600 'git' @('--no-optional-locks', '-c', 'commit.gpgsign=false', 'commit', '-m', 'adopt-plane-proof-commit')
-      if ($script:CapturedRc -eq 0) {
-        Write-Say 'pre-commit PASS'
+    if (-not $mutated) {
+      Invoke-Timed $dir 'git-add' 600 'git' @('--no-optional-locks', 'add', '-A')
+      if ($script:CapturedRc -ne 0) {
+        Write-Say 'pre-commit FAIL'
+        $failed = 1
       } else {
-        Write-Say 'pre-commit REJECT'
-        # A pristine tree whose commit is rejected is a broken proof; a broken
-        # tree's rejection is the proof working (the dir-state verdict is FAIL).
-        if ($gateAllOk -eq 1) { $failed = 1 }
+        Invoke-Timed $dir 'commit' 1200 'git' @('--no-optional-locks', '-c', 'commit.gpgsign=false', 'commit', '-m', 'adopt-plane-proof-commit')
+        if ($script:CapturedRc -eq 0) {
+          Write-Say 'pre-commit PASS'
+        } else {
+          Write-Say 'pre-commit REJECT'
+          # A pristine tree whose commit is rejected is a broken proof.
+          if ($gateAllOk -eq 1) { $failed = 1 }
+        }
       }
     }
 
-    # (c) the mutation battery: every stage must reject, naming the stage;
+    # (d) the mutation battery: every stage must reject, naming the stage;
     # the pairing and vocabulary mutations must also be rejected by
-    # pre-commit.
+    # pre-commit. The pre-check results from (a) are reused — no second
+    # detection pass.
     $script:BatteryFailed = 0
-    Invoke-BatteryStage $dir 'pairing' 'verify-translation-pairing.ps1' 'Invoke-MutationPairing' 'Invoke-RevertPairing' 1
-    Invoke-BatteryStage $dir 'vocabulary' 'verify-vocabulary.ps1' 'Invoke-MutationVocabulary' 'Invoke-RevertVocabulary' 1
-    Invoke-BatteryStage $dir 'notes' 'verify-agent-notes.ps1' 'Invoke-MutationNotes' 'Invoke-RevertNotes' 0
-    Invoke-BatteryStage $dir 'script-pairs' 'verify-script-pairs.ps1' 'Invoke-MutationScriptPairs' 'Invoke-RevertScriptPairs' 0
+    Invoke-BatteryStage $dir 'pairing' 'verify-translation-pairing.ps1' 'Invoke-MutationPairing' 'Invoke-RevertPairing' 1 $prePairing
+    Invoke-BatteryStage $dir 'vocabulary' 'verify-vocabulary.ps1' 'Invoke-MutationVocabulary' 'Invoke-RevertVocabulary' 1 $preVocabulary
+    Invoke-BatteryStage $dir 'notes' 'verify-agent-notes.ps1' 'Invoke-MutationNotes' 'Invoke-RevertNotes' 0 $preNotes
+    Invoke-BatteryStage $dir 'script-pairs' 'verify-script-pairs.ps1' 'Invoke-MutationScriptPairs' 'Invoke-RevertScriptPairs' 0 $preScriptPairs
 
     if ($failed -eq 0 -and $script:BatteryFailed -eq 0) {
       Write-Say 'PASS'

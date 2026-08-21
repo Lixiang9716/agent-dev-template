@@ -200,10 +200,8 @@ revert_script_pairs() { revert_path "$1" scripts/adopt-plane.sh; }
 # One battery stage: <dir> <stage> <gate-script> <inject-fn> <revert-fn>
 # <commit-test 0|1>. The commit test proves the installed pre-commit rejects
 # the mutation with a real `git commit`.
-battery_stage() { # <dir> <stage> <gate-script> <inject-fn> <revert-fn> <commit-test>
-  local dir=$1 stage=$2 gate=$3 inject=$4 revert=$5 commit_test=$6 pre rc
-  capture_in_dir "$dir" bash "scripts/$gate"
-  pre=$CAPTURED_RC
+battery_stage() { # <dir> <stage> <gate-script> <inject-fn> <revert-fn> <commit-test> <pre-result>
+  local dir=$1 stage=$2 gate=$3 inject=$4 revert=$5 commit_test=$6 pre=$7 rc
   if (( pre == 0 )); then
     "$inject" "$dir"
     capture_in_dir "$dir" bash "scripts/$gate"
@@ -265,17 +263,43 @@ verify() { # <dir>
     failed=1
   fi
 
-  # (a) zero-install green: gates all on the foreign soil.
-  capture_in_dir "$dir" bash scripts/gates.sh --mode all
-  if (( CAPTURED_RC == 0 )); then
-    say 'gate all PASS'
-    gate_all_ok=1
-  else
-    say 'gate all FAIL'
+  # (a) Silent pre-check pass: the directed verifiers detect any mutation
+  # the dir already carries. The full foreign gates run only once, on a
+  # pristine dir — a mutated dir's verification is the directed verifiers
+  # plus the pre-commit commit tests, so the battery stays light on slow
+  # hosts (Windows: a foreign gates run takes 15-40 minutes; six full runs
+  # would not fit the job).
+  capture_in_dir "$dir" bash scripts/verify-translation-pairing.sh
+  PRE_PAIRING=$CAPTURED_RC
+  capture_in_dir "$dir" bash scripts/verify-vocabulary.sh
+  PRE_VOCABULARY=$CAPTURED_RC
+  capture_in_dir "$dir" bash scripts/verify-agent-notes.sh
+  PRE_NOTES=$CAPTURED_RC
+  capture_in_dir "$dir" bash scripts/verify-script-pairs.sh
+  PRE_SCRIPT_PAIRS=$CAPTURED_RC
+  MUTATED=0
+  if (( PRE_PAIRING || PRE_VOCABULARY || PRE_NOTES || PRE_SCRIPT_PAIRS )); then
+    MUTATED=1
+    # A dir that already carries a mutation is a broken tree: the verdict is
+    # FAIL even though every battery rejection below is expected.
     failed=1
   fi
 
-  # (b) hook install and one real commit through the installed pre-commit.
+  # (b) zero-install green: gates all on the foreign soil — the pristine
+  # proof only.
+  if (( ! MUTATED )); then
+    capture_in_dir "$dir" bash scripts/gates.sh --mode all
+    if (( CAPTURED_RC == 0 )); then
+      say 'gate all PASS'
+      gate_all_ok=1
+    else
+      say 'gate all FAIL'
+      failed=1
+    fi
+  fi
+
+  # (c) hook install (the commit tests need the hooks) and one real commit
+  # through the installed pre-commit on the pristine tree.
   capture_in_dir "$dir" sh scripts/install-hooks.sh
   if (( CAPTURED_RC == 0 )); then
     say 'install-hooks PASS'
@@ -283,29 +307,31 @@ verify() { # <dir>
     say 'install-hooks FAIL'
     failed=1
   fi
-  capture_in_dir "$dir" git add -A
-  if (( CAPTURED_RC != 0 )); then
-    say 'pre-commit FAIL'
-    failed=1
-  else
-    capture_in_dir "$dir" git -c commit.gpgsign=false commit -m 'adopt-plane-proof-commit'
-    if (( CAPTURED_RC == 0 )); then
-      say 'pre-commit PASS'
+  if (( ! MUTATED )); then
+    capture_in_dir "$dir" git add -A
+    if (( CAPTURED_RC != 0 )); then
+      say 'pre-commit FAIL'
+      failed=1
     else
-      say 'pre-commit REJECT'
-      # A pristine tree whose commit is rejected is a broken proof; a broken
-      # tree's rejection is the proof working (the dir-state verdict is FAIL).
-      (( gate_all_ok )) && failed=1
+      capture_in_dir "$dir" git -c commit.gpgsign=false commit -m 'adopt-plane-proof-commit'
+      if (( CAPTURED_RC == 0 )); then
+        say 'pre-commit PASS'
+      else
+        say 'pre-commit REJECT'
+        # A pristine tree whose commit is rejected is a broken proof.
+        (( gate_all_ok )) && failed=1
+      fi
     fi
   fi
 
-  # (c) the mutation battery: every stage must reject, naming the stage; the
+  # (d) the mutation battery: every stage must reject, naming the stage; the
   # pairing and vocabulary mutations must also be rejected by pre-commit.
+  # The pre-check results from (a) are reused — no second detection pass.
   BATTERY_FAILED=0
-  battery_stage "$dir" pairing verify-translation-pairing.sh mutation_pairing revert_pairing 1
-  battery_stage "$dir" vocabulary verify-vocabulary.sh mutation_vocabulary revert_vocabulary 1
-  battery_stage "$dir" notes verify-agent-notes.sh mutation_notes revert_notes 0
-  battery_stage "$dir" script-pairs verify-script-pairs.sh mutation_script_pairs revert_script_pairs 0
+  battery_stage "$dir" pairing verify-translation-pairing.sh mutation_pairing revert_pairing 1 "$PRE_PAIRING"
+  battery_stage "$dir" vocabulary verify-vocabulary.sh mutation_vocabulary revert_vocabulary 1 "$PRE_VOCABULARY"
+  battery_stage "$dir" notes verify-agent-notes.sh mutation_notes revert_notes 0 "$PRE_NOTES"
+  battery_stage "$dir" script-pairs verify-script-pairs.sh mutation_script_pairs revert_script_pairs 0 "$PRE_SCRIPT_PAIRS"
 
   (( failed == 0 && BATTERY_FAILED == 0 )) || { say 'FAIL'; return 1; }
   say 'PASS'

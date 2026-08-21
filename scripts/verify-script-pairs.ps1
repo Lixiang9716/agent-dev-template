@@ -141,17 +141,17 @@ function Invoke-PairProbe([string]$root, [string]$name, [string]$heavy, $violati
     }
     return
   }
-  Invoke-InDirTimed $root "probe:$name" 3600 'bash' @($shTest)
+  Invoke-InDirTimed $root "probe:$name" 7200 'bash' @($shTest)
   if ($script:TimedOutStage) {
-    $violations.Add("${name}: probe `"test`" timed out after 3600 s on the sh side")
+    $violations.Add("${name}: probe `"test`" timed out after 7200 s on the sh side")
     $violations.Add(($script:Captured -join "`n"))
     return
   }
   $outA = $script:Captured
   $rcA = $script:CapturedRc
-  Invoke-InDirTimed $root "probe:$name" 3600 'pwsh' @('-NoProfile', '-File', $psTest)
+  Invoke-InDirTimed $root "probe:$name" 7200 'pwsh' @('-NoProfile', '-File', $psTest)
   if ($script:TimedOutStage) {
-    $violations.Add("${name}: probe `"test`" timed out after 3600 s on the pwsh side")
+    $violations.Add("${name}: probe `"test`" timed out after 7200 s on the pwsh side")
     $violations.Add(($script:Captured -join "`n"))
     return
   }

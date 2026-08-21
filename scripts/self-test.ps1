@@ -158,9 +158,9 @@ function Invoke-SelfTest {
       $skipped++
       continue
     }
-    Invoke-InDirTimed $script:Root "suite:$name" 3600 'pwsh' @('-NoProfile', '-File', $t.FullName)
+    Invoke-InDirTimed $script:Root "suite:$name" 7200 'pwsh' @('-NoProfile', '-File', $t.FullName)
     if ($script:TimedOutStage) {
-      [Console]::Error.WriteLine("self-test: FAIL $($t.Name) (timeout after 3600s)")
+      [Console]::Error.WriteLine("self-test: FAIL $($t.Name) (timeout after 7200s)")
       [Console]::Error.WriteLine(($script:Captured -join "`n"))
       $failed++
       continue
