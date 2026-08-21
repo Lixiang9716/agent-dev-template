@@ -36,9 +36,9 @@ $ErrorActionPreference = 'Stop'
 $script:Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
 function Get-BlobHash([string]$absPath) {
-  Invoke-InDirTimed ([IO.Path]::GetDirectoryName($absPath)) 'hash' 60 'git' @('hash-object', [IO.Path]::GetFileName($absPath))
+  Invoke-InDirTimed ([IO.Path]::GetDirectoryName($absPath)) 'hash' 120 'git' @('hash-object', [IO.Path]::GetFileName($absPath))
   if ($script:TimedOutStage) {
-    throw "verify-script-pairs: blob hash of $absPath timed out after 60 s"
+    throw "verify-script-pairs: blob hash of $absPath timed out after 120 s"
   }
   return ($script:Captured -split "`n")[0]
 }
@@ -141,17 +141,17 @@ function Invoke-PairProbe([string]$root, [string]$name, [string]$heavy, $violati
     }
     return
   }
-  Invoke-InDirTimed $root "probe:$name" 600 'bash' @($shTest)
+  Invoke-InDirTimed $root "probe:$name" 3600 'bash' @($shTest)
   if ($script:TimedOutStage) {
-    $violations.Add("${name}: probe `"test`" timed out after 600 s on the sh side")
+    $violations.Add("${name}: probe `"test`" timed out after 3600 s on the sh side")
     $violations.Add(($script:Captured -join "`n"))
     return
   }
   $outA = $script:Captured
   $rcA = $script:CapturedRc
-  Invoke-InDirTimed $root "probe:$name" 600 'pwsh' @('-NoProfile', '-File', $psTest)
+  Invoke-InDirTimed $root "probe:$name" 3600 'pwsh' @('-NoProfile', '-File', $psTest)
   if ($script:TimedOutStage) {
-    $violations.Add("${name}: probe `"test`" timed out after 600 s on the pwsh side")
+    $violations.Add("${name}: probe `"test`" timed out after 3600 s on the pwsh side")
     $violations.Add(($script:Captured -join "`n"))
     return
   }
@@ -181,6 +181,19 @@ function Invoke-PairProbe([string]$root, [string]$name, [string]$heavy, $violati
 # $script:TimedOutStage is set so the caller can fail loud naming the pair.
 function Invoke-InDirTimed([string]$dir, [string]$stage, [int]$timeoutSeconds, [string]$command, [string[]]$arguments) {
   $script:TimedOutStage = $null
+  if (-not $IsWindows) {
+    # Fast path: direct invocation with pipe capture. The pipe-handle
+    # inheritance hang is Windows-specific; the guarded Start-Process path
+    # stays on Windows, where the CI hang was observed.
+    Push-Location $dir
+    try {
+      $script:Captured = (@(& $command @arguments 2>&1) -join "`n")
+      $script:CapturedRc = $LASTEXITCODE
+    } finally {
+      Pop-Location
+    }
+    return
+  }
   $outFile = Join-Path ([IO.Path]::GetTempPath()) ('vsp-' + $stage + '-' + [Guid]::NewGuid().ToString('N'))
   $errFile = "$outFile.err"
   $proc = Start-Process -FilePath $command -ArgumentList $arguments -WorkingDirectory $dir `

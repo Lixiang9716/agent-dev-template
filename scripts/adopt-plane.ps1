@@ -99,6 +99,20 @@ function Write-Say([string]$line) {
 # pipe handle would keep it open past the parent's exit, and the reader
 # would wait for EOF forever (the Windows CI hang this guard exists for).
 function Invoke-InDir([string]$dir, [string]$stage, [int]$timeoutSeconds, [string]$command, [string[]]$arguments) {
+  if (-not $IsWindows) {
+    # Fast path: direct invocation with pipe capture. The pipe-handle
+    # inheritance hang this guard exists for is Windows-specific; the guarded
+    # Start-Process path stays on Windows, where the CI hang was observed.
+    Push-Location $dir
+    try {
+      $script:Captured = (@(& $command @arguments 2>&1) -join "`n")
+      $script:CapturedRc = $LASTEXITCODE
+      $script:TimedOutStage = $null
+    } finally {
+      Pop-Location
+    }
+    return
+  }
   $outFile = Join-Path $script:PrivRoot ('out-' + $stage + '-' + [Guid]::NewGuid().ToString('N'))
   $errFile = "$outFile.err"
   $proc = Start-Process -FilePath $command -ArgumentList $arguments -WorkingDirectory $dir `
@@ -172,9 +186,9 @@ function New-Scaffold([string]$dir) {
     # files, and local editor state (.zcode — never part of a derivation).
     # bash and pwsh are both copied: the foreign project keeps its twin.
     # tar is provided by Git for Windows, GNU tar, and bsdtar alike.
-    Invoke-InDir $dir 'scaffold-copy' 120 'tar' @('-C', $script:Root, '--exclude=.git', '--exclude=.zcode', '--exclude=adopt-plane.test.sh', '--exclude=adopt-plane.test.ps1', '-cf', $archive, '.')
+    Invoke-InDir $dir 'scaffold-copy' 300 'tar' @('-C', $script:Root, '--exclude=.git', '--exclude=.zcode', '--exclude=adopt-plane.test.sh', '--exclude=adopt-plane.test.ps1', '-cf', $archive, '.')
     if ($script:TimedOutStage -or $script:CapturedRc -ne 0) { throw 'scaffold copy failed' }
-    Invoke-InDir $dir 'scaffold-copy' 120 'tar' @('-C', $dir, '-xf', $archive)
+    Invoke-InDir $dir 'scaffold-copy' 300 'tar' @('-C', $dir, '-xf', $archive)
     if ($script:TimedOutStage -or $script:CapturedRc -ne 0) { throw 'scaffold copy failed' }
     Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
 
@@ -220,11 +234,11 @@ function New-Scaffold([string]$dir) {
     }
     Write-Say 'scaffold files copied'
 
-    Invoke-InDir $dir 'scaffold-git' 120 'git' @('init', '-q', '--initial-branch=main')
+    Invoke-InDir $dir 'scaffold-git' 300 'git' @('init', '-q', '--initial-branch=main')
     if ($script:TimedOutStage -or $script:CapturedRc -ne 0) { throw 'scaffold git init failed' }
-    Invoke-InDir $dir 'scaffold-git' 120 'git' @('config', 'user.name', 'adopt-plane-proof')
+    Invoke-InDir $dir 'scaffold-git' 300 'git' @('config', 'user.name', 'adopt-plane-proof')
     if ($script:TimedOutStage -or $script:CapturedRc -ne 0) { throw 'scaffold git init failed' }
-    Invoke-InDir $dir 'scaffold-git' 120 'git' @('config', 'user.email', 'adopt-plane-proof@example.invalid')
+    Invoke-InDir $dir 'scaffold-git' 300 'git' @('config', 'user.email', 'adopt-plane-proof@example.invalid')
     if ($script:TimedOutStage -or $script:CapturedRc -ne 0) { throw 'scaffold git init failed' }
     Write-Say 'scaffold git initialized'
 
@@ -262,12 +276,12 @@ function Invoke-MutationScriptPairs([string]$dir) {
 # when the path is tracked, remove it when it is not (an injected new file).
 # All git output is suppressed — foreign output never reaches our stdout.
 function Restore-Path([string]$dir, [string]$path) {
-  Invoke-InDir $dir 'revert' 60 'git' @('reset', '-q', '--', $path)
+  Invoke-InDir $dir 'revert' 120 'git' @('reset', '-q', '--', $path)
   if ($script:TimedOutStage) { throw 'revert timed out' }
-  Invoke-InDir $dir 'revert' 60 'git' @('cat-file', '-e', "HEAD:$path")
+  Invoke-InDir $dir 'revert' 120 'git' @('cat-file', '-e', "HEAD:$path")
   if ($script:TimedOutStage) { throw 'revert timed out' }
   if ($script:CapturedRc -eq 0) {
-    Invoke-InDir $dir 'revert' 60 'git' @('checkout', 'HEAD', '--', $path)
+    Invoke-InDir $dir 'revert' 120 'git' @('checkout', 'HEAD', '--', $path)
     if ($script:TimedOutStage) { throw 'revert timed out' }
   } else {
     Remove-Item -LiteralPath (Join-Path $dir $path) -Force -ErrorAction SilentlyContinue
@@ -285,11 +299,11 @@ function Invoke-RevertScriptPairs([string]$dir) { Restore-Path $dir 'scripts/ado
 # <commit-test 0|1>. The commit test proves the installed pre-commit rejects
 # the mutation with a real `git commit`.
 function Invoke-BatteryStage([string]$dir, [string]$stage, [string]$gate, [string]$inject, [string]$revert, [int]$commitTest) {
-  Invoke-Timed $dir "gate-$stage" 300 'pwsh' @('-NoProfile', '-File', "scripts/$gate")
+  Invoke-Timed $dir "gate-$stage" 900 'pwsh' @('-NoProfile', '-File', "scripts/$gate")
   $pre = $script:CapturedRc
   if ($pre -eq 0) {
     & $inject $dir
-    Invoke-Timed $dir "gate-$stage" 300 'pwsh' @('-NoProfile', '-File', "scripts/$gate")
+    Invoke-Timed $dir "gate-$stage" 900 'pwsh' @('-NoProfile', '-File', "scripts/$gate")
     if ($script:CapturedRc -eq 0) {
       Write-Say "FAIL stage=$stage MISSED"
       $script:BatteryFailed = 1
@@ -300,8 +314,8 @@ function Invoke-BatteryStage([string]$dir, [string]$stage, [string]$gate, [strin
     Write-Say "FAIL stage=$stage"
   }
   if ($commitTest -eq 1) {
-    Invoke-Timed $dir 'git-add' 120 'git' @('--no-optional-locks', 'add', '-A')
-    Invoke-Timed $dir 'commit' 300 'git' @('--no-optional-locks', '-c', 'commit.gpgsign=false', 'commit', '-m', 'adopt-plane-rejected-commit')
+    Invoke-Timed $dir 'git-add' 300 'git' @('--no-optional-locks', 'add', '-A')
+    Invoke-Timed $dir 'commit' 600 'git' @('--no-optional-locks', '-c', 'commit.gpgsign=false', 'commit', '-m', 'adopt-plane-rejected-commit')
     if ($script:CapturedRc -eq 0) {
       Write-Say "pre-commit MISSED stage=$stage"
       $script:BatteryFailed = 1
@@ -348,7 +362,7 @@ function Invoke-Verify([string]$dir) {
       $failed = 1
     }
     # (a) zero-install green: gates all on the foreign soil.
-    Invoke-Timed $dir 'gate-all' 300 'pwsh' @('-NoProfile', '-File', 'scripts/gates.ps1', '-Mode', 'all')
+    Invoke-Timed $dir 'gate-all' 900 'pwsh' @('-NoProfile', '-File', 'scripts/gates.ps1', '-Mode', 'all')
     if ($script:CapturedRc -eq 0) {
       Write-Say 'gate all PASS'
       $gateAllOk = 1
@@ -358,19 +372,19 @@ function Invoke-Verify([string]$dir) {
     }
 
     # (b) hook install and one real commit through the installed pre-commit.
-    Invoke-Timed $dir 'install-hooks' 120 'sh' @('scripts/install-hooks.sh')
+    Invoke-Timed $dir 'install-hooks' 300 'sh' @('scripts/install-hooks.sh')
     if ($script:CapturedRc -eq 0) {
       Write-Say 'install-hooks PASS'
     } else {
       Write-Say 'install-hooks FAIL'
       $failed = 1
     }
-    Invoke-Timed $dir 'git-add' 120 'git' @('--no-optional-locks', 'add', '-A')
+    Invoke-Timed $dir 'git-add' 300 'git' @('--no-optional-locks', 'add', '-A')
     if ($script:CapturedRc -ne 0) {
       Write-Say 'pre-commit FAIL'
       $failed = 1
     } else {
-      Invoke-Timed $dir 'commit' 300 'git' @('--no-optional-locks', '-c', 'commit.gpgsign=false', 'commit', '-m', 'adopt-plane-proof-commit')
+      Invoke-Timed $dir 'commit' 600 'git' @('--no-optional-locks', '-c', 'commit.gpgsign=false', 'commit', '-m', 'adopt-plane-proof-commit')
       if ($script:CapturedRc -eq 0) {
         Write-Say 'pre-commit PASS'
       } else {

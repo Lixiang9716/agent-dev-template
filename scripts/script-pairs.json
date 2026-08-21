@@ -1,7 +1,7 @@
 {
   "adopt-plane": {
     "sh": "567b70ca93501fd0d4aec245471a91941b9edf5b",
-    "pwsh": "0871e1dd8ca552199ff96922b45fa345b6500896",
+    "pwsh": "1ae99048b697ebcd09ad70b568072ed5c240fdca",
     "probe": "test",
     "heavy": true
   },
@@ -44,7 +44,7 @@
   },
   "self-test": {
     "sh": "38b12f1b49cfdc79d54d32db9c7573cab189f197",
-    "pwsh": "2e579f8acf1bc66de60c90ad1fab3a915e8253ea"
+    "pwsh": "fe92350f4a7da489568e0e5263b60dae1e380b96"
   },
   "translation-pairing-merge": {
     "sh": "1fd3774ffb1e9179efc73a10172a7b3fd2f3dece",
@@ -73,7 +73,7 @@
   },
   "verify-script-pairs": {
     "sh": "d5b5c986bf5c18094d030871b0d4acf96cd4d1ba",
-    "pwsh": "9d67d6cfb63935c5b157205bd103805718c08a4d"
+    "pwsh": "f625011dedc8d612852915d02e0e9911f9b437f4"
   },
   "verify-script-pairs.test": {
     "sh": "c41bf8a89c89df87d1b417019bbd97004724cc4d",

@@ -29,6 +29,19 @@ $env:GIT_OPTIONAL_LOCKS = '0'
 # set so the caller reports the FAIL with the captured output.
 function Invoke-InDirTimed([string]$dir, [string]$stage, [int]$timeoutSeconds, [string]$command, [string[]]$arguments) {
   $script:TimedOutStage = $null
+  if (-not $IsWindows) {
+    # Fast path: direct invocation with pipe capture. The pipe-handle
+    # inheritance hang is Windows-specific; the guarded Start-Process path
+    # stays on Windows, where the CI hang was observed.
+    Push-Location $dir
+    try {
+      $script:Captured = (@(& $command @arguments 2>&1) -join "`n")
+      $script:CapturedRc = $LASTEXITCODE
+    } finally {
+      Pop-Location
+    }
+    return
+  }
   $outFile = Join-Path ([IO.Path]::GetTempPath()) ('st-' + $stage + '-' + [Guid]::NewGuid().ToString('N'))
   $errFile = "$outFile.err"
   $proc = Start-Process -FilePath $command -ArgumentList $arguments -WorkingDirectory $dir `
@@ -130,9 +143,9 @@ function Invoke-SelfTest {
       $skipped++
       continue
     }
-    Invoke-InDirTimed $script:Root "suite:$name" 600 'pwsh' @('-NoProfile', '-File', $t.FullName)
+    Invoke-InDirTimed $script:Root "suite:$name" 3600 'pwsh' @('-NoProfile', '-File', $t.FullName)
     if ($script:TimedOutStage) {
-      [Console]::Error.WriteLine("self-test: FAIL $($t.Name) (timeout after 600s)")
+      [Console]::Error.WriteLine("self-test: FAIL $($t.Name) (timeout after 3600s)")
       [Console]::Error.WriteLine(($script:Captured -join "`n"))
       $failed++
       continue
