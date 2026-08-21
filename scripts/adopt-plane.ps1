@@ -98,6 +98,18 @@ function Write-Say([string]$line) {
 # Output is redirected to files, never pipes: a descendant that inherits a
 # pipe handle would keep it open past the parent's exit, and the reader
 # would wait for EOF forever (the Windows CI hang this guard exists for).
+# Remove the capture files if they exist and only then. A cleanup must
+# never crash the gate: paths are validated before removal and every removal
+# is swallowed (a cleanup failure is noise, not a verdict — rule 4 fails on
+# real failures, not on janitorial errors).
+function Remove-CaptureFiles([string[]]$paths) {
+  foreach ($p in @($paths)) {
+    if ($p -and (Test-Path -LiteralPath $p -PathType Leaf)) {
+      try { Remove-Item -LiteralPath $p -Force -ErrorAction Stop } catch { }
+    }
+  }
+}
+
 function Invoke-InDir([string]$dir, [string]$stage, [int]$timeoutSeconds, [string]$command, [string[]]$arguments) {
   if (-not $IsWindows) {
     # Fast path: direct invocation with pipe capture. The pipe-handle
@@ -113,7 +125,9 @@ function Invoke-InDir([string]$dir, [string]$stage, [int]$timeoutSeconds, [strin
     }
     return
   }
-  $outFile = Join-Path $script:PrivRoot ('out-' + $stage + '-' + [Guid]::NewGuid().ToString('N'))
+  # Stage names must not leak invalid characters into Windows file names.
+  $fileStage = $stage.Replace(':', '_').Replace('/', '_').Replace('\\', '_')
+  $outFile = Join-Path $script:PrivRoot ('out-' + $fileStage + '-' + [Guid]::NewGuid().ToString('N'))
   $errFile = "$outFile.err"
   $proc = Start-Process -FilePath $command -ArgumentList $arguments -WorkingDirectory $dir `
     -RedirectStandardOutput $outFile -RedirectStandardError $errFile -PassThru -NoNewWindow
@@ -140,7 +154,7 @@ function Invoke-InDir([string]$dir, [string]$stage, [int]$timeoutSeconds, [strin
       (Get-Content -LiteralPath $errFile -Raw -ErrorAction SilentlyContinue)
     $script:CapturedRc = $proc.ExitCode
   }
-  Remove-Item -LiteralPath $outFile, $errFile -Force -ErrorAction SilentlyContinue
+  Remove-CaptureFiles @($outFile, $errFile)
 }
 
 # Timed invocation that reports the timeout as a stage FAIL and aborts the

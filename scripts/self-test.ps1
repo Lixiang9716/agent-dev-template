@@ -27,6 +27,18 @@ $env:GIT_OPTIONAL_LOCKS = '0'
 # files (never pipes — an inherited pipe handle hangs the reader on
 # Windows) and on timeout the process tree is killed and TimedOutStage is
 # set so the caller reports the FAIL with the captured output.
+# Remove the capture files if they exist and only then. A cleanup must
+# never crash the gate: paths are validated before removal and every removal
+# is swallowed (a cleanup failure is noise, not a verdict — rule 4 fails on
+# real failures, not on janitorial errors).
+function Remove-CaptureFiles([string[]]$paths) {
+  foreach ($p in @($paths)) {
+    if ($p -and (Test-Path -LiteralPath $p -PathType Leaf)) {
+      try { Remove-Item -LiteralPath $p -Force -ErrorAction Stop } catch { }
+    }
+  }
+}
+
 function Invoke-InDirTimed([string]$dir, [string]$stage, [int]$timeoutSeconds, [string]$command, [string[]]$arguments) {
   $script:TimedOutStage = $null
   if (-not $IsWindows) {
@@ -42,7 +54,10 @@ function Invoke-InDirTimed([string]$dir, [string]$stage, [int]$timeoutSeconds, [
     }
     return
   }
-  $outFile = Join-Path ([IO.Path]::GetTempPath()) ('st-' + $stage + '-' + [Guid]::NewGuid().ToString('N'))
+  # The stage names carry ':' (suite:adopt-plane.test), which is invalid in
+  # Windows file names — the capture files get a sanitized component.
+  $fileStage = $stage.Replace(':', '_').Replace('/', '_').Replace('\\', '_')
+  $outFile = Join-Path ([IO.Path]::GetTempPath()) ('st-' + $fileStage + '-' + [Guid]::NewGuid().ToString('N'))
   $errFile = "$outFile.err"
   $proc = Start-Process -FilePath $command -ArgumentList $arguments -WorkingDirectory $dir `
     -RedirectStandardOutput $outFile -RedirectStandardError $errFile -PassThru -NoNewWindow
@@ -69,7 +84,7 @@ function Invoke-InDirTimed([string]$dir, [string]$stage, [int]$timeoutSeconds, [
       (Get-Content -LiteralPath $errFile -Raw -ErrorAction SilentlyContinue))
     $script:CapturedRc = $proc.ExitCode
   }
-  Remove-Item -LiteralPath $outFile, $errFile -Force -ErrorAction SilentlyContinue
+  Remove-CaptureFiles @($outFile, $errFile)
 }
 
 $script:ManifestRel = 'scripts/script-pairs.json'
