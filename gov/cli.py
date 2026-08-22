@@ -140,12 +140,30 @@ def _usage() -> None:
         print(f"  {name:<16} {help_text}", file=sys.stderr)
 
 
-def _opt(args: list[str], name: str, default: str) -> str:
-    if name in args:
-        i = args.index(name)
-        if i + 1 < len(args):
-            return args[i + 1]
-    return default
+_HELP_FLAGS = ("-h", "--help", "help")
+_VERSION_FLAGS = ("-v", "--version", "version")
+# Commands whose args are NOT forwarded to an argparse parser: they must
+# intercept help/version themselves so a trailing flag never runs the action.
+_NO_FORWARD = ("init", "uninstall", "self-test", "verify-notes", "archive-notes")
+
+
+def _init_uninstall_args(args: list[str], what: str) -> Path | None:
+    """Parse the only supported flag ``--project <dir>``; reject the rest."""
+    project = "."
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--project":
+            if i + 1 >= len(args):
+                print(f"gov {what}: --project requires a directory", file=sys.stderr)
+                return None
+            project = args[i + 1]
+            i += 2
+        else:
+            print(f"gov {what}: unexpected argument '{a}'", file=sys.stderr)
+            _usage()
+            return None
+    return Path(project)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -155,16 +173,26 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     cmd, rest = argv[0], argv[1:]
 
-    if cmd in ("-h", "--help", "help"):
+    if cmd in _HELP_FLAGS:
         _usage()
         return 0
-    if cmd in ("-v", "--version", "version"):
+    if cmd in _VERSION_FLAGS:
         print(f"gov {__version__}")
         return 0
+    # Subcommand-level help/version: never execute the action as a side effect.
+    if cmd in _NO_FORWARD:
+        if any(a in _HELP_FLAGS for a in rest):
+            _usage()
+            return 0
+        if any(a in _VERSION_FLAGS for a in rest):
+            print(f"gov {__version__}")
+            return 0
     if cmd == "init":
-        return init(Path(_opt(rest, "--project", ".")))
+        project = _init_uninstall_args(rest, "init")
+        return 2 if project is None else init(project)
     if cmd == "uninstall":
-        return uninstall(Path(_opt(rest, "--project", ".")))
+        project = _init_uninstall_args(rest, "uninstall")
+        return 2 if project is None else uninstall(project)
     if cmd == "run":
         return gates.main(rest)
     if cmd == "self-test":
