@@ -3,52 +3,18 @@ name: CI
 on:
   push:
   pull_request:
-  schedule:
-    # Weekly heartbeat against environment drift (runner updates, action
-    # deprecations) — Sunday 02:17 UTC, off the top-of-hour cron stampede.
-    - cron: '17 2 * * 0'
 
 jobs:
   gates:
-    # The pair gate's probes are availability-aware: locally, a bash-only or
-    # pwsh-only host loudly skips cross-interpreter probes, so a single
-    # interpreter passes every local gate. CI owns exhaustiveness (AGENTS.md
-    # rule 9), so every leg forces the probe lane — a leg whose cross
-    # interpreter is missing fails loud instead of skipping.
-    env:
-      GATES_FORCE_PROBE: '1'
-    strategy:
-      fail-fast: false
-      matrix:
-        # Each leg validates its own port of the governance scripts: the bash
-        # twin on Linux, the pwsh twin on Linux, macOS, and Windows (macOS
-        # ships bash 3.2, so only the pwsh twin runs there).
-        include:
-          - os: ubuntu-latest
-            shell: sh
-          - os: ubuntu-latest
-            shell: pwsh
-          - os: macos-latest
-            shell: pwsh
-          - os: windows-latest
-            shell: pwsh
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v5
-      - name: Run all gates (bash)
-        if: matrix.shell == 'sh'
-        run: bash scripts/gates.sh --mode all
-      - name: Run all gates (pwsh)
-        if: matrix.shell == 'pwsh'
-        shell: pwsh
-        run: pwsh -File scripts/gates.ps1 -Mode all
-
-  # Always runs: GitHub counts a skipped required check as passing, so a
-  # failed dependency must not silence the verdict.
-  summary:
-    needs: [gates]
-    if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Gates must have succeeded
-        run: test "${{ needs.gates.result }}" = "success"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: pip install -e .
+      - name: Rejection cases
+        run: gov self-test
+      - name: Full gate DAG
+        run: gov run --mode all

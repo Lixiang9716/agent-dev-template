@@ -17,13 +17,12 @@ It documents one-shot scaffolding, a narrow adapter detail, or a superseded mech
 
 ## Never
 
-- Archive a `proposed/` note — proposals die by rejection or ship by implementation, not by archiving.
+- Archive an `implemented/` note whose decision is still the shipped reality — update its facts in place instead.
 - Edit, move, or delete anything under `archived/` — it is sha256-sealed; supersede forward instead.
-- Break a pair: archiving applies to notes, which are English-only in this template; bilingual pairs follow the pairing gate instead.
 
 ## Procedure
 
 1. Move the note to `archived/<class>/` keeping its filename.
 2. Insert `Archived: <date>` as line 4 (not earlier than the filename date); line 3 reads `Status: implemented`.
 3. Fix inbound links.
-4. Seal: `bash scripts/archive-agent-notes.sh --write` (pwsh twin: `pwsh -File scripts/archive-agent-notes.ps1 -Write`), then commit the manifest in the same change.
+4. Seal the manifest with `gov archive-notes`, then commit in the same change.

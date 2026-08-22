@@ -1,7 +1,58 @@
 {
   "files": {
+    "architecture/2026-08-17-dual-shell-governance-runners.md": {
+      "sha256": "0945498ff2ea167077fce106d30118b6bfb39d54bb2cb67238de2efc4e70269b"
+    },
+    "architecture/2026-08-17-language-neutral-governance-plane.md": {
+      "sha256": "8fbbdf78160c077433bc99d44c88d622c87b2bacd2f62694fef3d043ce221c42"
+    },
+    "architecture/2026-08-17-per-language-gate-runners.md": {
+      "sha256": "a18e755e3beea8ad1dff038b4c844a15a65447adda773d2b386bbdc3847df686"
+    },
+    "architecture/2026-08-18-template-first-positioning.md": {
+      "sha256": "30c06a517458c8fd5eb7ac45c5410455b9887e7ea4d1807bfd7eed3829145371"
+    },
+    "architecture/2026-08-18-template-ships-no-self-installer.md": {
+      "sha256": "2c1fba447d7989287a4ba3e7117d752b8cf7068871cb9f859f918e378cdf4738"
+    },
+    "architecture/2026-08-19-adoption-proof-and-first-day-guide.md": {
+      "sha256": "e289ea5dc94ad54f062f6ca9172dd50ab10ec4b11f5a4db06fcdf83c7b4076e7"
+    },
+    "process/2026-08-17-blob-hash-bilingual-pairing.md": {
+      "sha256": "6acb748450be3e1a76223619b162b4010b2e262d3de908cabd788e9e68e7b434"
+    },
+    "process/2026-08-17-change-scope-minimal-check-surface.md": {
+      "sha256": "7275265a066d8d831fef49a28482bf7e5d9a7102f6ff4d0eacf8ed83ccb43ec6"
+    },
+    "process/2026-08-17-coverage-slot-standard.md": {
+      "sha256": "2cf42eca1e99b721d03c64e272f463f6d572ab7f9d255f9c45fb2b8608e9c684"
+    },
+    "process/2026-08-17-declarative-gates-json.md": {
+      "sha256": "4dc4a9f87697a1dd5b725b5d89c011669a3fe548a5a941c8acec23d69bbd498b"
+    },
+    "process/2026-08-17-gates-over-prose.md": {
+      "sha256": "87ec32a62206df516fc50efc97bef2755fd8aa751d4e731cd490c25cfc52580d"
+    },
+    "process/2026-08-17-notes-are-the-agent-memory.md": {
+      "sha256": "0f780e7580de7c3081b687b0ae49468856ea33f88892c4008d85d2aead7ef097"
+    },
     "process/2026-08-17-seed-repository-structure.md": {
       "sha256": "ae8b0e513370767904dae2a87651d9f0ed6a98c78f97a82f94d454c3bb193d19"
+    },
+    "process/2026-08-18-grow-the-governance-plane.md": {
+      "sha256": "3bffe8240a707dd2e94a7e4d06f2a587b5889cb1bfa13b763e0934c8fd36918f"
+    },
+    "process/2026-08-18-link-gate-and-leakage-skills.md": {
+      "sha256": "594f1af77017f6b2ba6e9919aae006d09fdb5cb3ba490bf5b65739febb674d95"
+    },
+    "process/2026-08-18-twin-pairs-confirm-together.md": {
+      "sha256": "3b0d9aec84af8e080ad614116b0e9cc7ac7b19cfa0f89df3c7b5f1a9aa2e2169"
+    },
+    "process/2026-08-19-vocabulary-gate-and-notes-discipline.md": {
+      "sha256": "5b4691709e5166c70344f2d8d67aa9052d42522267f8a3fe6ff8759a62b0ee46"
+    },
+    "simplification/2026-08-18-localize-defensive-patterns.md": {
+      "sha256": "2fdf173aab3b9f6406cc4356e494af5335029667c4d6e7dcf9ec0b5602838b2e"
     }
   }
 }
