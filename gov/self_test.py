@@ -8,6 +8,7 @@ each governance gate has demonstrated it catches the violation it claims to.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -139,6 +140,23 @@ def test_gates_rejects_non_object_gate() -> None:
         _case("gates.py", root, 2, "a null gate must be a config error, not a crash")
 
 
+def test_cli_init_help_no_side_effect() -> None:
+    """`gov init --help` must show help and create nothing, not run init."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        env = dict(os.environ)
+        env["PYTHONPATH"] = str(HERE.parent) + os.pathsep + env.get("PYTHONPATH", "")
+        result = subprocess.run(
+            [sys.executable, "-m", "gov", "init", "--help"],
+            cwd=root,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, f"init --help must exit 0: {result.stderr}"
+        assert not list(root.iterdir()), "init --help must not create any file"
+
+
 CASES = [
     test_verify_notes_rejects_missing_section,
     test_gates_rejects_duplicate_id,
@@ -146,6 +164,7 @@ CASES = [
     test_gates_rejects_unknown_needs,
     test_gates_skips_transitively,
     test_gates_rejects_non_object_gate,
+    test_cli_init_help_no_side_effect,
     test_pairing_rejects_missing_record,
 ]
 
