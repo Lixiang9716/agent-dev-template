@@ -15,6 +15,7 @@ from pathlib import Path
 
 from . import archive_notes, change_scope, gates, self_test
 from . import verify_notes, verify_translation_pairing
+from . import __version__
 
 TEMPLATES = files("gov.templates")
 REFERENCE_MARKER = "<!-- gov:rules -->"
@@ -27,6 +28,17 @@ def _copy(source, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     with source.open("rb") as f:
         dest.write_bytes(f.read())
+
+
+def _remove_empty_dirs(root: Path) -> None:
+    """Remove empty parent dirs, deepest first, stopping at the first non-empty."""
+    p = root
+    while p != p.parent:
+        try:
+            p.rmdir()
+        except OSError:
+            break
+        p = p.parent
 
 
 def init(project: Path) -> int:
@@ -81,20 +93,28 @@ def uninstall(project: Path) -> int:
     if not manifest.exists():
         print(f"uninstall: {project} is not initialized", file=sys.stderr)
         return 2
-    data = json.loads(manifest.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"uninstall: corrupt manifest {manifest}: {e}", file=sys.stderr)
+        return 2
 
     ag = project / "AGENTS.md"
     if ag.exists():
-        lines = ag.read_text(encoding="utf-8").splitlines()
-        kept = [line for line in lines if REFERENCE_MARKER not in line]
+        kept = [line for line in ag.read_text(encoding="utf-8").splitlines()
+                if REFERENCE_MARKER not in line]
         while kept and kept[-1] == "":
             kept.pop()
-        ag.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
+        if kept:
+            ag.write_text("\n".join(kept) + "\n", encoding="utf-8")
+        else:
+            ag.unlink()
 
     for rel in data.get("created", []):
         p = project / rel
         if p.exists():
             p.unlink()
+            _remove_empty_dirs(p.parent)
 
     shutil.rmtree(project / ".gov", ignore_errors=True)
     print(f"uninstall: removed governance from {project}")
@@ -135,6 +155,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     cmd, rest = argv[0], argv[1:]
 
+    if cmd in ("-h", "--help", "help"):
+        _usage()
+        return 0
+    if cmd in ("-v", "--version", "version"):
+        print(f"gov {__version__}")
+        return 0
     if cmd == "init":
         return init(Path(_opt(rest, "--project", ".")))
     if cmd == "uninstall":

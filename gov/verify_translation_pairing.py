@@ -11,7 +11,8 @@ confirmed-consistent moment, in the form::
 
 Editing either side without re-confirming goes red. ``--write <pair>``
 re-records both hashes — the explicit "the pair was re-confirmed" act.
-Notes under ``.agents/notes/`` are English-only and out of scope.
+AGENTS.md (agent instructions) and notes under ``.agents/notes/`` are
+English-only and out of scope; only the external-presentation docs pair.
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ import sys
 from pathlib import Path
 
 SCOPE_DIRS = [Path("docs")]
-SCOPE_FILES = [Path("README.md"), Path("AGENTS.md")]
+SCOPE_FILES = [Path("README.md")]
 # Working design log, not external presentation: English-only like the notes.
 SKIP = {Path("docs/decisions.md")}
 

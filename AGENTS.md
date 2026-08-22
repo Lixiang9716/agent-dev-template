@@ -1,7 +1,5 @@
 # AGENTS.md — standing orders
 
-English | [中文](AGENTS.zh.md)
-
 <!-- gov:rules --> Read .gov/rules.md and follow it before starting work.
 
 This repository **is** the governance plane (agent-dev-template): it ships the
