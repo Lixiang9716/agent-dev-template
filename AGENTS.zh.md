@@ -2,16 +2,8 @@
 
 [English](AGENTS.md) | 中文
 
-本仓库中 agent 与人类的共同规则。它们补充但不取代门禁:凡能被命令检查的规则就是 `gates.json` 里的门禁,本文件只做链接。这些规则刻意保持语言无关——它们治理的是过程,不是产品代码。
+<!-- gov:rules --> 开始工作前，先读 .gov/rules.md 并遵守其中的规则。
 
-1. **门禁优先于散文。** 凡能被命令检验的承诺都变成 `gates.json` 里的门禁。无法检验的约定属于评审,不属于一厢情愿的文字。
-2. **每个非平凡改动在同一个 PR 里携带一篇 Agent Note。** 笔记记录决策、它击败的备选与后果——代码与文档装不下的"为什么"。改动已交付事实时,在同一改动中更新对应笔记。
-3. **证明每道门禁会拒绝违规输入。** 护栏只有在回归真的让它变红时才是护栏。每个校验器都附带演示拒绝行为的测试;范式见 `scripts/gates.test.sh` / `scripts/gates.test.ps1`。
-4. **大声失败,绝不静默跳过。** 未知取值、畸形配置、缺失引用都要带着肇事名字中止。晚发现的错误配置此刻就是缺陷。
-5. **一个事实只有一个家。** 事实只活在一个层级里;其他地方放链接。见 [docs/tiers.md](docs/tiers.zh.md)。
-6. **文档站在 HEAD 说话。** 陈述当前行为;不写变更叙事("过去"、"不再"),不引用未提交草稿,不写面向评审者的辩护。没有任何会话或 PR 线索访问权的读者也必须能解析每个引用。
-7. **双语配对整体合并。** 任何 PR 不会只落配对中的一种语言而缺另外两个文件;同一改动内用 `bash scripts/verify-translation-pairing.sh --write <path>`(pwsh 版:`-Write -Path <path>`)重新确认。
-8. **尊重预算。** `scripts/doc-budgets.json` 的词数上限只降不升。上调是在 PR 里论证过的审慎行为。
-9. **选择最小充分检查集。** 先跑 `bash scripts/change-scope.sh --base <verified-ref>`(pwsh 版:`-Base <verified-ref>`),按触及面挑门禁;绝不条件反射地全量跑。穷尽性归 CI。
-10. **归档笔记是冻结的。** 永不编辑、移动或删除已封存笔记;用链接回指的新笔记取代它。
-11. **生长治理平面。** 治理平面是地板,不是天花板。缺陷类反复出现,就写尸检并把护栏蒸馏成门禁;约定第三次靠人工执行,就做成技能;散文承诺变得可机检,就升格为门禁。每个新事实锚定到它唯一的层级之家——触发器表见 [docs/architecture.md](docs/architecture.zh.md)。
+本仓库**就是**治理平面（agent-dev-template）：它提供 `gov init` 注入其他项目所用的门禁、笔记与规则。已锁定的设计决策见 [docs/decisions.md](docs/decisions.md)；机制说明见 [docs/architecture.md](docs/architecture.md)。
+
+运行 `gov self-test` 验证每个治理门禁都能拒绝违规；运行 `gov run --mode all` 跑完整门禁 DAG。

@@ -2,75 +2,36 @@
 
 [English](README.md) | 中文
 
-一个语言无关的 agent 开发模板仓库:治理平面让编码 agent 并行高速工作,同时由机器而不是自觉守住质量底线。
+一个语言无关的、面向 agent 驱动开发的治理平面：让 coding agent 快速并行工作，同时由机器——而非人的警惕——守住质量线。唯一运行时依赖是 Python 3。
 
-模板只提供治理平面。它不预设你的编程语言、测试框架或包管理器——你的工具链以命令槽位的形式接入 `gates.json`。每个脚本提供两份等价实现:bash 版(`scripts/*.sh`,兼容 macOS 的 bash 3.2)与 PowerShell 版(`scripts/*.ps1`,要求 pwsh 7+)。主机上有什么就用什么,无额外运行时、无安装步骤。成对探针在对方解释器存在时运行、缺失时响亮跳过;CI 强制探针。
-
-## Agent 开发模式
-
-agent 对强制门禁的遵从远高于对散文式约定的遵从——这是本模板的立身观察。模式是一个循环:
-
-1. **自由工作,机械验证。** 凡命令能检查的承诺都是 `gates.json` 里的门禁;没有任何环节依赖人的自觉。
-2. **记录为什么。** 每个非平凡改动在同一个 PR 里携带一篇 Agent Note:决策、它击败的备选、后果——共享记忆让已定的决策不再被反复重议。
-3. **只查改动触及的部分。** `change-scope` 报告触及面,最小充分门禁集由此而来;穷尽性归 CI。
-4. **文档成对,否则变红。** 双语配对被 git blob 哈希钉住;单侧编辑无处藏身。
-
-常设规则见 [AGENTS.md](AGENTS.zh.md);机制详解见 [docs/architecture.md](docs/architecture.zh.md)。
+平面提供两个机制：**门禁**（任何能被命令检查的承诺都变成机械检查）和**笔记**（每个非平凡改动记录决策、被打败的方案与后果）。双语配对让对外展示文档保持同步。
 
 ## 安装
 
-从 GitHub 模板派生新仓库——一条命令,干净历史:
+```sh
+pip install .            # 或：uv tool install . / pipx install .
+```
+
+这把 `gov` CLI 放到你的 PATH 上（纯标准库，无第三方依赖）。每个动作一个子命令：
 
 ```sh
-gh repo create my-app --template Lixiang9716/agent-dev-template
+gov init --project <path>      # 把平面注入现有项目
+gov uninstall --project <path> # 精确反转
+gov run --mode all             # 跑项目的门禁 DAG
+gov self-test                  # 证明每个治理门禁都能拒绝
+gov verify-pairing --write     # 编辑一侧后重新确认双语配对
+gov change-scope --base <ref>  # 一次 diff 的最小充分检查集
 ```
 
-或者显式 clone:
+`init` 非侵入且幂等：创建 `.gov/rules.md`，仅在缺失时添加 `gates.json` 和笔记 README，向 AGENTS.md 追加一行引用，绝不覆盖项目自己的文件。`uninstall` 精确反转。
 
-```sh
-git clone https://github.com/Lixiang9716/agent-dev-template my-project
-cd my-project
-rm -rf .git && git init
-bash scripts/gates.sh --mode all    # everything green, zero install
-sh scripts/install-hooks.sh         # pre-commit, pre-push, merge driver
-```
+## 内部内容
 
-PowerShell 主机运行孪生脚本:
+- `gov/` — Python 包：`gates`（`gates.json` 上的 DAG 运行器）、`verify_notes`（三段必填）、`verify_translation_pairing`（git blob 哈希）、`change_scope`、`self_test`、`archive_notes`。
+- `gov/templates/` — `gov init` 注入项目所用的规则、默认 `gates.json` 和笔记格式。
+- `.gov/rules.md` — 规则的唯一事实源。
+- `.agents/notes/` — 决策记录格式与生命周期。
 
-```sh
-pwsh -File scripts/gates.ps1 -Mode all
-```
+## 出处
 
-两种 shell 都没有的主机只需安装 pwsh 7——一个软件包,无需容器:
-
-```sh
-winget install --id Microsoft.PowerShell   # Windows
-brew install powershell                    # macOS
-```
-
-## 第一天
-
-第一天路线:[docs/adoption.md](docs/adoption.zh.md) —— 平面给你什么、要校准什么、以及到第一次 pull request 的步骤。
-
-## 接入你的工具链
-
-`gates.json` 把每个门禁声明为一个命令槽位。一个 Go 项目可以加:
-
-```json
-{ "id": "test", "command": ["go", "test", "./..."] }
-```
-
-任何失败时以非零退出的命令都是门禁;纯数组在两种 shell 下都会执行。见 [docs/architecture.md](docs/architecture.zh.md)。
-
-## 里面有什么
-
-- `gates.json` + `scripts/gates.*` —— 声明式 DAG 门禁调度器:按依赖顺序并行执行、失败传播、任何子进程启动前先做 fail-loud 校验。
-- `.agents/notes/` —— Agent Notes:五段式决策记录,带生命周期与 sha256 封存的冻结归档。
-- `scripts/change-scope.*` —— 以稳定 JSON 报告一次改动触及的范围。
-- `scripts/verify-translation-pairing.*` —— 用 git blob 哈希钉住的双语配对。
-- `.agents/skills/` —— 声明式技能(pre-push 检查、代码评审、笔记归档)。
-- `scripts/verify-doc-budgets.*` —— 只降不升的词数上限。
-
-## 来源
-
-这些机制蒸馏自 DeepSeek Harness 仓库——其"一切皆插件"的架构与"门禁优先于散文"的公理塑造了本模板。保留:治理平面。留给你:产品平面。
+机制蒸馏自 DeepSeek Harness 仓库，其"门禁高于散文"公理塑造了本模板。保留：治理平面。留给你：产品平面。已锁定的设计决策见 [docs/decisions.md](docs/decisions.md)。

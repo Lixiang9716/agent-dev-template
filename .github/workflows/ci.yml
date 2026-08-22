@@ -1,119 +1,20 @@
-# Two lanes, one plane. The light lane (push and pull_request) runs every
-# gate with the heavy suites and heavy probes loudly skipped — fast enough
-# that pre-push stays inside the SSH idle window. The heavy lane (a 12-hour
-# schedule at 02:17 and 14:17 UTC, off the top-of-hour cron stampede) runs
-# the full adoption proof and every heavy twin probe on the same four-leg
-# matrix. A push or PR whose diff touches the heavy channel itself
-# (scripts/adopt-plane.* or scripts/script-pairs.json) forces the heavy lane
-# on that leg, so a broken heavy lane can never merge silently.
-
 name: CI
 
 on:
   push:
   pull_request:
-  schedule:
-    - cron: '17 */12 * * *'
 
 jobs:
   gates:
-    if: github.event_name != 'schedule'
-    env:
-      GATES_FORCE_PROBE: '1'
-    strategy:
-      fail-fast: false
-      matrix:
-        # Each leg validates its own port of the governance scripts: the bash
-        # twin on Linux, the pwsh twin on Linux, macOS, and Windows (macOS
-        # ships bash 3.2, so only the pwsh twin runs there).
-        include:
-          - os: ubuntu-latest
-            shell: sh
-          - os: ubuntu-latest
-            shell: pwsh
-          - os: macos-latest
-            shell: pwsh
-          - os: windows-latest
-            shell: pwsh
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v5
-      # The heavy channel must not rot: when the outgoing diff touches it,
-      # this leg runs the heavy lane too. The baseline is event-dependent —
-      # push: the previous push's commit (`github.event.before`); pull
-      # request: the base branch's head — and is fetched when the shallow
-      # checkout lacks it. A detection failure degrades to light (the
-      # 12-hour schedule still owns the heavy lane).
-      - name: Detect heavy-channel changes
-        id: heavy-detect
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            base="${{ github.event.pull_request.base.sha }}"
-          else
-            base="${{ github.event.before }}"
-          fi
-          git fetch --depth=1 origin "$base" 2>/dev/null || true
-          touched=$(git diff --name-only "$base" "$GITHUB_SHA" -- \
-            scripts/adopt-plane.sh scripts/adopt-plane.ps1 \
-            scripts/adopt-plane.test.sh scripts/adopt-plane.test.ps1 \
-            scripts/script-pairs.json 2>/dev/null || true)
-          # Only a hit writes the variable; a miss leaves it completely
-          # absent — GATES_FORCE_HEAVY's closed set is {unset, 1}, and the
-          # empty string is a set value that would fail loud.
-          if [ -n "$touched" ]; then echo "GATES_FORCE_HEAVY=1" >> "$GITHUB_ENV"; fi
-      - name: Run all gates (bash)
-        if: matrix.shell == 'sh'
-        shell: bash
-        run: bash scripts/gates.sh --mode all
-      - name: Run all gates (pwsh)
-        if: matrix.shell == 'pwsh'
-        shell: pwsh
-        run: pwsh -File scripts/gates.ps1 -Mode all
-
-  # Always runs: GitHub counts a skipped required check as passing, so a
-  # failed dependency must not silence the verdict. A skipped gates job
-  # (schedule events) is a pass, not a failure.
-  summary:
-    needs: [gates]
-    if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Gates must have succeeded
-        run: test "${{ needs.gates.result }}" != "failure"
-
-  gates-heavy:
-    if: github.event_name == 'schedule'
-    env:
-      GATES_FORCE_PROBE: '1'
-      GATES_FORCE_HEAVY: '1'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            shell: sh
-          - os: ubuntu-latest
-            shell: pwsh
-          - os: macos-latest
-            shell: pwsh
-          - os: windows-latest
-            shell: pwsh
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v5
-      - name: Run all gates (bash)
-        if: matrix.shell == 'sh'
-        run: bash scripts/gates.sh --mode all
-      - name: Run all gates (pwsh)
-        if: matrix.shell == 'pwsh'
-        shell: pwsh
-        run: pwsh -File scripts/gates.ps1 -Mode all
-
-  summary-heavy:
-    needs: [gates-heavy]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Heavy gates must have succeeded
-        run: test "${{ needs.gates-heavy.result }}" != "failure"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: pip install -e .
+      - name: Rejection cases
+        run: gov self-test
+      - name: Full gate DAG
+        run: gov run --mode all
