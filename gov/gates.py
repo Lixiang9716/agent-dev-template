@@ -8,10 +8,12 @@ that exits non-zero on failure, and reports one outcome per gate:
     FAIL    command exited non-zero
     TIMEOUT exceeded its timeoutMs
     MISSING the executable does not exist
-    SKIP    a needed dependency had a blocking failure
+    SKIP    a needed dependency did not pass (blocking failure, or was skipped)
 
 Exit codes: 0 = all green; 1 = at least one blocking failure; 2 = config invalid.
 Run order respects the ``needs`` DAG; ``concurrency`` caps parallel gate runs.
+SKIP propagates transitively: a gate whose need was skipped is itself skipped,
+never silently run and reported PASS.
 
 The only third-party dependency is Python 3.
 """
@@ -19,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shlex
 import shutil
 import subprocess
 import sys
@@ -45,6 +46,26 @@ class Gate:
     allow_failure: bool = False
 
 
+def _require_object(value: Any, what: str) -> dict:
+    if not isinstance(value, dict):
+        raise ConfigError(f"{what} must be an object")
+    return value
+
+
+def _require_str_list(value: Any, what: str) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+        raise ConfigError(f"{what} must be an array of strings")
+    return value
+
+
+def _require_positive_int(value: Any, what: str) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ConfigError(f"{what} must be a positive integer")
+    return value
+
+
 def _command_variants(raw: Any) -> list[str]:
     """A command is a plain argv array (D1: single form, no shell variants)."""
     if isinstance(raw, list) and all(isinstance(p, str) for p in raw) and raw:
@@ -61,16 +82,22 @@ def load_config(path: str) -> tuple[dict[str, list[str]], list[Gate], int]:
     except json.JSONDecodeError as e:
         raise ConfigError(f"{path} is not valid JSON: {e}")
 
+    raw = _require_object(raw, "the config root")
     gates_raw = raw.get("gates", [])
+    if not isinstance(gates_raw, list):
+        raise ConfigError("'gates' must be an array")
     modes_raw = raw.get("modes", {})
-    concurrency = raw.get("concurrency")
+    if modes_raw is not None and not isinstance(modes_raw, dict):
+        raise ConfigError("'modes' must be an object")
+    concurrency = _require_positive_int(raw.get("concurrency"), "'concurrency'")
 
     gates: list[Gate] = []
     ids: set[str] = set()
     for i, g in enumerate(gates_raw):
+        g = _require_object(g, f"gates[{i}]")
         gid = g.get("id")
         if not isinstance(gid, str) or not gid:
-            raise ConfigError(f"gate[{i}] has an empty or non-string id")
+            raise ConfigError(f"gates[{i}] has an empty or non-string id")
         if gid in ids:
             raise ConfigError(f"duplicate gate id: {gid}")
         ids.add(gid)
@@ -78,14 +105,26 @@ def load_config(path: str) -> tuple[dict[str, list[str]], list[Gate], int]:
             command = _command_variants(g.get("command"))
         except ConfigError as e:
             raise ConfigError(f"gate '{gid}': {e}")
+        label = g.get("label", "")
+        if not isinstance(label, str):
+            raise ConfigError(f"gate '{gid}': 'label' must be a string")
+        needs = g.get("needs", [])
+        if not isinstance(needs, list) or not all(isinstance(n, str) for n in needs):
+            raise ConfigError(f"gate '{gid}': 'needs' must be an array of strings")
+        timeout = g.get("timeoutMs")
+        if timeout is not None and (isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0):
+            raise ConfigError(f"gate '{gid}': 'timeoutMs' must be a positive integer")
+        allow_failure = g.get("allowFailure", False)
+        if not isinstance(allow_failure, bool):
+            raise ConfigError(f"gate '{gid}': 'allowFailure' must be a boolean")
         gates.append(
             Gate(
                 id=gid,
                 command=command,
-                label=g.get("label", ""),
-                needs=[n for n in g.get("needs", [])],
-                timeout_ms=g.get("timeoutMs"),
-                allow_failure=bool(g.get("allowFailure", False)),
+                label=label,
+                needs=list(needs),
+                timeout_ms=timeout,
+                allow_failure=allow_failure,
             )
         )
 
@@ -118,14 +157,13 @@ def load_config(path: str) -> tuple[dict[str, list[str]], list[Gate], int]:
 
     modes: dict[str, list[str]] = {}
     for name, gate_list in modes_raw.items():
-        if not isinstance(gate_list, list):
-            raise ConfigError(f"mode '{name}' must be a list of gate ids")
+        gate_list = _require_str_list(gate_list, f"mode '{name}'")
         for gid in gate_list:
             if gid not in by_id:
                 raise ConfigError(f"mode '{name}' references unknown gate '{gid}'")
         modes[name] = list(gate_list)
 
-    return modes, gates, int(concurrency) if concurrency else 0
+    return modes, gates, concurrency or 0
 
 
 def _run_one(gate: Gate) -> tuple[Gate, str, str, bool]:
@@ -155,12 +193,6 @@ def _tail(text: str, limit: int = 2000) -> str:
     return text[-limit:] + f"\n... (truncated, {len(text) - limit} more chars)"
 
 
-def _summarize(name: str, gates: list[str]) -> str:
-    if name is None:
-        return ", ".join(gates)
-    return f"{name}: {', '.join(gates)}"
-
-
 def run_gates(
     gates: list[Gate],
     selection: list[str] | None,
@@ -168,22 +200,19 @@ def run_gates(
     fail_fast: bool,
 ) -> int:
     """Run the selected gates (all of them when selection is None)."""
-    selected: list[Gate]
     if selection is None:
         selected = gates
     else:
         by_id = {g.id: g for g in gates}
         selected = [by_id[gid] for gid in selection]
-    # Close over the needs DAG: dependents of an unselected gate still resolve.
     selected_ids = {g.id for g in selected}
+    by_id = {g.id: g for g in selected}
 
     outcomes: dict[str, str] = {}
     details: dict[str, str] = {}
     blocking: dict[str, bool] = {}
-    running: dict[str, Gate] = {}
-    skipped: dict[str, list[str]] = {}
+    skipped_set: set[str] = set()
 
-    # A gate can run once every selected need is settled non-blocking.
     indegree = {g.id: len([n for n in g.needs if n in selected_ids]) for g in selected}
     dependents: dict[str, list[str]] = {g.id: [] for g in selected}
     for g in selected:
@@ -195,9 +224,35 @@ def run_gates(
 
     with ThreadPoolExecutor(max_workers=concurrency or 1) as pool:
         pending: dict[Any, Gate] = {}
+
+        def enqueue(gate: Gate) -> None:
+            pending[pool.submit(_run_one, gate)] = gate
+
+        def settle(gid: str) -> None:
+            """Propagate a settled gate to its dependents; SKIP transitively."""
+            for child in dependents[gid]:
+                indegree[child] -= 1
+                if indegree[child] != 0:
+                    continue
+                child_gate = by_id[child]
+                failed_needs = [
+                    n
+                    for n in child_gate.needs
+                    if n in selected_ids and (blocking.get(n, False) or n in skipped_set)
+                ]
+                if failed_needs:
+                    outcomes[child] = "SKIP"
+                    skipped_set.add(child)
+                    print(
+                        f"SKIP {child} (needs failed: {', '.join(failed_needs)})",
+                        flush=True,
+                    )
+                    settle(child)
+                else:
+                    enqueue(child_gate)
+
         for g in ready:
-            pending[pool.submit(_run_one, g)] = g
-            running[g.id] = g
+            enqueue(g)
 
         stop = False
         while pending and not stop:
@@ -210,34 +265,12 @@ def run_gates(
                 print(_outcome_line(g, outcome, detail), flush=True)
                 if fail_fast and blocking[g.id]:
                     stop = True
-                    # Cancel remaining futures.
                     for other in pending:
                         other.cancel()
                     pending = {}
                     break
-                for child in dependents[g.id]:
-                    indegree[child] -= 1
-                    if indegree[child] == 0:
-                        child_gate = next(c for c in selected if c.id == child)
-                        if _needs_blocked(child_gate, selected_ids, blocking):
-                            outcomes[child] = "SKIP"
-                            skipped[child] = [
-                                n for n in child_gate.needs if blocking.get(n, False)
-                            ]
-                            print(
-                                f"SKIP {child} (needs failed: {', '.join(skipped[child])})",
-                                flush=True,
-                            )
-                            blocking[child] = False
-                            for grandchild in dependents[child]:
-                                indegree[grandchild] -= 1
-                                if indegree[grandchild] == 0:
-                                    gc = next(c for c in selected if c.id == grandchild)
-                                    pending[pool.submit(_run_one, gc)] = gc
-                        else:
-                            pending[pool.submit(_run_one, child_gate)] = child_gate
+                settle(g.id)
 
-    # Report blocking failures with their command output tail.
     failed = [gid for gid in outcomes if blocking.get(gid, False)]
     for gid in failed:
         if details[gid]:
@@ -251,12 +284,6 @@ def run_gates(
         flush=True,
     )
     return 1 if failed else 0
-
-
-def _needs_blocked(
-    gate: Gate, selected_ids: set[str], blocking: dict[str, bool]
-) -> bool:
-    return any(blocking.get(n, False) for n in gate.needs if n in selected_ids)
 
 
 def _outcome_line(gate: Gate, outcome: str, detail: str) -> str:
@@ -292,11 +319,6 @@ def main(argv: list[str] | None = None) -> int:
     elif not gates:
         print("no gates configured", file=sys.stderr)
         return 0
-
-    if not args.verbose:
-        # Silence nothing here; per-gate lines are the report. Verbosity is
-        # accepted for forward compatibility with a quieter default later.
-        pass
 
     return run_gates(gates, selection, concurrency, args.fail_fast)
 

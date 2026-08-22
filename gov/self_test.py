@@ -109,11 +109,43 @@ def test_pairing_rejects_missing_record() -> None:
         )
 
 
+def test_gates_skips_transitively() -> None:
+    """A gate whose need was skipped must itself skip, never pass."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "gates.json").write_text(
+            json.dumps(
+                {
+                    "gates": [
+                        {"id": "A", "command": ["true"], "needs": ["B"]},
+                        {"id": "B", "command": ["true"], "needs": ["C"]},
+                        {"id": "C", "command": ["false"]},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = _run("gates.py", root)
+        assert result.returncode == 1, "a blocking failure must exit 1"
+        assert "SKIP B" in result.stdout, "B must be skipped when C fails"
+        assert "SKIP A" in result.stdout, "A must be skipped when B is skipped"
+        assert "PASS A" not in result.stdout, "A must never pass through a skipped need"
+
+
+def test_gates_rejects_non_object_gate() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "gates.json").write_text(json.dumps({"gates": [None]}), encoding="utf-8")
+        _case("gates.py", root, 2, "a null gate must be a config error, not a crash")
+
+
 CASES = [
     test_verify_notes_rejects_missing_section,
     test_gates_rejects_duplicate_id,
     test_gates_rejects_cycle,
     test_gates_rejects_unknown_needs,
+    test_gates_skips_transitively,
+    test_gates_rejects_non_object_gate,
     test_pairing_rejects_missing_record,
 ]
 
