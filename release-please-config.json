@@ -11,9 +11,6 @@
         { "type": "ci", "section": "Continuous Integration", "hidden": false },
         { "type": "test", "section": "Tests", "hidden": false },
         { "type": "chore", "section": "Miscellaneous Chores", "hidden": true }
-      ],
-      "extra-files": [
-        { "type": "generic", "path": "gov/__init__.py" }
       ]
     }
   }
