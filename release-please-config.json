@@ -1,0 +1,20 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "python",
+      "changelog-sections": [
+        { "type": "feat", "section": "Features", "hidden": false },
+        { "type": "fix", "section": "Bug Fixes", "hidden": false },
+        { "type": "perf", "section": "Performance Improvements", "hidden": false },
+        { "type": "docs", "section": "Documentation", "hidden": false },
+        { "type": "refactor", "section": "Refactor", "hidden": false },
+        { "type": "ci", "section": "Continuous Integration", "hidden": false },
+        { "type": "test", "section": "Tests", "hidden": false },
+        { "type": "chore", "section": "Miscellaneous Chores", "hidden": true }
+      ],
+      "extra-files": [
+        { "type": "generic", "path": "gov/__init__.py" }
+      ]
+    }
+  }
+}
