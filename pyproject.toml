@@ -21,6 +21,9 @@ dependencies = []
 [project.scripts]
 gov = "gov.cli:main"
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
 [tool.setuptools.dynamic]
 version = { attr = "gov.__version__" }
 
@@ -29,3 +32,7 @@ include = ["gov*"]
 
 [tool.setuptools.package-data]
 "gov.templates" = ["*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

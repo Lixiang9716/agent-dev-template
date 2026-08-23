@@ -2,6 +2,10 @@
 
 English | [中文](README.zh.md)
 
+[![CI](https://github.com/Lixiang9716/govrail/actions/workflows/ci.yml/badge.svg)](https://github.com/Lixiang9716/govrail/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/govrail.svg)](https://pypi.org/project/govrail/)
+[![Python](https://img.shields.io/pypi/pyversions/govrail.svg)](https://pypi.org/project/govrail/)
+
 A language-agnostic governance plane for agent-driven development: coding
 agents work fast in parallel while machines — not vigilance — hold the quality
 line. The only runtime dependency is Python 3.
