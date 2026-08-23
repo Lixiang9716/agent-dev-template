@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Lixiang9716/govrail/compare/v0.1.1...v0.1.2) (2026-08-23)
+
+
+### Bug Fixes
+
+* publish to PyPI inside the release workflow ([#33](https://github.com/Lixiang9716/govrail/issues/33)) ([55af7f1](https://github.com/Lixiang9716/govrail/commit/55af7f16e154b9a86f2cf68b4e709e8302b7b1c4))
+
 ## [0.1.1](https://github.com/Lixiang9716/govrail/compare/v0.1.0...v0.1.1) (2026-08-23)
 
 
