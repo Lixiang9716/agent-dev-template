@@ -65,3 +65,7 @@ The mechanisms are distilled from the DeepSeek Harness repository, whose
 gates-over-prose axiom shaped this template. Kept: the governance plane. Left to
 you: the product plane. The locked design decisions live in
 [docs/decisions.md](docs/decisions.md).
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Lixiang9716/govrail&type=Date)](https://star-history.com/#Lixiang9716/govrail&Date)
