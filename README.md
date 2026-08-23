@@ -68,4 +68,4 @@ you: the product plane. The locked design decisions live in
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Lixiang9716/govrail&type=Date)](https://star-history.com/#Lixiang9716/govrail&Date)
+![Star History](https://raw.githubusercontent.com/Lixiang9716/govrail/stats/stars.svg)
