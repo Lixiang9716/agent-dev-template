@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "govrail"
-version = "0.1.0"
+dynamic = ["version"]
 description = "A language-agnostic governance plane for agent-driven development: gates and notes, delivered by the gov CLI."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -20,6 +20,9 @@ dependencies = []
 
 [project.scripts]
 gov = "gov.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "gov.__version__" }
 
 [tool.setuptools.packages.find]
 include = ["gov*"]
