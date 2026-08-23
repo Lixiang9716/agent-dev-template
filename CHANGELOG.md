@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Lixiang9716/govrail/compare/v0.1.2...v0.1.3) (2026-08-23)
+
+
+### Documentation
+
+* add GitHub stars badge to README ([#35](https://github.com/Lixiang9716/govrail/issues/35)) ([47a4e6f](https://github.com/Lixiang9716/govrail/commit/47a4e6f7ddd3ff2b2cfdf023e545f66d257f21da))
+
 ## [0.1.2](https://github.com/Lixiang9716/govrail/compare/v0.1.1...v0.1.2) (2026-08-23)
 
 
