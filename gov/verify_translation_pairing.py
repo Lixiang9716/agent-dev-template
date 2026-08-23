@@ -66,6 +66,23 @@ def _record_path(src: Path) -> Path:
     return src.with_name(src.stem + ".i18n.yaml")
 
 
+def _resolve_source(arg: str) -> Path:
+    """Resolve a --write argument (bare stem or any side) to the source .md."""
+    p = Path(arg)
+    name = p.name
+    for suffix in (".zh.md", ".i18n.yaml"):
+        if name.endswith(suffix):
+            name = name[: -len(suffix)]
+            break
+    if not name.endswith(".md"):
+        name += ".md"
+    p = p.with_name(name)
+    if p.exists():
+        return p
+    alt = Path("docs") / name
+    return alt if alt.exists() else p
+
+
 def _write_record(src: Path) -> None:
     zh = src.with_name(src.stem + ".zh.md")
     record = _record_path(src)
@@ -84,14 +101,19 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.write is not None:
-        targets = {Path(p) for p in args.write} if args.write else {p for p in _pairs()}
-        # Resolve each target to a source-side .md path.
-        for t in sorted(targets):
-            t = t if t.suffix == ".md" else t
-            if t.name.endswith(".zh.md"):
-                t = t.with_name(t.name[:-7] + ".md")
-            _write_record(t)
-            print(f"wrote {_record_path(t)}")
+        if args.write:
+            sources = sorted({_resolve_source(a) for a in args.write})
+        else:
+            sources = _pairs()
+        for src in sources:
+            if not src.exists():
+                print(f"verify_translation_pairing: no such pair source: {src}", file=sys.stderr)
+                return 2
+            if not src.with_name(src.stem + ".zh.md").exists():
+                print(f"verify_translation_pairing: missing counterpart for {src}", file=sys.stderr)
+                return 2
+            _write_record(src)
+            print(f"wrote {_record_path(src)}")
         return 0
 
     errors: list[str] = []
