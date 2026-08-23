@@ -50,3 +50,7 @@ gov change-scope --base <ref>  # 一次 diff 的最小充分检查集
 ## 出处
 
 机制蒸馏自 DeepSeek Harness 仓库，其"门禁高于散文"公理塑造了本模板。保留：治理平面。留给你：产品平面。已锁定的设计决策见 [docs/decisions.md](docs/decisions.md)。
+
+## Star 历史
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Lixiang9716/govrail&type=Date)](https://star-history.com/#Lixiang9716/govrail&Date)
