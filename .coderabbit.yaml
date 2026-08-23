@@ -1,0 +1,5 @@
+# CodeRabbit is installed but should stay quiet on this repo.
+reviews:
+  auto_review:
+    enabled: false
+  review_progress: false
