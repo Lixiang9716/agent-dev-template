@@ -11,10 +11,20 @@ becomes a mechanical check) and **notes** (every non-trivial change records the
 decision, what it beat, and the consequences). Bilingual pairing keeps the
 external-presentation docs in sync.
 
+## What it changes
+
+| Without govrail | With govrail |
+|---|---|
+| Agents follow rules "on their honor"; nothing is enforced | Every checkable promise is a gate that fails loud |
+| "Why did we do this?" is lost or re-litigated | Each decision is a note with the alternatives it beat |
+| Adopting tooling means a restructure or a new runtime | One command, zero restructure: `gov init` |
+
+See a governed project in [examples/demo-project](examples/demo-project).
+
 ## Install
 
 ```sh
-pip install .            # or: uv tool install . / pipx install .
+pip install govrail        # or: uv tool install govrail / pipx install govrail
 ```
 
 This puts the `gov` CLI on your PATH (stdlib only — no third-party

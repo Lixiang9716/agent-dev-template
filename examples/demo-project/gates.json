@@ -1,0 +1,24 @@
+{
+  "modes": {
+    "all": ["self-test", "notes", "pairing"],
+    "quick": ["self-test"]
+  },
+  "concurrency": 4,
+  "gates": [
+    {
+      "id": "self-test",
+      "label": "governance rejection cases",
+      "command": ["gov", "self-test"]
+    },
+    {
+      "id": "notes",
+      "label": "note format",
+      "command": ["gov", "verify-notes"]
+    },
+    {
+      "id": "pairing",
+      "label": "bilingual pairing",
+      "command": ["gov", "verify-pairing"]
+    }
+  ]
+}
