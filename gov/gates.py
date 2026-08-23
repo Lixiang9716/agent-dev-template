@@ -262,7 +262,7 @@ def run_gates(
                 outcomes[g.id] = outcome
                 details[g.id] = detail
                 blocking[g.id] = is_blocking and not g.allow_failure
-                print(_outcome_line(g, outcome, detail), flush=True)
+                print(_outcome_line(g, outcome), flush=True)
                 if fail_fast and blocking[g.id]:
                     stop = True
                     for other in pending:
@@ -286,9 +286,7 @@ def run_gates(
     return 1 if failed else 0
 
 
-def _outcome_line(gate: Gate, outcome: str, detail: str) -> str:
-    if outcome == "FAIL" and detail:
-        return f"FAIL {gate.id}"
+def _outcome_line(gate: Gate, outcome: str) -> str:
     return f"{outcome} {gate.id}"
 
 
