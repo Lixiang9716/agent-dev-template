@@ -6,10 +6,20 @@
 
 平面提供两个机制：**门禁**（任何能被命令检查的承诺都变成机械检查）和**笔记**（每个非平凡改动记录决策、被打败的方案与后果）。双语配对让对外展示文档保持同步。
 
+## 它改变了什么
+
+| 没有 govrail | 有 govrail |
+|---|---|
+| Agent 靠"自觉"守规则，没人强制 | 每个可检查的承诺都变成会大声失败的门禁 |
+| "为什么这么做"被遗忘或反复争论 | 每个决策都有一条带"被否方案"的笔记 |
+| 采用工具意味着重构或引入新运行时 | 一条命令、零重构：`gov init` |
+
+看一个被治理的项目长什么样：[examples/demo-project](examples/demo-project)。
+
 ## 安装
 
 ```sh
-pip install .            # 或：uv tool install . / pipx install .
+pip install govrail        # 或：uv tool install govrail / pipx install govrail
 ```
 
 这把 `gov` CLI 放到你的 PATH 上（纯标准库，无第三方依赖）。每个动作一个子命令：
