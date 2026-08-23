@@ -3,13 +3,13 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-dev-template"
+name = "govrail"
 version = "0.1.0"
 description = "A language-agnostic governance plane for agent-driven development: gates and notes, delivered by the gov CLI."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-authors = [{ name = "agent-dev-template" }]
+authors = [{ name = "govrail" }]
 keywords = ["agent", "governance", "gates", "notes", "development"]
 classifiers = [
     "Programming Language :: Python :: 3",
