@@ -53,4 +53,4 @@ gov change-scope --base <ref>  # 一次 diff 的最小充分检查集
 
 ## Star 历史
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Lixiang9716/govrail&type=Date)](https://star-history.com/#Lixiang9716/govrail&Date)
+![Star History](https://raw.githubusercontent.com/Lixiang9716/govrail/stats/stars.svg)
