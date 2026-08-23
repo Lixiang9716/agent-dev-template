@@ -157,6 +157,25 @@ def test_cli_init_help_no_side_effect() -> None:
         assert not list(root.iterdir()), "init --help must not create any file"
 
 
+def test_pairing_write_resolves_bare_stem_and_zh_side() -> None:
+    """--write must resolve a bare stem and a .zh.md side to the source .md."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        docs = root / "docs"
+        docs.mkdir()
+        (docs / "foo.md").write_text("# foo\n", encoding="utf-8")
+        (docs / "foo.zh.md").write_text("# foo 中文\n", encoding="utf-8")
+        for arg in ("foo", "docs/foo.zh.md"):
+            result = subprocess.run(
+                [sys.executable, str(HERE / "verify_translation_pairing.py"), "--write", arg],
+                cwd=root,
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode == 0, f"--write {arg} must exit 0: {result.stderr}"
+        assert (docs / "foo.i18n.yaml").exists(), "--write must create the record"
+
+
 CASES = [
     test_verify_notes_rejects_missing_section,
     test_gates_rejects_duplicate_id,
@@ -166,6 +185,7 @@ CASES = [
     test_gates_rejects_non_object_gate,
     test_cli_init_help_no_side_effect,
     test_pairing_rejects_missing_record,
+    test_pairing_write_resolves_bare_stem_and_zh_side,
 ]
 
 
