@@ -10,7 +10,56 @@ permissions:
   pull-requests: write
 
 jobs:
-  release-please:
+  release:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - name: Create release PR, or tag + GitHub Release on merge
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          release-type: python
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Checkout released commit
+        if: steps.release.outputs.release_created == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: steps.release.outputs.release_created == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify tag matches package version
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import gov
+          tag = os.environ["TAG"]            # e.g. v0.1.1
+          version = gov.__version__           # e.g. 0.1.1
+          if tag != f"v{version}":
+              raise SystemExit(f"tag {tag} does not match version {version}")
+          print(f"version {version} matches tag {tag}")
+          PY
+
+      - name: Build distributions
+        if: steps.release.outputs.release_created == 'true'
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      - name: Publish to PyPI
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          python -m pip install --upgrade twine
+          twine upload dist/*
