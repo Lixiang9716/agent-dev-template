@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/Lixiang9716/govrail/compare/v0.1.2...v0.2.0) (2026-08-23)
+
+
+### Features
+
+* self-hosted star history (daily GitHub Actions + SVG chart) ([#43](https://github.com/Lixiang9716/govrail/issues/43)) ([1049d9a](https://github.com/Lixiang9716/govrail/commit/1049d9ada8e255f40f067d73c6d13c64c14d2ada))
+
 ## [0.1.2](https://github.com/Lixiang9716/govrail/compare/v0.1.1...v0.1.2) (2026-08-23)
 
 
