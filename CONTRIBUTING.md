@@ -45,3 +45,18 @@ gov run                   # the full gate DAG (notes + pairing + note-presence +
    lives in `gov/version.py` (single source).
 2. Publishing to PyPI is automated on the release tag — the workflow checks
    the tag matches the package version.
+
+### The release PR may need one click
+
+The `chore(master): release x.y.z` PR is authored by the release-please bot.
+GitHub holds its CI run in "action_required" (workflow runs from bot PRs
+need a maintainer's approval; that setting exists only in the repository UI).
+When it happens, either:
+
+- open the PR's checks and click **Approve and run** — CI runs, the `gates`
+  check reports, and the PR merges normally; or
+- merge with the owner bypass (`gh pr merge <n> --squash --admin`) — admins
+  are not subject to the required checks on this repository, which is scoped
+  deliberately: every non-admin PR (human or agent) still requires `gates`.
+
+Prefer the first: it keeps the release PR's CI evidence real.
