@@ -15,12 +15,24 @@ Run order respects the ``needs`` DAG; ``concurrency`` caps parallel gate runs.
 SKIP propagates transitively: a gate whose need was skipped is itself skipped,
 never silently run and reported PASS.
 
+Selection: ``--mode <name>`` runs that mode's gate list; otherwise the
+top-level ``defaultMode`` runs (when configured); otherwise every enabled
+gate. ``--base <ref>`` instead selects the gates whose ``paths`` globs match
+the diff against that git ref (unpathed gates always run), and ``--gate <id>``
+runs one gate. ``enabled: false`` parks a gate outside every run — reported
+as a ``DISABLED`` line, never silently dropped — so "off" stays written down
+in the config instead of deleting the definition. A gate with
+``allowFailure: true`` reports its failure output tagged ``advisory``
+without affecting the exit code. Blocking failures end with a summary block
+naming each failed gate, its first output line, and how to rerun it alone.
+
 The only third-party dependency is Python 3.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -30,6 +42,33 @@ from typing import Any
 
 BLOCKING_OUTCOMES = ("FAIL", "TIMEOUT", "MISSING")
 OUTCOME_ORDER = ("FAIL", "TIMEOUT", "MISSING", "SKIP", "PASS")
+
+_RX_CACHE: dict[str, re.Pattern[str]] = {}
+
+
+def _glob_regex(pattern: str) -> re.Pattern[str]:
+    """Compile a path glob: ``**`` spans directories, ``*``/``?`` do not."""
+    rx = _RX_CACHE.get(pattern)
+    if rx is not None:
+        return rx
+    out: list[str] = []
+    i = 0
+    while i < len(pattern):
+        c = pattern[i]
+        if c == "*":
+            if pattern[i : i + 2] == "**":
+                out.append(".*")
+                i += 2
+                continue
+            out.append("[^/]*")
+        elif c == "?":
+            out.append("[^/]")
+        else:
+            out.append(re.escape(c))
+        i += 1
+    rx = re.compile("^" + "".join(out) + "$")
+    _RX_CACHE[pattern] = rx
+    return rx
 
 
 class ConfigError(Exception):
@@ -44,6 +83,8 @@ class Gate:
     needs: list[str] = field(default_factory=list)
     timeout_ms: int | None = None
     allow_failure: bool = False
+    enabled: bool = True
+    paths: list[str] = field(default_factory=list)
 
 
 def _require_object(value: Any, what: str) -> dict:
@@ -73,7 +114,12 @@ def _command_variants(raw: Any) -> list[str]:
     raise ConfigError("command must be a non-empty array of strings")
 
 
-def load_config(path: str) -> tuple[dict[str, list[str]], list[Gate], int]:
+def load_config(path: str) -> tuple[dict[str, list[str]], list[Gate], int, str | None]:
+    """Return (modes, gates, concurrency, default_mode).
+
+    ``default_mode`` is None when the config declares none — callers then
+    run every enabled gate (the historical default).
+    """
     try:
         with open(path, encoding="utf-8") as f:
             raw = json.load(f)
@@ -117,6 +163,14 @@ def load_config(path: str) -> tuple[dict[str, list[str]], list[Gate], int]:
         allow_failure = g.get("allowFailure", False)
         if not isinstance(allow_failure, bool):
             raise ConfigError(f"gate '{gid}': 'allowFailure' must be a boolean")
+        enabled = g.get("enabled", True)
+        if not isinstance(enabled, bool):
+            raise ConfigError(f"gate '{gid}': 'enabled' must be a boolean")
+        paths = g.get("paths", [])
+        if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
+            raise ConfigError(f"gate '{gid}': 'paths' must be an array of strings")
+        if any(not p for p in paths):
+            raise ConfigError(f"gate '{gid}': 'paths' must not contain empty strings")
         gates.append(
             Gate(
                 id=gid,
@@ -125,6 +179,8 @@ def load_config(path: str) -> tuple[dict[str, list[str]], list[Gate], int]:
                 needs=list(needs),
                 timeout_ms=timeout,
                 allow_failure=allow_failure,
+                enabled=enabled,
+                paths=list(paths),
             )
         )
 
@@ -163,7 +219,17 @@ def load_config(path: str) -> tuple[dict[str, list[str]], list[Gate], int]:
                 raise ConfigError(f"mode '{name}' references unknown gate '{gid}'")
         modes[name] = list(gate_list)
 
-    return modes, gates, concurrency or 0
+    default_mode = raw.get("defaultMode")
+    if default_mode is not None:
+        if not isinstance(default_mode, str) or not default_mode:
+            raise ConfigError("'defaultMode' must be a non-empty string")
+        if default_mode not in modes:
+            known = ", ".join(modes) or "none"
+            raise ConfigError(
+                f"'defaultMode' references unknown mode '{default_mode}' (known: {known})"
+            )
+
+    return modes, gates, concurrency or 0, default_mode
 
 
 def _run_one(gate: Gate) -> tuple[Gate, str, str, bool]:
@@ -193,18 +259,58 @@ def _tail(text: str, limit: int = 2000) -> str:
     return text[-limit:] + f"\n... (truncated, {len(text) - limit} more chars)"
 
 
+def _changed_files(base: str) -> list[str] | None:
+    """Files changed against ``base`` (tracked diff + untracked); None on error."""
+    files: set[str] = set()
+    for cmd in (
+        ["git", "diff", "--name-only", base],
+        ["git", "ls-files", "--others", "--exclude-standard"],
+    ):
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            print(
+                f"gov run: --base {base!r} failed: {proc.stderr.strip()}",
+                file=sys.stderr,
+            )
+            return None
+        files.update(f for f in proc.stdout.splitlines() if f)
+    return sorted(files)
+
+
+def _select_by_paths(
+    gates: list[Gate], changed: list[str]
+) -> tuple[list[str], list[str]]:
+    """Gates whose paths match the diff (unpathed gates always run)."""
+    selected: list[str] = []
+    out: list[str] = []
+    for g in gates:
+        if not g.enabled:
+            continue
+        if not g.paths or any(
+            _glob_regex(p).match(f) for p in g.paths for f in changed
+        ):
+            selected.append(g.id)
+        else:
+            out.append(g.id)
+    return selected, out
+
+
 def run_gates(
     gates: list[Gate],
     selection: list[str] | None,
     concurrency: int,
     fail_fast: bool,
 ) -> int:
-    """Run the selected gates (all of them when selection is None)."""
+    """Run the selected gates (every enabled gate when selection is None)."""
+    for g in gates:
+        if not g.enabled:
+            print(f"DISABLED {g.id}", flush=True)
+    active = [g for g in gates if g.enabled]
     if selection is None:
-        selected = gates
+        selected = active
     else:
         by_id = {g.id: g for g in gates}
-        selected = [by_id[gid] for gid in selection]
+        selected = [by_id[gid] for gid in selection if by_id[gid].enabled]
     selected_ids = {g.id for g in selected}
     by_id = {g.id: g for g in selected}
 
@@ -272,10 +378,22 @@ def run_gates(
                 settle(g.id)
 
     failed = [gid for gid in outcomes if blocking.get(gid, False)]
-    for gid in failed:
-        if details[gid]:
+    for gid, outcome in outcomes.items():
+        if outcome not in BLOCKING_OUTCOMES or not details[gid]:
+            continue
+        if blocking.get(gid, False):
             print(f"--- output of {gid} ---", flush=True)
-            print(details[gid], flush=True)
+        else:
+            # allowFailure: report loudly, block never (advisory, D2/D13).
+            print(f"--- output of {gid} (advisory; allowFailure) ---", flush=True)
+        print(details[gid], flush=True)
+
+    if failed:
+        print(f"--- summary: {len(failed)} blocking failure(s) ---", flush=True)
+        for gid in failed:
+            first = details[gid].strip().splitlines()[0] if details[gid].strip() else ""
+            print(f"{gid}: {first}" if first else f"{gid}:", flush=True)
+        print("rerun a single gate: gov run --gate <id>", flush=True)
 
     counts = {o: sum(1 for v in outcomes.values() if v == o) for o in OUTCOME_ORDER}
     parts = [f"{n} {o.lower()}" for o, n in counts.items() if n]
@@ -287,25 +405,44 @@ def run_gates(
 
 
 def _outcome_line(gate: Gate, outcome: str) -> str:
+    if gate.allow_failure and outcome in BLOCKING_OUTCOMES:
+        return f"{outcome} {gate.id} (advisory; allowFailure)"
     return f"{outcome} {gate.id}"
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run the governance gate DAG.")
+    parser = argparse.ArgumentParser(prog="gov run", description="Run the governance gate DAG.")
     parser.add_argument("--config", default="gates.json")
-    parser.add_argument("--mode", default=None, help="mode name from gates.json")
+    parser.add_argument("--mode", default=None,
+                        help="mode name from gates.json (overrides defaultMode)")
+    parser.add_argument("--base", default=None,
+                        help="select gates whose 'paths' match the diff against this git ref")
+    parser.add_argument("--gate", default=None, help="run a single gate by id")
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
 
     try:
-        modes, gates, concurrency = load_config(args.config)
+        modes, gates, concurrency, default_mode = load_config(args.config)
     except ConfigError as e:
         print(f"config error: {e}", file=sys.stderr)
         return 2
 
+    if args.gate and (args.mode or args.base):
+        print("gov run: --gate cannot be combined with --mode or --base", file=sys.stderr)
+        return 2
+
     selection = None
-    if args.mode:
+    if args.gate:
+        known = {g.id for g in gates}
+        if args.gate not in known:
+            print(
+                f"gov run: unknown gate '{args.gate}' (known: {', '.join(sorted(known)) or 'none'})",
+                file=sys.stderr,
+            )
+            return 2
+        selection = [args.gate]
+    elif args.mode:
         if args.mode not in modes:
             print(
                 f"config error: unknown mode '{args.mode}' "
@@ -314,6 +451,18 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
         selection = modes[args.mode]
+    elif args.base:
+        changed = _changed_files(args.base)
+        if changed is None:
+            return 2
+        selection, out = _select_by_paths(gates, changed)
+        print(
+            f"scope vs {args.base}: {len(selection)}/{len([g for g in gates if g.enabled])} "
+            f"gate(s) selected" + (f"; out of scope: {', '.join(out)}" if out else ""),
+            flush=True,
+        )
+    elif default_mode:
+        selection = modes[default_mode]
     elif not gates:
         print("no gates configured", file=sys.stderr)
         return 0

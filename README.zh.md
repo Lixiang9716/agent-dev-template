@@ -31,14 +31,19 @@ pip install govrail        # 或：uv tool install govrail / pipx install govrai
 
 ```sh
 gov init --project <path>      # 把平面注入现有项目
+gov init --project <path> --hooks --ci  # 同时安装 pre-push 钩子与 CI
 gov uninstall --project <path> # 精确反转
-gov run --mode all             # 跑项目的门禁 DAG
+gov run                        # 跑默认模式（defaultMode）的门禁 DAG
+gov run --base HEAD~1          # 只跑 paths 命中本次 diff 的门
+gov run --gate pairing         # 单门重跑
 gov self-test                  # 证明每个治理门禁都能拒绝
 gov verify-pairing --write     # 编辑一侧后重新确认双语配对
+gov verify-pairing --write en:docs/a.md zh:docs/a_CN.md  # 登记任意命名的配对
+gov verify-note-presence       # 非平凡 diff 未带 Agent Note 时警告
 gov change-scope --base <ref>  # 一次 diff 的最小充分检查集
 ```
 
-`init` 非侵入且幂等：创建 `.gov/rules.md`，仅在缺失时添加 `gates.json` 和笔记 README，向 AGENTS.md 追加一行引用，绝不覆盖项目自己的文件。`uninstall` 精确反转。
+`init` 非侵入且幂等：创建 `.gov/rules.md`，仅在缺失时添加 `gates.json` 和笔记 README，向 AGENTS.md 追加一行引用，绝不覆盖项目自己的文件。`uninstall` 精确反转——包括 `--hooks`/`--ci` 装的钩子与 workflow。新装首跑不红：pairing 门禁以 advisory 落地，`gov verify-pairing --write` 为存量文档建立基线后，摘除 `allowFailure` 即升级为强制。`enabled: false` 让门禁下线而不删除定义。
 
 ## 内部内容
 

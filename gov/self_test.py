@@ -176,6 +176,276 @@ def test_pairing_write_resolves_bare_stem_and_zh_side() -> None:
         assert (docs / "foo.i18n.yaml").exists(), "--write must create the record"
 
 
+def test_gates_default_mode_scopes_run() -> None:
+    """defaultMode must scope the no-flag run; gates outside it never run."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "gates.json").write_text(
+            json.dumps(
+                {
+                    "modes": {"all": ["a"]},
+                    "defaultMode": "all",
+                    "gates": [
+                        {"id": "a", "command": ["true"]},
+                        {"id": "b", "command": ["false"]},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = _run("gates.py", root)
+        assert result.returncode == 0, "a gate outside the default mode must not run"
+        assert "PASS a" in result.stdout
+        assert "FAIL b" not in result.stdout
+
+
+def test_gates_rejects_unknown_default_mode() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "gates.json").write_text(
+            json.dumps(
+                {
+                    "modes": {"all": ["a"]},
+                    "defaultMode": "ghost",
+                    "gates": [{"id": "a", "command": ["true"]}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        _case("gates.py", root, 2, "a defaultMode naming no known mode must fail loud")
+
+
+def test_gates_disabled_gate_never_runs() -> None:
+    """enabled:false parks a gate visibly outside every run (P0 defect 1)."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "gates.json").write_text(
+            json.dumps(
+                {
+                    "gates": [
+                        {"id": "a", "command": ["true"]},
+                        {"id": "b", "command": ["false"], "enabled": False},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = _run("gates.py", root)
+        assert result.returncode == 0, "a disabled gate must not affect the run"
+        assert "DISABLED b" in result.stdout
+        assert "FAIL b" not in result.stdout
+
+
+def test_gates_advisory_failure_reports_without_blocking() -> None:
+    """allowFailure must report the failure output yet keep exit code 0."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "gates.json").write_text(
+            json.dumps(
+                {
+                    "gates": [
+                        {"id": "a", "command": ["false"], "allowFailure": True},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = _run("gates.py", root)
+        assert result.returncode == 0, "an advisory gate must never block"
+        assert "FAIL a" in result.stdout
+        assert "advisory" in result.stdout, "an advisory failure must be visible"
+
+
+def test_pairing_custom_counterpart_convention() -> None:
+    """A .gov/pairing.json convention must be enforced, not ignored."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        gov = root / ".gov"
+        gov.mkdir()
+        (gov / "pairing.json").write_text(
+            json.dumps({"counterparts": ["{stem}_CN.md"]}), encoding="utf-8"
+        )
+        docs = root / "docs"
+        docs.mkdir()
+        (docs / "foo.md").write_text("# foo\n", encoding="utf-8")
+        (docs / "foo_CN.md").write_text("# foo 中文\n", encoding="utf-8")
+        _case(
+            "verify_translation_pairing.py",
+            root,
+            1,
+            "a custom-convention pair with no record must fail",
+        )
+
+
+def test_pairing_explicit_registration_sticks() -> None:
+    """--write en:.. zh:.. registers any name; verification then pins it."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        docs = root / "docs"
+        docs.mkdir()
+        (docs / "foo.md").write_text("# foo\n", encoding="utf-8")
+        (docs / "foo_CN.md").write_text("# foo 中文\n", encoding="utf-8")
+        register = subprocess.run(
+            [
+                sys.executable,
+                str(HERE / "verify_translation_pairing.py"),
+                "--write", "en:docs/foo.md", "zh:docs/foo_CN.md",
+            ],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+        assert register.returncode == 0, f"explicit registration must exit 0: {register.stderr}"
+        (docs / "foo_CN.md").write_text("# 单边修改\n", encoding="utf-8")
+        _case(
+            "verify_translation_pairing.py",
+            root,
+            1,
+            "a one-sided edit of a registered pair must fail",
+        )
+
+
+def _git_repo(root: Path) -> None:
+    for cmd in (
+        ["git", "init", "-q", "."],
+        ["git", "config", "user.email", "t@t"],
+        ["git", "config", "user.name", "t"],
+    ):
+        subprocess.run(cmd, cwd=root, check=True)
+    (root / "seed.txt").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "commit", "-qm", "init"],
+        cwd=root, check=True,
+    )
+
+
+def test_note_presence_warns_then_strict_blocks() -> None:
+    """Rule 2's presence half must be checkable: warn by default, block on --strict."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _git_repo(root)
+        (root / "app.py").write_text("x = 1\n", encoding="utf-8")
+        script = str(HERE / "verify_note_presence.py")
+        warn = subprocess.run(
+            [sys.executable, script], cwd=root, capture_output=True, text=True
+        )
+        assert warn.returncode == 0, "advisory mode must not block (D3)"
+        assert ".gov/rules.md rule 2" in warn.stdout, "the warning must name its rule"
+        strict = subprocess.run(
+            [sys.executable, script, "--strict"], cwd=root, capture_output=True, text=True
+        )
+        assert strict.returncode == 1, "--strict must catch the missing note"
+
+
+def test_run_base_scopes_gates_by_paths() -> None:
+    """--base must select gates by paths; out-of-scope gates never run."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _git_repo(root)
+        # docs-gate would PASS, code-gate would FAIL — only the in-scope one runs.
+        (root / "gates.json").write_text(
+            json.dumps(
+                {
+                    "gates": [
+                        {"id": "docs-gate", "command": ["true"], "paths": ["docs/**"]},
+                        {"id": "code-gate", "command": ["false"], "paths": ["src/**"]},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        (root / "docs").mkdir()
+        (root / "docs" / "a.md").write_text("x\n", encoding="utf-8")
+        result = subprocess.run(
+            [sys.executable, str(HERE / "gates.py"), "--base", "HEAD"],
+            cwd=root, capture_output=True, text=True,
+        )
+        assert result.returncode == 0, (
+            "the failing gate is out of scope; the run must be green\n"
+            f"{result.stdout}\n{result.stderr}"
+        )
+        assert "PASS docs-gate" in result.stdout
+        assert "out of scope: code-gate" in result.stdout
+        assert "FAIL code-gate" not in result.stdout
+
+
+def test_run_failure_summary_and_gate_flag() -> None:
+    """A blocking failure must end with a summary and a single-gate rerun hint."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "gates.json").write_text(
+            json.dumps(
+                {
+                    "gates": [
+                        {"id": "boom", "command": ["sh", "-c", "echo boom >&2; exit 3"]},
+                        {"id": "ok", "command": ["true"]},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = _run("gates.py", root)
+        assert result.returncode == 1
+        assert "--- summary: 1 blocking failure(s) ---" in result.stdout
+        assert "boom: boom" in result.stdout
+        assert "gov run --gate <id>" in result.stdout
+        single = subprocess.run(
+            [sys.executable, str(HERE / "gates.py"), "--gate", "ok"],
+            cwd=root, capture_output=True, text=True,
+        )
+        assert single.returncode == 0
+        assert "PASS boom" not in single.stdout
+
+
+def test_change_scope_suggests_from_paths() -> None:
+    """change-scope must read gate suggestions from gates.json paths, not prose."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _git_repo(root)
+        (root / "gates.json").write_text(
+            json.dumps(
+                {
+                    "gates": [
+                        {"id": "docs-gate", "command": ["true"], "paths": ["docs/**"]},
+                        {"id": "code-gate", "command": ["true"], "paths": ["src/**"]},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        (root / "docs").mkdir()
+        (root / "docs" / "a.md").write_text("x\n", encoding="utf-8")
+        result = subprocess.run(
+            [sys.executable, str(HERE / "change_scope.py"), "--base", "HEAD"],
+            cwd=root, capture_output=True, text=True,
+        )
+        assert "gates.json paths" in result.stdout, result.stdout + result.stderr
+        assert "docs-gate" in result.stdout
+        assert "code-gate" not in result.stdout
+
+
+def test_init_hooks_ci_roundtrip() -> None:
+    """init --hooks/--ci must install, and uninstall must reverse exactly."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _git_repo(root)
+        env = dict(os.environ)
+        env["PYTHONPATH"] = str(HERE.parent) + os.pathsep + env.get("PYTHONPATH", "")
+        for args in (
+            ["-m", "gov", "init", "--hooks", "--ci"],
+            ["-m", "gov", "uninstall"],
+        ):
+            r = subprocess.run(
+                [sys.executable, *args], cwd=root, env=env,
+                capture_output=True, text=True,
+            )
+            assert r.returncode == 0, r.stderr
+        assert not (root / ".git" / "hooks" / "pre-push").exists()
+        assert not (root / ".github" / "workflows" / "gov.yml").exists()
+        assert not (root / "gates.json").exists()
+
+
 CASES = [
     test_verify_notes_rejects_missing_section,
     test_gates_rejects_duplicate_id,
@@ -186,6 +456,17 @@ CASES = [
     test_cli_init_help_no_side_effect,
     test_pairing_rejects_missing_record,
     test_pairing_write_resolves_bare_stem_and_zh_side,
+    test_gates_default_mode_scopes_run,
+    test_gates_rejects_unknown_default_mode,
+    test_gates_disabled_gate_never_runs,
+    test_gates_advisory_failure_reports_without_blocking,
+    test_pairing_custom_counterpart_convention,
+    test_pairing_explicit_registration_sticks,
+    test_note_presence_warns_then_strict_blocks,
+    test_run_base_scopes_gates_by_paths,
+    test_run_failure_summary_and_gate_flag,
+    test_change_scope_suggests_from_paths,
+    test_init_hooks_ci_roundtrip,
 ]
 
 

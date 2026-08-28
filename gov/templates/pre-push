@@ -1,0 +1,5 @@
+#!/bin/sh
+# govrail: pre-push hook installed by `gov init --hooks`; `gov uninstall` removes it.
+# Runs the project's gate DAG (the defaultMode from gates.json) before the push
+# leaves your machine. Bypass for one push: `git push --no-verify`.
+exec gov run

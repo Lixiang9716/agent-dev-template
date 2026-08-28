@@ -3,7 +3,10 @@
 
 Subcommands delegate to the modules in this package; ``init`` injects the
 templates shipped as package data, and ``uninstall`` reverses it exactly via
-the ``.gov/manifest.json`` it wrote.
+the ``.gov/manifest.json`` it wrote. ``init --hooks`` additionally installs a
+``pre-push`` hook that runs the gate DAG, and ``init --ci`` generates a
+GitHub Actions workflow — both recorded in the manifest and reversed by
+``uninstall``.
 """
 from __future__ import annotations
 
@@ -14,7 +17,7 @@ from importlib.resources import files
 from pathlib import Path
 
 from . import archive_notes, change_scope, gates, self_test
-from . import verify_notes, verify_translation_pairing
+from . import verify_note_presence, verify_notes, verify_translation_pairing
 from . import __version__
 
 TEMPLATES = files("gov.templates")
@@ -22,6 +25,7 @@ REFERENCE_MARKER = "<!-- gov:rules -->"
 REFERENCE_LINE = (
     f"{REFERENCE_MARKER} Read .gov/rules.md and follow it before starting work."
 )
+HOOK_MARKER = "# govrail:"
 
 
 def _copy(source, dest: Path) -> None:
@@ -41,7 +45,40 @@ def _remove_empty_dirs(root: Path) -> None:
         p = p.parent
 
 
-def init(project: Path) -> int:
+def _hook_conflict(project: Path) -> bool:
+    """True when .git/hooks/pre-push exists and is not a gov hook."""
+    git_hook = project / ".git" / "hooks" / "pre-push"
+    if not git_hook.exists():
+        return False
+    try:
+        existing = git_hook.read_text(encoding="utf-8")
+    except OSError:
+        return True
+    return HOOK_MARKER not in existing
+
+
+def _install_hook(project: Path) -> None:
+    """Write .gov/hooks/pre-push and wire it into .git/hooks (both executable)."""
+    data = TEMPLATES.joinpath("pre-push").read_bytes()
+    hook_dir = project / ".gov" / "hooks"
+    hook_dir.mkdir(parents=True, exist_ok=True)
+    for dest in (hook_dir / "pre-push", project / ".git" / "hooks" / "pre-push"):
+        dest.write_bytes(data)
+        dest.chmod(0o755)
+
+
+def _install_ci(project: Path, created: list[str]) -> None:
+    """Generate .github/workflows/gov.yml only when it does not exist."""
+    workflow = project / ".github" / "workflows" / "gov.yml"
+    if workflow.exists():
+        print("init: .github/workflows/gov.yml already exists; leaving it untouched")
+        return
+    workflow.parent.mkdir(parents=True, exist_ok=True)
+    workflow.write_bytes(TEMPLATES.joinpath("gov.yml").read_bytes())
+    created.append(".github/workflows/gov.yml")
+
+
+def init(project: Path, hooks: bool = False, ci: bool = False) -> int:
     project = project.resolve()
     if not project.is_dir():
         print(f"init: {project} is not a directory", file=sys.stderr)
@@ -50,8 +87,22 @@ def init(project: Path) -> int:
         print(f"init: {project} is already initialized")
         return 0
 
+    # Pre-flight the add-ons: fail loud before mutating anything, so a
+    # conflict never leaves a half-initialized project with no manifest.
+    if hooks and not (project / ".git").is_dir():
+        print("init: --hooks needs a git repository (no .git found)", file=sys.stderr)
+        return 2
+    if hooks and _hook_conflict(project):
+        print(
+            f"init: refusing to overwrite {project / '.git' / 'hooks' / 'pre-push'} — "
+            "it is not a gov hook; merge the two by hand",
+            file=sys.stderr,
+        )
+        return 2
+
     gov_dir = project / ".gov"
     created: list[str] = []
+    git_hooks: list[str] = []
 
     _copy(TEMPLATES.joinpath("rules.md"), gov_dir / "rules.md")
 
@@ -74,8 +125,18 @@ def init(project: Path) -> int:
     else:
         ag.write_text(REFERENCE_LINE + "\n", encoding="utf-8")
 
+    if hooks:
+        _install_hook(project)
+        git_hooks.append("pre-push")
+    if ci:
+        _install_ci(project, created)
+
     (gov_dir / "manifest.json").write_text(
-        json.dumps({"version": "0.1.0", "created": created}, indent=2) + "\n",
+        json.dumps(
+            {"version": __version__, "created": created, "gitHooks": git_hooks},
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
 
@@ -84,6 +145,16 @@ def init(project: Path) -> int:
     if created:
         print("  " + ", ".join(created) + " (created; project had none)")
     print("  AGENTS.md reference line")
+    if hooks:
+        print("  .gov/hooks/pre-push + .git/hooks/pre-push (runs gov run before push)")
+    if ci and ".github/workflows/gov.yml" in created:
+        print("  .github/workflows/gov.yml (CI runs gov run)")
+
+    if "gates.json" in created:
+        print("next steps:")
+        print("  1. gov run                        # pairing runs advisory until baselined")
+        print("  2. gov verify-pairing --write     # baseline doc pairs (writes .i18n.yaml records)")
+        print("  3. remove \"allowFailure\" from the pairing gate in gates.json to enforce")
     return 0
 
 
@@ -116,18 +187,24 @@ def uninstall(project: Path) -> int:
             p.unlink()
             _remove_empty_dirs(p.parent)
 
+    for name in data.get("gitHooks", []):
+        p = project / ".git" / "hooks" / name
+        if p.exists():
+            p.unlink()
+
     shutil.rmtree(project / ".gov", ignore_errors=True)
     print(f"uninstall: removed governance from {project}")
     return 0
 
 
 _COMMANDS = {
-    "init": "inject the plane into a project",
+    "init": "inject the plane into a project (--hooks, --ci add the runners)",
     "uninstall": "reverse init",
     "run": "run the project's gate DAG (args forwarded to gates.py)",
     "self-test": "run governance rejection cases",
     "verify-notes": "check note format",
     "verify-pairing": "check bilingual pairing (e.g. --write)",
+    "verify-note-presence": "warn when a non-trivial diff carries no note (e.g. --base <ref>, --strict)",
     "change-scope": "report touched surfaces (e.g. --base <ref>)",
     "archive-notes": "seal the archived-notes manifest",
 }
@@ -147,9 +224,10 @@ _VERSION_FLAGS = ("-v", "--version", "version")
 _NO_FORWARD = ("init", "uninstall", "self-test", "verify-notes", "archive-notes")
 
 
-def _init_uninstall_args(args: list[str], what: str) -> Path | None:
-    """Parse the only supported flag ``--project <dir>``; reject the rest."""
+def _init_uninstall_args(args: list[str], what: str) -> tuple[Path, bool, bool] | None:
+    """Parse ``--project <dir>`` (plus init's ``--hooks``/``--ci``); reject the rest."""
     project = "."
+    hooks = ci = False
     i = 0
     while i < len(args):
         a = args[i]
@@ -159,11 +237,17 @@ def _init_uninstall_args(args: list[str], what: str) -> Path | None:
                 return None
             project = args[i + 1]
             i += 2
+        elif what == "init" and a == "--hooks":
+            hooks = True
+            i += 1
+        elif what == "init" and a == "--ci":
+            ci = True
+            i += 1
         else:
             print(f"gov {what}: unexpected argument '{a}'", file=sys.stderr)
             _usage()
             return None
-    return Path(project)
+    return Path(project), hooks, ci
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -188,11 +272,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"gov {__version__}")
             return 0
     if cmd == "init":
-        project = _init_uninstall_args(rest, "init")
-        return 2 if project is None else init(project)
+        parsed = _init_uninstall_args(rest, "init")
+        return 2 if parsed is None else init(parsed[0], hooks=parsed[1], ci=parsed[2])
     if cmd == "uninstall":
-        project = _init_uninstall_args(rest, "uninstall")
-        return 2 if project is None else uninstall(project)
+        parsed = _init_uninstall_args(rest, "uninstall")
+        return 2 if parsed is None else uninstall(parsed[0])
     if cmd == "run":
         return gates.main(rest)
     if cmd == "self-test":
@@ -201,6 +285,8 @@ def main(argv: list[str] | None = None) -> int:
         return verify_notes.main()
     if cmd == "verify-pairing":
         return verify_translation_pairing.main(rest)
+    if cmd == "verify-note-presence":
+        return verify_note_presence.main(rest)
     if cmd == "change-scope":
         return change_scope.main(rest)
     if cmd == "archive-notes":

@@ -1,30 +1,51 @@
 #!/usr/bin/env python3
 """Verify bilingual pairing (the external-presentation layer).
 
-Every human-facing document is a three-file pair: ``foo.md`` + ``foo.zh.md``
-+ ``foo.i18n.yaml``. The yaml records each side's git blob hash as of the last
-confirmed-consistent moment, in the form::
+Every human-facing document is a pair: the source ``foo.md`` plus a
+counterpart translation, pinned by a record ``foo.i18n.yaml`` that stores
+each side's git blob hash as of the last confirmed-consistent moment::
 
     pair:
       en: <sha>
       zh: <sha>
+    counterpart: foo.zh.md
 
 Editing either side without re-confirming goes red. ``--write <pair>``
 re-records both hashes — the explicit "the pair was re-confirmed" act.
+``--write en:<path> zh:<path>`` registers a pair whose counterpart does not
+follow the naming convention (e.g. ``foo_CN.md``); the record's
+``counterpart`` field then pins that name.
+
+Naming conventions are configuration, not code — ``.gov/pairing.json``
+(all keys optional)::
+
+    {
+      "include": ["docs/**/*.md", "README.md"],
+      "counterparts": ["{stem}.zh.md"],
+      "exclude": ["docs/decisions.md"]
+    }
+
+A ``counterparts`` pattern is ``{stem}`` plus a literal suffix (no ``/``);
+a file ending in that suffix is a counterpart side, never a source.
 AGENTS.md (agent instructions) and notes under ``.agents/notes/`` are
-English-only and out of scope; only the external-presentation docs pair.
+English-only and out of scope.
 """
 from __future__ import annotations
 
 import argparse
+import glob as _glob
+import json
 import subprocess
 import sys
 from pathlib import Path
 
-SCOPE_DIRS = [Path("docs")]
-SCOPE_FILES = [Path("README.md")]
-# Working design log, not external presentation: English-only like the notes.
-SKIP = {Path("docs/decisions.md")}
+CONFIG_PATH = Path(".gov/pairing.json")
+STEM = "{stem}"
+DEFAULT_CONFIG: dict[str, list[str]] = {
+    "include": ["docs/**/*.md", "README.md"],
+    "counterparts": [f"{STEM}.zh.md"],
+    "exclude": [],
+}
 
 
 def _blob_hash(path: Path) -> str:
@@ -39,7 +60,7 @@ def _blob_hash(path: Path) -> str:
 
 
 def _parse_record(path: Path) -> dict[str, str]:
-    """Parse ``pair: {en, zh}`` into a flat dict."""
+    """Parse ``pair: {en, zh}`` + ``counterpart:`` into a flat dict."""
     result: dict[str, str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -51,29 +72,131 @@ def _parse_record(path: Path) -> dict[str, str]:
     return result
 
 
-def _pairs() -> list[Path]:
-    pairs: list[Path] = []
-    for f in SCOPE_FILES:
-        if f.exists():
-            pairs.append(f)
-    for d in SCOPE_DIRS:
-        if d.exists():
-            pairs.extend(sorted(d.rglob("*.md")))
-    return [p for p in pairs if not p.name.endswith(".zh.md") and p not in SKIP]
+def _load_config() -> dict[str, list[str]] | None:
+    """Load .gov/pairing.json over the defaults; None means fail loud."""
+    cfg = {k: list(v) for k, v in DEFAULT_CONFIG.items()}
+    if not CONFIG_PATH.exists():
+        return cfg
+    try:
+        raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"verify_translation_pairing: cannot read {CONFIG_PATH}: {e}", file=sys.stderr)
+        return None
+    if not isinstance(raw, dict):
+        print(f"verify_translation_pairing: {CONFIG_PATH} must be an object", file=sys.stderr)
+        return None
+    for key, value in raw.items():
+        if key not in DEFAULT_CONFIG:
+            known = ", ".join(sorted(DEFAULT_CONFIG))
+            print(
+                f"verify_translation_pairing: unknown key '{key}' in {CONFIG_PATH} "
+                f"(known: {known})",
+                file=sys.stderr,
+            )
+            return None
+        if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+            print(
+                f"verify_translation_pairing: '{key}' in {CONFIG_PATH} "
+                "must be an array of strings",
+                file=sys.stderr,
+            )
+            return None
+        cfg[key] = list(value)
+    for key in ("include", "counterparts"):
+        if not cfg[key]:
+            print(f"verify_translation_pairing: '{key}' in {CONFIG_PATH} must not be empty", file=sys.stderr)
+            return None
+    for pattern in cfg["counterparts"]:
+        literal = pattern[len(STEM):] if pattern.startswith(STEM) else None
+        if literal is None or not literal or "/" in literal or "{" in literal or "}" in literal:
+            print(
+                f"verify_translation_pairing: counterpart pattern '{pattern}' must be "
+                f"'{STEM}' followed by a non-empty literal without '/' or braces",
+                file=sys.stderr,
+            )
+            return None
+    return cfg
+
+
+def _literals(cfg: dict[str, list[str]]) -> list[str]:
+    return [p[len(STEM):] for p in cfg["counterparts"]]
+
+
+def _pinned_sides(directory: Path) -> set[str]:
+    """Counterpart names pinned by the .i18n.yaml records in one directory."""
+    names: set[str] = set()
+    if not directory.is_dir():
+        return names
+    for rec in directory.glob("*.i18n.yaml"):
+        name = _parse_record(rec).get("counterpart", "")
+        if name and "/" not in name:
+            names.add(name)
+    return names
+
+
+def _sources(cfg: dict[str, list[str]]) -> list[Path]:
+    """Every in-scope source .md: matched by include, not a side, not excluded."""
+    files: dict[Path, None] = {}
+    for pattern in cfg["include"]:
+        for match in _glob.glob(pattern, recursive=True):
+            p = Path(match)
+            if p.is_file():
+                files[p] = None
+    excluded = set(cfg["exclude"])
+    literals = _literals(cfg)
+    pinned: dict[Path, set[str]] = {}
+    out = []
+    for f in sorted(files):
+        if str(f) in excluded or f.suffix != ".md":
+            continue
+        if any(f.name.endswith(lit) for lit in literals):
+            continue  # a counterpart side by naming convention
+        if f.name in pinned.setdefault(f.parent, _pinned_sides(f.parent)):
+            continue  # a counterpart side pinned by an explicit registration
+        out.append(f)
+    return out
 
 
 def _record_path(src: Path) -> Path:
     return src.with_name(src.stem + ".i18n.yaml")
 
 
-def _resolve_source(arg: str) -> Path:
+def _recorded_counterpart(src: Path) -> Path | None:
+    """The counterpart a record explicitly pins, if any (may not exist)."""
+    rec = _record_path(src)
+    if not rec.exists():
+        return None
+    name = _parse_record(rec).get("counterpart", "")
+    if not name or "/" in name:
+        return None
+    return src.parent / name
+
+
+def _pattern_counterpart(src: Path, cfg: dict[str, list[str]]) -> Path | None:
+    """The first existing counterpart derived from the naming conventions."""
+    for literal in _literals(cfg):
+        cand = src.with_name(src.stem + literal)
+        if cand.exists():
+            return cand
+    return None
+
+
+def _counterpart(src: Path, cfg: dict[str, list[str]]) -> Path | None:
+    """Recorded counterpart wins; conventions derive it otherwise."""
+    return _recorded_counterpart(src) or _pattern_counterpart(src, cfg)
+
+
+def _resolve_source(arg: str, cfg: dict[str, list[str]]) -> Path:
     """Resolve a --write argument (bare stem or any side) to the source .md."""
     p = Path(arg)
     name = p.name
-    for suffix in (".zh.md", ".i18n.yaml"):
-        if name.endswith(suffix):
-            name = name[: -len(suffix)]
-            break
+    if name.endswith(".i18n.yaml"):
+        name = name[: -len(".i18n.yaml")]
+    else:
+        for lit in sorted(_literals(cfg), key=len, reverse=True):
+            if name.endswith(lit):
+                name = name[: -len(lit)]
+                break
     if not name.endswith(".md"):
         name += ".md"
     p = p.with_name(name)
@@ -83,49 +206,131 @@ def _resolve_source(arg: str) -> Path:
     return alt if alt.exists() else p
 
 
-def _write_record(src: Path) -> None:
-    zh = src.with_name(src.stem + ".zh.md")
+def _register(src: Path, zh: Path) -> Path:
+    """Write the record pinning both hashes and the counterpart's name."""
     record = _record_path(src)
     record.write_text(
         "pair:\n"
         f"  en: {_blob_hash(src)}\n"
-        f"  zh: {_blob_hash(zh)}\n",
+        f"  zh: {_blob_hash(zh)}\n"
+        f"counterpart: {zh.name}\n",
         encoding="utf-8",
     )
+    return record
+
+
+def _convention_hint(cfg: dict[str, list[str]]) -> str:
+    return ", ".join(cfg["counterparts"])
+
+
+def _write(items: list[str], cfg: dict[str, list[str]]) -> int:
+    explicit = [a for a in items if a.startswith(("en:", "zh:"))]
+    if explicit:
+        if len(explicit) != len(items):
+            print(
+                "verify_translation_pairing: cannot mix bare pairs with en:/zh: forms",
+                file=sys.stderr,
+            )
+            return 2
+        sides: dict[str, Path] = {}
+        for a in explicit:
+            key, _, path = a.partition(":")
+            if key in sides or not path:
+                print(f"verify_translation_pairing: duplicated or empty '{key}:' side", file=sys.stderr)
+                return 2
+            sides[key] = Path(path)
+        if set(sides) != {"en", "zh"}:
+            print(
+                "verify_translation_pairing: explicit registration needs exactly "
+                "en:<path> and zh:<path>",
+                file=sys.stderr,
+            )
+            return 2
+        en, zh = sides["en"], sides["zh"]
+        if not en.exists():
+            print(f"verify_translation_pairing: no such source: {en}", file=sys.stderr)
+            return 2
+        if not zh.exists():
+            print(f"verify_translation_pairing: no such counterpart: {zh}", file=sys.stderr)
+            return 2
+        if en.suffix != ".md":
+            print(f"verify_translation_pairing: source must be a .md file: {en}", file=sys.stderr)
+            return 2
+        if en.parent != zh.parent:
+            print("verify_translation_pairing: counterpart must sit next to the source", file=sys.stderr)
+            return 2
+        print(f"wrote {_register(en, zh)}")
+        if str(en) not in {str(p) for p in _sources(cfg)}:
+            print(
+                f"note: {en} is outside the pairing include scope; the record is "
+                "written but verification will not check it",
+                file=sys.stderr,
+            )
+        return 0
+
+    if items:
+        sources = sorted({_resolve_source(a, cfg) for a in items})
+    else:
+        sources = _sources(cfg)
+    for src in sources:
+        if not src.exists():
+            print(f"verify_translation_pairing: no such pair source: {src}", file=sys.stderr)
+            return 2
+        zh = _counterpart(src, cfg)
+        if zh is None:
+            print(
+                f"verify_translation_pairing: no counterpart for {src} "
+                f"(conventions: {_convention_hint(cfg)}) — translate it, or register "
+                f"explicitly: --write en:{src} zh:<path>",
+                file=sys.stderr,
+            )
+            return 2
+        if not zh.exists():
+            print(
+                f"verify_translation_pairing: recorded counterpart '{zh.name}' for {src} "
+                "is missing — re-register: --write en:" + str(src) + " zh:<path>",
+                file=sys.stderr,
+            )
+            return 2
+        print(f"wrote {_register(src, zh)}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Verify bilingual pairing.")
+    parser = argparse.ArgumentParser(
+        prog="gov verify-pairing", description="Verify bilingual pairing."
+    )
     parser.add_argument("--write", nargs="*", metavar="PAIR",
-                        help="re-record one or more pairs (bare stem or any side)")
+                        help="re-record pairs (bare stem or any side); or register an "
+                             "explicitly named pair with en:<path> zh:<path>")
     args = parser.parse_args(argv)
 
+    cfg = _load_config()
+    if cfg is None:
+        return 2
+
     if args.write is not None:
-        if args.write:
-            sources = sorted({_resolve_source(a) for a in args.write})
-        else:
-            sources = _pairs()
-        for src in sources:
-            if not src.exists():
-                print(f"verify_translation_pairing: no such pair source: {src}", file=sys.stderr)
-                return 2
-            if not src.with_name(src.stem + ".zh.md").exists():
-                print(f"verify_translation_pairing: missing counterpart for {src}", file=sys.stderr)
-                return 2
-            _write_record(src)
-            print(f"wrote {_record_path(src)}")
-        return 0
+        return _write(args.write, cfg)
 
     errors: list[str] = []
-    pairs = _pairs()
+    pairs = _sources(cfg)
     for src in pairs:
-        zh = src.with_name(src.stem + ".zh.md")
-        rec = _record_path(src)
-        if not zh.exists():
-            errors.append(f"{src}: missing counterpart {zh.name}")
+        zh = _counterpart(src, cfg)
+        if zh is None:
+            errors.append(
+                f"{src}: no counterpart found (conventions: {_convention_hint(cfg)}) — "
+                f"translate it, or register one: --write en:{src} zh:<path>"
+            )
             continue
+        if not zh.exists():
+            errors.append(
+                f"{src}: recorded counterpart '{zh.name}' is missing — "
+                "re-register with --write en:" + str(src) + " zh:<path>"
+            )
+            continue
+        rec = _record_path(src)
         if not rec.exists():
-            errors.append(f"{src}: missing record {rec.name}")
+            errors.append(f"{src}: missing record {rec.name} — baseline with --write {src}")
             continue
         recorded = _parse_record(rec)
         current = {"en": _blob_hash(src), "zh": _blob_hash(zh)}

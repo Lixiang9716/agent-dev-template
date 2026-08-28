@@ -111,3 +111,57 @@
 - **卡住什么**：可回退是否成立
 - **状态**：已决
 - **决定**：`gov uninstall` 精确反转 init——① 删 `.gov/` 目录（含 manifest + rules.md）；② 移除 AGENTS.md 里的引用行（标记可识别）；③ 按 manifest 删除 init 创建的项目文件（**仅 create-if-missing 的**，项目原有的绝不碰）。`.gov/manifest.json` 记录 init 创建了什么，uninstall 读它反转。
+
+## D11 — 默认运行集与 gate 下线（gates.json schema 增补）
+
+- **问题**：`gov run` 不带 `--mode` 时跑全部 gates，`modes.all` 只是可显式选择的名字而非默认集——从 modes.all 摘掉某 gate 后默认运行照旧；想下线一个 gate 只能物理删除定义，丢失配置历史与"未来重新启用"的意图。
+- **选项**：(a) 魔法默认：存在名为 `all` 的 mode 即默认；(b) 顶层 `defaultMode` 显式声明；(c) per-gate `enabled: false`
+- **倾向**：(b)+(c)
+- **状态**：已决
+- **决定**：(b)+(c) 都要。`"defaultMode": "<mode>"` 显式声明默认集（`--mode` 可覆盖；未声明且未传 `--mode` 时保持跑全部，向后兼容）；`"enabled": false` 把 gate 从一切选择中排除，运行输出打一行 `DISABLED <id>`（可见，绝不静默消失）。mode 引用 disabled gate 合法（自动过滤）——下线是一处编辑；引用**未知** gate 仍 fail loud。`defaultMode` 指向不存在的 mode = 配置错误（exit 2，带名字）。
+- **被否**：(a) 隐式魔法名与"fail loud、不猜意图"冲突；(c) 单独不够——mode 集合仍无法作为默认生效；mode 引用 disabled gate 直接报错被否——那会逼用户改两处，退回"删除定义"老路。
+
+## D12 — pairing 约定可配置 + 显式登记
+
+- **问题**：`.zh.md` 命名与扫描范围硬编码在工具里（docs/ + README.md，排除 decisions.md 是本仓库私有事实），存量项目（如 `_CN.md` 约定）无法采用此 gate；`--write` 只能重记录已配对文件、不能声明配对，报错 `missing counterpart` 误导（用户以为是"登记"，实际什么也没发生）。
+- **选项**：(a) 配置塞进 gates.json；(b) 独立 `.gov/pairing.json`；(c) 只加 `--write` 显式登记，不加配置
+- **倾向**：(b)+(c)
+- **状态**：已决
+- **决定**：(b)+(c) 都要。`.gov/pairing.json`（全键可选，坏配置 exit 2）：`include`（glob 数组，默认 `["docs/**/*.md","README.md"]`）、`counterparts`（`{stem}` + 字面后缀的模式数组，默认 `["{stem}.zh.md"]`，后缀禁 `/` 与花括号）、`exclude`（路径数组，默认空）；本仓库对 decisions.md 的排除从代码移入本仓库自己的配置。记录文件新增 `counterpart: <文件名>` 字段钉住译文侧名字，验证优先读它，旧记录无此字段则按约定推导（向后兼容）；被记录钉住的文件名不再被当作源文档。`--write en:<path> zh:<path>` 显式登记任意命名的配对（两侧须同目录、均存在）；报错必须带"试了什么约定 + 怎么显式登记"的行动指引。
+- **被否**：(a) 污染 D1 锁定的 gate schema，工具私有配置混进通用配置；(c) 单独不够——登记了约定外名字后，验证扫描发现不了该配对（登记必须能持续生效）；支持任意目录的 counterpart 被否——记录按同目录 basename 钉名字，跨目录让记录语义复杂化。
+
+## D13 — 新装项目 advisory-first（首跑不红）
+
+- **问题**：`gov init` 后首个 `gov run` 即红（存量文档无配对记录 → pairing 违规），第一印象是"装完就挂"，阻碍采用。
+- **选项**：(a) init 探测存量文档并自动 baseline；(b) 新装 gate 先 advisory（只报告不拦截），显式确认后升级强制；(c) 保持全强制
+- **倾向**：(b) + 轻量引导
+- **状态**：已决
+- **决定**：模板 `gates.json` 的 pairing gate 带 `allowFailure: true` 落地；runner 对 advisory 失败打标输出（结局行标 `(advisory; allowFailure)`、输出块照打——原先 allowFailure 失败不打印输出，advisory 等于看不见）；`gov init` 结束打印 next steps（跑 → `verify-pairing --write` baseline → 摘除 allowFailure 升级强制）。已 baseline 的项目（本仓库自身）直接强制。manifest 的 version 字段改记注入时的 CLI 实际版本（原硬编码 0.1.0）。
+- **被否**：(a) init 内跑门禁/写 baseline 越权——init 只注入不评判，且自动写记录等于替用户确认"翻译一致"这一人类判断；(c) 即被拒的现状。
+
+## D14 — note 存在性软门禁（兑现 D3 延伸）
+
+- **问题**：规则 2 说"每个非平凡变更必须带 Agent Note"，规则 1 说可检查的承诺必须是 gate——存在性恰恰可检查（diff 触及行为面 ↔ diff 触及 notes），但 notes gate 只验格式，存在性纯靠自觉。规则与工具脱节。
+- **选项**：(a) 硬门禁：非平凡 diff 无 note 即红；(b) 软门禁：警告不阻断 + 规则出处；(c) commit message 里要求 `note:` 引用
+- **倾向**：(b)（D3 延伸已锁定）
+- **状态**：已决
+- **决定**：新增 `gov verify-note-presence`：diff（含未跟踪文件）触及行为面（非 docs/非 notes/非根级 .md）而无 `implemented/` note 变更 → **警告不阻断（exit 0）**，输出带 `.gov/rules.md` 规则 2 出处与"平凡改动可忽略"的出口；`--strict` 升级为阻断（exit 1）。默认 base=`HEAD`（工作树+暂存区——本地推送前检查的自然单位，且从仓库第一个提交起就存在；CI 显式传 ref）。git 失败 exit 2。默认进模板 `all` 模式。change-scope 输出同款提示联动。
+- **被否**：(a) "是否平凡"终究是人的判断，机械硬拦必产生假阳性，逼人绕过；(c) commit message 是另一个平面（且 squash/rebase 会改写），diff+notes 文件面才是稳定证据。
+
+## D15 — gate 级 `paths` 与 diff 选门
+
+- **问题**：规则 1 说"按变更跑最小集合"，但工具不支持 scope→gate 映射——`gov run` 不知道哪些门与本次变更相关（单测挂了也拦文档改动），长期诱导 `--mode quick` 绕过或 `--no-verify`。change-scope 的面→门映射硬编码（还引用不存在的 `links` 门），与 gates.json 脱节。
+- **选项**：(a) 不做，靠 mode 手选；(b) gate 定义加 `paths` glob 数组 + `gov run --base <ref>` 自动选门；(c) 只改 change-scope 的硬编码映射
+- **倾向**：(b)
+- **状态**：已决
+- **决定**：gate 可选字段 `"paths": [glob]`（`**` 跨目录、`*` 不跨；匹配仓库相对全路径）。`gov run --base <ref>`：git diff（含未跟踪）→ 选 paths 命中的门 + 无 paths 的门（永远相关），打印 `scope vs <ref>: N/M ...; out of scope: ...`。`--mode`/`--base`/`--gate`（单门重跑）互斥、显式传参优先于 defaultMode。change-scope 建议改为读 gates.json 的 paths（单一事实源；无 paths 配置才退回落级映射，删除幽灵 `links`），并给出 `gov run --base` 执行提示。失败运行末尾追加摘要块：哪个门挂 + 首行输出 + `gov run --gate <id>` 重跑提示。
+- **被否**：(a) 最小集合原则空转；(c) 两份映射必然漂移（`links` 幽灵即证据）；把 paths 塞进 change-scope 私有配置被否——门与它覆盖的范围属同一事实，必须住在 gate 定义里。
+
+## D16 — init 的 hooks / CI 加装
+
+- **问题**：治理平面的价值全在"自动执行"，但 `gov init` 不提供任何执行路径——采用者只能手写 pre-push hook 和 CI workflow。
+- **选项**：(a) 不做（用户自理）；(b) `gov init --hooks` / `gov init --ci` 可选加装；(c) 默认全装
+- **倾向**：(b)
+- **状态**：已决
+- **决定**：`--hooks` 装 `.gov/hooks/pre-push`（留档可见）并写入 `.git/hooks/pre-push`（可执行，内容即 `exec gov run`）；`.git/hooks/pre-push` 已存在且非 gov 钩子 → **加装前预检 fail loud（exit 2）**，绝不覆盖、不留半初始化状态；已存在 gov 钩子 → 幂等替换。`--ci` 仅在 `.github/workflows/gov.yml` 缺失时生成（checkout + setup-python + pip install govrail + `gov run`），已存在则不动。两者记入 manifest（created + gitHooks），`uninstall` 精确反转。非 git 仓库用 `--hooks` → exit 2。
+- **被否**：(a) 与"机器守线"的立身之本矛盾；(c) 惊喜写入 `.git/` 与 `.github/` 侵犯项目主权，加装必须显式 opt-in。
