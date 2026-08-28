@@ -18,6 +18,12 @@ classifiers = [
 ]
 dependencies = []
 
+[project.urls]
+Homepage = "https://github.com/Lixiang9716/govrail"
+Repository = "https://github.com/Lixiang9716/govrail"
+Issues = "https://github.com/Lixiang9716/govrail/issues"
+Changelog = "https://github.com/Lixiang9716/govrail/blob/master/CHANGELOG.md"
+
 [project.scripts]
 gov = "gov.cli:main"
 

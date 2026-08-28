@@ -8,17 +8,25 @@
 
 `gov run --mode <name>` 读取 `gates.json` 并运行一个模式。一个门禁 = 一个"非零退出即失败"的命令数组；`needs` 构成 DAG（门禁在所有依赖通过后才启动，依赖阻塞失败时标 `SKIP`），`concurrency` 限制并行度。启动任何子进程前先校验整个配置：重复 id、未知 needs、循环都会带名字 abort（退出码 2）。
 
-每个门禁落到五种结局之一——`PASS` / `FAIL` / `TIMEOUT` / `MISSING`（可执行文件不存在）/ `SKIP`——`allowFailure: true` 让该门禁的失败仅作观察。退出码 0 = 全绿，1 = 有阻塞失败。
+不带 `--mode` 时，若配置了顶层 `defaultMode` 则运行它（注入模板自带 `"defaultMode": "all"`）——改 mode 就是改默认运行集。`enabled: false` 把门禁停在一切运行之外，输出一行 `DISABLED`，"下线"留在配置里而不是删除定义。
+
+门禁用 `paths` glob（`**` 跨目录）声明自己覆盖的范围：`gov run --base <ref>` 按 diff 选中 paths 命中的门（无 paths 的门永远相关）并报告哪些门出了范围——最小充分集出自同一事实源，`gov change-scope` 的建议也读同一份 `paths`。`gov run --gate <id>` 单门重跑。
+
+每个门禁落到五种结局之一——`PASS` / `FAIL` / `TIMEOUT` / `MISSING`（可执行文件不存在）/ `SKIP`——`allowFailure: true` 让该门禁的失败仅作 advisory：结局行与输出带 `advisory` 标记照常报告，退出码保持 0。退出码 0 = 全绿，1 = 有阻塞失败；阻塞失败末尾追加摘要块：哪个门挂了 + 首行输出 + 单门重跑命令。
 
 ## 知识平面
 
-- **Agent Notes** 承载决策（`implemented/` 然后冻结的 `archived/`）。`gov verify-notes` 强制三段必填：`## Problem`、`## Decision`、`## Alternatives considered`（`## Consequences` 可选）。
-- **双语配对** 承载对外展示文档：`foo.md` + `foo.zh.md` + `foo.i18n.yaml`，用 git blob 哈希钉死。`gov verify-pairing` 让单边编辑失败。
-- **`gov self-test`** 为每个治理门禁跑一个拒绝用例——证明每个门禁都能拦住所声称的违规，所以没有空转脚本。
+- **Agent Notes** 承载决策（`implemented/` 然后冻结的 `archived/`）。`gov verify-notes` 强制三段必填：`## Problem`、`## Decision`、`## Alternatives considered`（`## Consequences` 可选）。`gov verify-note-presence` 检查规则 2 可观察的那一半——diff 触及行为面而无 note 变更时警告（带规则出处）；`--strict` 升级为拦截。
+- **双语配对** 承载对外展示文档：源 `foo.md` + 译文侧 + `foo.i18n.yaml` 记录，用 git blob 哈希钉死两侧（并钉住译文侧文件名）。命名约定是 `.gov/pairing.json` 里的配置（`include`、`counterparts`、`exclude`）；不符合任何约定的配对用 `gov verify-pairing --write en:<path> zh:<path>` 显式登记。单边编辑失败。
+- **`gov self-test`** 为每个治理门禁跑一个拒绝用例——证明每个门禁都能拦住所声称的违规，所以没有空转脚本。它是工具自身的回归：在模板里归入 `governance` 模式，不进每个项目的默认运行。
 
 ## 采用：gov init / uninstall
 
 `gov init` 把平面注入项目：复制 `.gov/rules.md`（规则的唯一事实源），仅在缺失时创建 `gates.json` 和笔记 README，向 AGENTS.md 追加一行引用，并把创建了什么记进 `.gov/manifest.json`。`gov uninstall` 读取该 manifest 精确反转 init——只删 init 创建的东西，绝不碰项目自己的文件。两者都幂等。
+
+执行路径是显式选装：`gov init --hooks` 装 pre-push 钩子跑门禁 DAG（外来的 pre-push 绝不覆盖——加装在任何变更之前预检、fail loud），`gov init --ci` 仅在文件不存在时生成 `.github/workflows/gov.yml` 跑 `gov run`。两者都记入 manifest，`uninstall` 精确反转。
+
+新装项目首跑不红：pairing 门禁以 advisory 落地（`allowFailure: true`），报告哪些文档待 baseline；`gov verify-pairing --write` 记录存量配对后，摘除 `allowFailure` 即升级为强制。`init` 会打印这些 next steps。
 
 ## 平面成长
 

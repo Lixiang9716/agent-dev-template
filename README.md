@@ -37,17 +37,26 @@ dependencies). It has one subcommand per action:
 
 ```sh
 gov init --project <path>     # inject the plane into an existing project
+gov init --project <path> --hooks --ci  # also install a pre-push hook and CI
 gov uninstall --project <path>  # reverse it exactly
-gov run --mode all            # run the project's gate DAG
-gov self-test                 # prove every governance gate can reject
+gov run                        # run the default mode's gate DAG (defaultMode)
+gov run --base HEAD~1          # only the gates whose paths match the diff
+gov run --gate pairing         # rerun a single gate
+gov self-test                  # prove every governance gate can reject
 gov verify-pairing --write    # re-confirm a bilingual pair after editing one side
+gov verify-pairing --write en:docs/a.md zh:docs/a_CN.md  # register any naming
+gov verify-note-presence      # warn when a non-trivial diff carries no Agent Note
 gov change-scope --base <ref> # smallest sufficient check set for a diff
 ```
 
 `init` is non-invasive and idempotent: it creates `.gov/rules.md`, adds
 `gates.json` and the notes README only when missing, appends one reference line
 to AGENTS.md, and never overwrites the project's own files. `uninstall` reverses
-it exactly.
+it exactly — including the hook and workflow `--hooks`/`--ci` added. A fresh
+install never goes red on its first run: the pairing gate ships advisory,
+`gov verify-pairing --write` baselines the existing pairs, and removing
+`allowFailure` turns it enforcing. `enabled: false` parks a gate without
+deleting its definition.
 
 ## What is inside
 

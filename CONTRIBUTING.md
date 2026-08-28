@@ -15,14 +15,16 @@ pip install -e .        # installs the gov CLI in editable mode
 ## Run the gates
 
 ```sh
-gov self-test            # rejection cases: prove every governance gate rejects
-gov run --mode all       # the full gate DAG (self-test + notes + pairing)
+pytest -q                 # unit tests
+gov self-test             # rejection cases: prove every governance gate rejects
+gov run                   # the full gate DAG (notes + pairing + note-presence + self-test)
 ```
 
 ## Making a change
 
 1. Make the change.
-2. Run `gov run --mode all` and fix anything red.
+2. Run `gov run` and fix anything red (`gov run --base <ref>` for the
+   smallest sufficient set).
 3. If the change is non-trivial, add or update an Agent Note in the same PR
    (`.agents/notes/implemented/<class>/<date>-<topic>.md`). The note needs
    `## Problem`, `## Decision`, and `## Alternatives considered` — see
@@ -39,6 +41,7 @@ gov run --mode all       # the full gate DAG (self-test + notes + pairing)
 
 ## Releasing
 
-1. Bump `__version__` in `gov/__init__.py` (single source).
-2. `git tag v<version> && git push origin v<version>` — CI publishes to PyPI
-   after checking the tag matches the version.
+1. Releases are cut by release-please from conventional commits; the version
+   lives in `gov/version.py` (single source).
+2. Publishing to PyPI is automated on the release tag — the workflow checks
+   the tag matches the package version.

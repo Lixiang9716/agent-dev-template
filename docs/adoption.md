@@ -10,6 +10,7 @@ The plane is adopted with one command per action. The rules live in
 
 ```sh
 gov init --project <path>       # inject gates, notes, rules, reference
+gov init --project <path> --hooks --ci  # also install the runners
 gov uninstall --project <path>  # reverse exactly; removes only what init created
 ```
 
@@ -18,12 +19,37 @@ gov uninstall --project <path>  # reverse exactly; removes only what init create
 missing, appends one reference line to AGENTS.md, and never overwrites the
 project's own files.
 
+`--hooks` writes a `pre-push` hook (`.gov/hooks/pre-push`, wired into
+`.git/hooks/pre-push`) that runs `gov run` before a push leaves your machine;
+a foreign pre-push is never overwritten — the add-on fails loud before
+anything is mutated. `--ci` generates `.github/workflows/gov.yml` (runs
+`gov run`), only when that file does not exist. Both are recorded in the
+manifest and removed by `uninstall`.
+
 ## First-day loop
 
 ```sh
-gov run --mode all      # the full gate DAG, zero install
-gov self-test             # prove every governance gate can reject
-gov change-scope --base HEAD~1   # smallest sufficient check set
+gov run                  # the default mode's gate DAG; pairing reports advisory
+gov self-test            # prove every governance gate can reject
+gov run --base HEAD~1    # only the gates whose paths match the diff
+gov change-scope --base HEAD~1   # what changed, which gates cover it
 ```
+
+On a fresh install the pairing gate is advisory (`allowFailure: true`): it
+reports which existing documents have no baseline yet, but never blocks. When
+you are ready to enforce pairing, record the existing pairs and remove
+`allowFailure` from the pairing gate in `gates.json`:
+
+```sh
+gov verify-pairing --write       # baseline every pair (writes .i18n.yaml records)
+```
+
+Projects that name translations differently (e.g. `foo_CN.md`) configure the
+convention in `.gov/pairing.json`, or register pairs one by one with
+`gov verify-pairing --write en:<path> zh:<path>`.
+
+A change that touches behavior-bearing surfaces with no Agent Note draws a
+warning from `gov verify-note-presence` (naming the rule); add the note, or
+pass `--strict` once your team wants that warning to block.
 
 Then make a real change, record it as an Agent Note, and re-run the gates.

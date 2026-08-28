@@ -1,24 +1,33 @@
 {
   "modes": {
-    "all": ["self-test", "notes", "pairing"],
-    "quick": ["self-test"]
+    "all": ["self-test", "notes", "pairing", "note-presence"],
+    "quick": ["notes", "note-presence"]
   },
+  "defaultMode": "all",
   "concurrency": 4,
   "gates": [
     {
       "id": "self-test",
       "label": "governance rejection cases",
-      "command": ["gov", "self-test"]
+      "command": ["gov", "self-test"],
+      "paths": ["gov/**", "tests/**", "gates.json", "pyproject.toml"]
     },
     {
       "id": "notes",
       "label": "note format",
-      "command": ["gov", "verify-notes"]
+      "command": ["gov", "verify-notes"],
+      "paths": [".agents/notes/**"]
     },
     {
       "id": "pairing",
       "label": "bilingual pairing",
-      "command": ["gov", "verify-pairing"]
+      "command": ["gov", "verify-pairing"],
+      "paths": ["docs/**", "README*", ".gov/pairing.json"]
+    },
+    {
+      "id": "note-presence",
+      "label": "non-trivial changes carry an Agent Note (advisory)",
+      "command": ["gov", "verify-note-presence"]
     }
   ]
 }
