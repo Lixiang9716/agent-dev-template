@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/Lixiang9716/govrail/compare/v0.2.0...v0.3.0) (2026-08-28)
+
+
+### Features
+
+* enforceable governance — scoped runs, note-presence, pairing conventions, hooks/CI ([#45](https://github.com/Lixiang9716/govrail/issues/45)) ([f4e9da9](https://github.com/Lixiang9716/govrail/commit/f4e9da911159af78bcb74a6ab0d72687b9cafd7a))
+
 ## [0.2.0](https://github.com/Lixiang9716/govrail/compare/v0.1.2...v0.2.0) (2026-08-23)
 
 
