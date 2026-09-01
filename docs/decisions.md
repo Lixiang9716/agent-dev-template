@@ -165,3 +165,12 @@
 - **状态**：已决
 - **决定**：`--hooks` 装 `.gov/hooks/pre-push`（留档可见）并写入 `.git/hooks/pre-push`（可执行，内容即 `exec gov run`）；`.git/hooks/pre-push` 已存在且非 gov 钩子 → **加装前预检 fail loud（exit 2）**，绝不覆盖、不留半初始化状态；已存在 gov 钩子 → 幂等替换。`--ci` 仅在 `.github/workflows/gov.yml` 缺失时生成（checkout + setup-python + pip install govrail + `gov run`），已存在则不动。两者记入 manifest（created + gitHooks），`uninstall` 精确反转。非 git 仓库用 `--hooks` → exit 2。
 - **被否**：(a) 与"机器守线"的立身之本矛盾；(c) 惊喜写入 `.git/` 与 `.github/` 侵犯项目主权，加装必须显式 opt-in。
+
+## D17 — 评审量规（rubric）与元门禁
+
+- **问题**：规则 1 说"不可检查的约定属于评审"，但评审本身没有结构——标准活在评审人脑子里：跨人（跨 agent）不一致、不可审计、作者无法在提交前自检；"评审质量"本身无从检验。
+- **选项**：(a) 只写散文式评审指南；(b) 双语量规文档 + code-review skill 接线；(c) 再加 `verify-rubric` 元门禁
+- **倾向**：(b)+(c)
+- **状态**：已决
+- **决定**：`docs/review-rubric.md`（+.zh.md+.i18n.yaml 双语三件套，规则 7）：R1–R8，每条四字段 `Checks`/`Evidence`/`Anti-pattern`/`Gate candidate`——**条目是评审态，门禁是运行态**，`Gate candidate` 显式标注毕业去向，可机械化的按事件驱动成长升级成门禁（D14 即先例）。code-review skill 按量规逐项判定（"约定第三次被手工执行 → skill"，成长表原文）。`gov verify-rubric` 只查**量规自身结构**：ID 从 R1 连续唯一、四字段齐全非空、`yes` 必须写去向、`.zh.md` 侧 ID 集合对齐（跨语言契约是 ID，措辞是译者自由）——判断本身永不伪机械化。rubric 门禁进本仓库 gates.json（paths 限定量规两文件）；**不进注入模板**。
+- **被否**：(a) 无结构散文=各人各标，正是量规要消灭的；(c) 同时把模板量规注入所有项目——违背事件驱动成长：没有采用者第三次手工执行过"写量规"这件事，就不该模板化；采用者的量规内容取决于他们的规则。

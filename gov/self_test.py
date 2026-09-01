@@ -446,6 +446,45 @@ def test_init_hooks_ci_roundtrip() -> None:
         assert not (root / "gates.json").exists()
 
 
+def test_rubric_rejects_broken_structure() -> None:
+    """verify-rubric must catch missing fields and bilingual id drift."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        docs = root / "docs"
+        docs.mkdir()
+        good = (
+            "### R1 — a\n\n"
+            "- **Checks:** c\n- **Evidence:** e\n"
+            "- **Anti-pattern:** a\n- **Gate candidate:** no — judgment\n"
+        )
+        (docs / "review-rubric.md").write_text(good, encoding="utf-8")
+        (docs / "review-rubric.zh.md").write_text(
+            good.replace("R1 — a", "R1 — 甲"), encoding="utf-8"
+        )
+        script = str(HERE / "verify_rubric.py")
+        ok = subprocess.run(
+            [sys.executable, script], cwd=root, capture_output=True, text=True
+        )
+        assert ok.returncode == 0, ok.stderr
+        (docs / "review-rubric.md").write_text(
+            good.replace("- **Evidence:** e\n", ""), encoding="utf-8"
+        )
+        broken = subprocess.run(
+            [sys.executable, script], cwd=root, capture_output=True, text=True
+        )
+        assert broken.returncode == 1, "a rubric item missing a field must fail"
+        assert "Evidence" in broken.stdout
+        (docs / "review-rubric.md").write_text(good, encoding="utf-8")
+        (docs / "review-rubric.zh.md").write_text(
+            "### R2 — 乙\n\n- **查什么：** x\n", encoding="utf-8"
+        )
+        drift = subprocess.run(
+            [sys.executable, script], cwd=root, capture_output=True, text=True
+        )
+        assert drift.returncode == 1, "bilingual id drift must fail"
+        assert "R2" in drift.stdout
+
+
 CASES = [
     test_verify_notes_rejects_missing_section,
     test_gates_rejects_duplicate_id,
@@ -467,6 +506,7 @@ CASES = [
     test_run_failure_summary_and_gate_flag,
     test_change_scope_suggests_from_paths,
     test_init_hooks_ci_roundtrip,
+    test_rubric_rejects_broken_structure,
 ]
 
 

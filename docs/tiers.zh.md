@@ -12,5 +12,6 @@
 | 决策为什么做出、打败了什么 | `.agents/notes/`（Agent Notes） |
 | 失败为什么发生、护栏为什么漏了它 | `docs/postmortem/` |
 | 双语配对契约 | [i18n/README.md](i18n/README.md) |
+| PR 如何被评审（门禁查不了的判断） | [review-rubric.md](review-rubric.zh.md) |
 | 门禁定义与模式 | `gates.json` |
 | 产品代码知识 | 产品平面自己的文档，由你拥有 |

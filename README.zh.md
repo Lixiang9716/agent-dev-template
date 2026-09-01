@@ -40,6 +40,7 @@ gov self-test                  # 证明每个治理门禁都能拒绝
 gov verify-pairing --write     # 编辑一侧后重新确认双语配对
 gov verify-pairing --write en:docs/a.md zh:docs/a_CN.md  # 登记任意命名的配对
 gov verify-note-presence       # 非平凡 diff 未带 Agent Note 时警告
+gov verify-rubric              # 检查评审量规的结构
 gov change-scope --base <ref>  # 一次 diff 的最小充分检查集
 ```
 
@@ -47,10 +48,11 @@ gov change-scope --base <ref>  # 一次 diff 的最小充分检查集
 
 ## 内部内容
 
-- `gov/` — Python 包：`gates`（`gates.json` 上的 DAG 运行器）、`verify_notes`（三段必填）、`verify_translation_pairing`（git blob 哈希）、`change_scope`、`self_test`、`archive_notes`。
+- `gov/` — Python 包：`gates`（`gates.json` 上的 DAG 运行器）、`verify_notes`（三段必填）、`verify_translation_pairing`（git blob 哈希）、`verify_note_presence`、`verify_rubric`、`change_scope`、`self_test`、`archive_notes`。
 - `gov/templates/` — `gov init` 注入项目所用的规则、默认 `gates.json` 和笔记格式。
 - `.gov/rules.md` — 规则的唯一事实源。
 - `.agents/notes/` — 决策记录格式与生命周期。
+- `docs/review-rubric.md` — PR 如何被评审：门禁查不了的标准，逐条判定。
 
 ## 出处
 
