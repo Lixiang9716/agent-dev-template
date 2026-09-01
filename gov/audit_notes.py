@@ -41,6 +41,12 @@ def _known_commands() -> set[str] | None:
 
 
 def _known_decisions() -> set[str] | None:
+    """D-numbers in decisions.md.
+
+    None = no decisions file; an EMPTY set = the file exists but parses to
+    zero sections (format mismatch) — two states the summary must not
+    confuse. Callers treat an empty set as "unchecked", same as None.
+    """
     if not DECISIONS.is_file():
         return None
     text = DECISIONS.read_text(encoding="utf-8")
@@ -54,7 +60,7 @@ def _known_decisions() -> set[str] | None:
             "check its format (D-refs left unchecked)",
             file=sys.stderr,
         )
-        return None
+        return set()
     return found
 
 
@@ -65,7 +71,7 @@ def _flags_note(text: str, commands: set[str] | None,
         for cmd in sorted(set(GOV_CMD_RX.findall(text))):
             if cmd not in commands:
                 found.append(f"unknown command `gov {cmd}`")
-    if decisions is not None:
+    if decisions:  # non-empty: the set to check against
         for d in sorted(set(D_REF_RX.findall(text)), key=int):
             if f"D{d}" not in decisions:
                 found.append(f"references D{d}, not in {DECISIONS}")
@@ -106,7 +112,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{p}: {flag}")
             findings += 1
     state = "clean" if not findings else f"{findings} signal(s)"
-    extra = "" if decisions is not None else f" (no {DECISIONS}; D-refs unchecked)"
+    if decisions is None:
+        extra = f" (no {DECISIONS}; D-refs unchecked)"
+    elif not decisions:
+        extra = f" ({DECISIONS} has no '## Dn — ' sections; D-refs unchecked)"
+    else:
+        extra = ""
     print(f"audit_notes: {notes} implemented note(s), {state}{extra}")
     return 0
 

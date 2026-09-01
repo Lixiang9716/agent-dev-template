@@ -402,9 +402,9 @@ def run_gates(
         shown = lines[-3:]
         omitted = len(lines) - len(shown)
         print(f"--- output of {gid} (passed with output) ---", flush=True)
-        if omitted > 0:
-            print(f"... ({omitted} more line(s))", flush=True)
         print("\n".join(shown), flush=True)
+        if omitted > 0:
+            print(f"... ({omitted} earlier line(s) not shown)", flush=True)
 
     if failed:
         print(f"--- summary: {len(failed)} blocking failure(s) ---", flush=True)

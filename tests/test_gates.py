@@ -297,5 +297,7 @@ def test_pass_with_output_stays_visible(capsys):
     assert "PASS warny" in out
     assert "passed with output" in out
     assert "last warning" in out
-    assert "more line(s)" in out  # the cap dropped the earlier lines
+    assert "earlier line(s) not shown" in out  # the cap dropped earlier lines
     assert "line1" not in out
+    # the omission note reads after the shown content, not before it
+    assert out.index("last warning") < out.index("earlier line(s) not shown")
