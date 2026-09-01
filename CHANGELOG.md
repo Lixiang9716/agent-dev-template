@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/Lixiang9716/govrail/compare/v0.5.0...v0.6.0) (2026-09-01)
+
+
+### Features
+
+* the agent skills ship with the plane (gov init injects them) ([#53](https://github.com/Lixiang9716/govrail/issues/53)) ([efd2988](https://github.com/Lixiang9716/govrail/commit/efd2988fe4b5f6c983356173d5daf2b03ad7550e))
+
 ## [0.5.0](https://github.com/Lixiang9716/govrail/compare/v0.4.0...v0.5.0) (2026-09-01)
 
 
