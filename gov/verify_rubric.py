@@ -44,6 +44,12 @@ def _sections(text: str) -> list[tuple[str, str]]:
 def _check_side(name: str, text: str, full: bool) -> list[str]:
     errors: list[str] = []
     ids = _ids(text)
+    if not ids:
+        errors.append(
+            f"{name}: the rubric has no items — a rubric with nothing to "
+            "check is a vacuous pass (rule 6)"
+        )
+        return errors
     expected = [f"R{i}" for i in range(1, len(ids) + 1)]
     if ids != expected:
         errors.append(

@@ -192,3 +192,12 @@
 - **状态**：已决
 - **决定**：(b)。技能写成**条件式**使其在有无量规的项目都成立（code-review/pre-push-checks：有 `docs/review-rubric.md` 按条目评，无量规回退到判断轴清单）——由此模板与本仓库活文件**字节相同**，并以一条 pytest 防漂移断言锁住（模板 ≠ 活文件即红）。打包经 `package-data "skills/*/SKILL.md"` 子目录 glob，构建 wheel 实证收录。量规本身**仍不模板化**（其条目一半引用本仓库特有事实，D17 立场不变；技能用条件引用消化该依赖）。
 - **被否**：(a) 工具分发了、触发器不分发，等于卖了枪不配准星——采用者 agent 的第一动作仍是手工 grep；(c) 需要重写一套通用量规条目，超出本次诉求，且"评审标准"比"工具习惯"更贴项目个性，事件未到。
+
+## D20 — 承诺语义的机械化（诚实执行轮）
+
+- **问题**：外部对抗测试暴露十项"文档承诺 ≠ 工具强制"：① archive-notes 在任何新项目裸崩（写 manifest 前 `archived/` 不存在，init 也不建），零笔记还封空 manifest；② runner 丢弃 exit-0 门禁的输出——advisory 警告在 DAG 里蒸发，用户只看到绿灯；③ 空 rubric（0 条目）空过，违反规则 6；④ 笔记三段顺序 README 说了但未强制；⑤ class 封闭集未强制（implemented/misc/ 照过）；⑥ `.agents/notes/drafts/` 被 verify-notes 静默忽略却被 recall 检索——两工具对"什么是笔记"意见不一，且违反规则 5；⑦ archive-notes 不解析参数；⑧ init 的 next-steps 指引在无配对文档的项目必然 exit 2；⑨ decisions.md 格式不符时 audit-notes 零提示地全量误报 Dn 引用；⑩ 根级 .md 一律 trivial，文档驱动仓库的 DESIGN.md（唯一事实源）逃逸 note 检查。
+- **选项**：逐项小修 vs 引入新机制（WARN 第六结局、笔记路径配置化等）
+- **倾向**：逐项小修，不加新机制
+- **状态**：已决
+- **决定**：① archive-notes：写前 `mkdir(parents=True)`、零笔记报 "nothing to seal"（不写空 seal）、argparse 强制（未知参数 exit 2）、非 governed 目录 exit 2。② runner（**修订 D2 的"通过静默"**）：exit 0 且有输出的门禁，PASS 结局与退出码不变，输出末尾 ≤3 行以 `(passed with output)` 块展示——"通过且无输出才静默，绿灯不吞警告"。③ verify-rubric：0 条目 = vacuous pass，拒绝。④ verify-notes：三段行级匹配且按承诺顺序强制（乱序报错）；`implemented/<class>/<file>.md` 双段路径强制、class 限 D5 封闭集；`.agents/notes/` 下未知生命周期目录 fail loud。⑤ recall 同步只检索 implemented/ + archived/——笔记的定义在两工具间唯一。⑥ verify-note-presence：根级展示文档（README*/CHANGELOG*/CHANGES*/CONTRIBUTING*）仍 trivial，**其余根级 .md（DESIGN.md、ARCHITECTURE.md 等）视为行为面**；docs/ 子树仍 trivial（配对门禁的领地）。⑦ init next-steps 做**只读存在性探测**（README.md / docs/*.md）选择指引文案——不是 D13 否决的自动 baseline：不评判、不写入，只挑建议。⑧ audit-notes：decisions.md 存在但解析出 0 条 `## Dn —` → stderr 警告格式不符、D-ref 置为 unchecked，不再全量误报。
+- **被否**：WARN 第六结局——改 D2 锁定的五结局契约，展示输出尾部已达到目的；根级 .md 全部判非平凡——README/CHANGELOG 纯展示改动会刷屏警告，advisory 也怕"狼来了"；生命周期目录可配置——D5 已锁定最小集，事件未到。

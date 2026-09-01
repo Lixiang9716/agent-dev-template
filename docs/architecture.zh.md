@@ -12,7 +12,7 @@
 
 门禁用 `paths` glob（`**` 跨目录）声明自己覆盖的范围：`gov run --base <ref>` 按 diff 选中 paths 命中的门（无 paths 的门永远相关）并报告哪些门出了范围——最小充分集出自同一事实源，`gov change-scope` 的建议也读同一份 `paths`。`gov run --gate <id>` 单门重跑。
 
-每个门禁落到五种结局之一——`PASS` / `FAIL` / `TIMEOUT` / `MISSING`（可执行文件不存在）/ `SKIP`——`allowFailure: true` 让该门禁的失败仅作 advisory：结局行与输出带 `advisory` 标记照常报告，退出码保持 0。退出码 0 = 全绿，1 = 有阻塞失败；阻塞失败末尾追加摘要块：哪个门挂了 + 首行输出 + 单门重跑命令。
+每个门禁落到五种结局之一——`PASS` / `FAIL` / `TIMEOUT` / `MISSING`（可执行文件不存在）/ `SKIP`——`allowFailure: true` 让该门禁的失败仅作 advisory：结局行与输出带 `advisory` 标记照常报告，退出码保持 0。通过但有输出的门禁以 `(passed with output)` 块保留其末尾几行——"有话说的通过"绝不被静默（D20）。退出码 0 = 全绿，1 = 有阻塞失败；阻塞失败末尾追加摘要块：哪个门挂了 + 首行输出 + 单门重跑命令。
 
 ## 知识平面
 

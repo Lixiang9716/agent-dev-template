@@ -485,6 +485,81 @@ def test_rubric_rejects_broken_structure() -> None:
         assert "R2" in drift.stdout
 
 
+def _write_note(root: Path, rel: str, body: str) -> None:
+    p = root / ".agents" / "notes" / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(body, encoding="utf-8")
+
+
+_GOOD_NOTE = (
+    "# Agent Note: t\n\nStatus: implemented\n\n"
+    "## Problem\np\n\n## Decision\nd\n\n## Alternatives considered\na\n"
+)
+
+
+def test_verify_notes_rejects_wrong_section_order() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _write_note(
+            root,
+            "implemented/architecture/2026-01-01-x.md",
+            "# Agent Note: t\n\nStatus: implemented\n\n"
+            "## Decision\nd\n\n## Problem\np\n\n## Alternatives considered\na\n",
+        )
+        _case(
+            "verify_notes.py",
+            root,
+            1,
+            "sections out of the promised order must fail (notes README contract)",
+        )
+
+
+def test_verify_notes_rejects_unknown_lifecycle() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _write_note(root, "implemented/architecture/2026-01-01-x.md", _GOOD_NOTE)
+        _write_note(root, "drafts/2026-01-01-x.md", _GOOD_NOTE)
+        result = _run("verify_notes.py", root)
+        assert result.returncode == 1, "an unknown lifecycle dir must fail loud (rule 5)"
+        assert "unknown lifecycle 'drafts'" in result.stdout
+
+
+def test_rubric_rejects_zero_items() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        docs = root / "docs"
+        docs.mkdir()
+        (docs / "review-rubric.md").write_text(
+            "# Review rubric\n\ngarbage content, no items\n", encoding="utf-8"
+        )
+        _case(
+            "verify_rubric.py",
+            root,
+            1,
+            "a rubric with zero items is a vacuous pass (rule 6)",
+        )
+
+
+def test_passing_gate_output_stays_visible() -> None:
+    """A pass that printed a warning must not be silenced (P1-2)."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "gates.json").write_text(
+            json.dumps(
+                {
+                    "gates": [
+                        {"id": "warny", "command": ["sh", "-c", "echo heads up; exit 0"]},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = _run("gates.py", root)
+        assert result.returncode == 0
+        assert "passed with output" in result.stdout
+        assert "heads up" in result.stdout
+
+
 CASES = [
     test_verify_notes_rejects_missing_section,
     test_gates_rejects_duplicate_id,
@@ -507,6 +582,10 @@ CASES = [
     test_change_scope_suggests_from_paths,
     test_init_hooks_ci_roundtrip,
     test_rubric_rejects_broken_structure,
+    test_verify_notes_rejects_wrong_section_order,
+    test_verify_notes_rejects_unknown_lifecycle,
+    test_rubric_rejects_zero_items,
+    test_passing_gate_output_stays_visible,
 ]
 
 

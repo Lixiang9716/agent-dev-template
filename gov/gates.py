@@ -233,7 +233,12 @@ def load_config(path: str) -> tuple[dict[str, list[str]], list[Gate], int, str |
 
 
 def _run_one(gate: Gate) -> tuple[Gate, str, str, bool]:
-    """Run one gate; return (gate, outcome, detail, blocking_failed)."""
+    """Run one gate; return (gate, outcome, detail, blocking_failed).
+
+    A passing gate's output is kept as detail too: exit 0 with something
+    to say (a warning, an advisory) must stay visible — passing never
+    silences a gate (D20 amends D2's "passes are silent").
+    """
     exe = gate.command[0]
     if shutil.which(exe) is None:
         return gate, "MISSING", f"command not found: {exe}", True
@@ -246,10 +251,10 @@ def _run_one(gate: Gate) -> tuple[Gate, str, str, bool]:
         )
     except subprocess.TimeoutExpired:
         return gate, "TIMEOUT", f"exceeded {gate.timeout_ms}ms", True
+    output = ((proc.stdout or "") + (proc.stderr or "")).strip()
     if proc.returncode == 0:
-        return gate, "PASS", "", False
-    tail = (proc.stdout or "") + (proc.stderr or "")
-    return gate, "FAIL", _tail(tail), True
+        return gate, "PASS", output, False
+    return gate, "FAIL", _tail(output), True
 
 
 def _tail(text: str, limit: int = 2000) -> str:
@@ -387,6 +392,19 @@ def run_gates(
             # allowFailure: report loudly, block never (advisory, D2/D13).
             print(f"--- output of {gid} (advisory; allowFailure) ---", flush=True)
         print(details[gid], flush=True)
+
+    # A pass that said something (a warning, an advisory) stays visible:
+    # last 3 lines, exit code and PASS outcome unchanged (D20).
+    for gid, outcome in outcomes.items():
+        if outcome != "PASS" or not details[gid]:
+            continue
+        lines = details[gid].splitlines()
+        shown = lines[-3:]
+        omitted = len(lines) - len(shown)
+        print(f"--- output of {gid} (passed with output) ---", flush=True)
+        if omitted > 0:
+            print(f"... ({omitted} more line(s))", flush=True)
+        print("\n".join(shown), flush=True)
 
     if failed:
         print(f"--- summary: {len(failed)} blocking failure(s) ---", flush=True)

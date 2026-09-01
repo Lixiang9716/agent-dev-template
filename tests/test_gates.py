@@ -287,3 +287,15 @@ def test_usage_prog_names_the_subcommand(tmp_path, capsys, monkeypatch):
         gates.main(["--help"])
     assert exc.value.code == 0
     assert "usage: gov run" in capsys.readouterr().out
+
+
+def test_pass_with_output_stays_visible(capsys):
+    """A passing gate that printed a warning must not be silenced (P1-2)."""
+    gs = [gates.Gate(id="warny", command=["sh", "-c", "echo line1; echo line2; echo line3; echo heads up; echo last warning; exit 0"])]
+    assert gates.run_gates(gs, None, 1, False) == 0
+    out = capsys.readouterr().out
+    assert "PASS warny" in out
+    assert "passed with output" in out
+    assert "last warning" in out
+    assert "more line(s)" in out  # the cap dropped the earlier lines
+    assert "line1" not in out

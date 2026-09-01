@@ -162,10 +162,20 @@ def init(project: Path, hooks: bool = False, ci: bool = False) -> int:
         print("  .github/workflows/gov.yml (CI runs gov run)")
 
     if "gates.json" in created:
+        # A read-only existence probe picks the advice (not D13's rejected
+        # auto-baselining — nothing is judged or written): with no docs to
+        # pair, the baseline step cannot succeed and is not suggested.
+        has_docs = (project / "README.md").exists() or any(
+            (project / "docs").glob("*.md")
+        )
         print("next steps:")
         print("  1. gov run                        # pairing runs advisory until baselined")
-        print("  2. gov verify-pairing --write     # baseline doc pairs (writes .i18n.yaml records)")
-        print("  3. remove \"allowFailure\" from the pairing gate in gates.json to enforce")
+        if has_docs:
+            print("  2. gov verify-pairing --write     # baseline doc pairs (writes .i18n.yaml records)")
+            print("  3. remove \"allowFailure\" from the pairing gate in gates.json to enforce")
+        else:
+            print("  2. no paired docs detected — leave pairing advisory, or disable it:")
+            print("     set \"enabled\": false on the pairing gate in gates.json")
     return 0
 
 
@@ -235,7 +245,7 @@ _HELP_FLAGS = ("-h", "--help", "help")
 _VERSION_FLAGS = ("-v", "--version", "version")
 # Commands whose args are NOT forwarded to an argparse parser: they must
 # intercept help/version themselves so a trailing flag never runs the action.
-_NO_FORWARD = ("init", "uninstall", "self-test", "verify-notes", "archive-notes")
+_NO_FORWARD = ("init", "uninstall", "self-test", "verify-notes")
 
 
 def _init_uninstall_args(args: list[str], what: str) -> tuple[Path, bool, bool] | None:
@@ -310,7 +320,7 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "change-scope":
         return change_scope.main(rest)
     if cmd == "archive-notes":
-        return archive_notes.main()
+        return archive_notes.main(rest)
     print(f"gov: unknown command '{cmd}'", file=sys.stderr)
     _usage()
     return 2

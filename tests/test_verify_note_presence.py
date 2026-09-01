@@ -56,9 +56,26 @@ def test_untracked_note_satisfies(tmp_path, monkeypatch, capsys):
 def test_docs_only_change_needs_no_note(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     _git_repo(tmp_path)
-    (tmp_path / "docs.md").write_text("# d\n")
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "guide.md").write_text("# d\n")
     assert vnp.main(["--strict"]) == 0
     assert "non-trivial file(s) changed" not in capsys.readouterr().out
+
+
+def test_root_design_doc_is_behavior_bearing(tmp_path, monkeypatch):
+    """In doc-driven repos the root DESIGN.md is the contract (P3-10)."""
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    (tmp_path / "DESIGN.md").write_text("# the contract\n")
+    assert vnp.main(["--strict"]) == 1
+
+
+def test_root_readme_stays_trivial(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    (tmp_path / "README.md").write_text("# presentation\n")
+    assert vnp.main(["--strict"]) == 0
 
 
 def test_bad_ref_fails_loud(tmp_path, monkeypatch):

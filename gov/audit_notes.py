@@ -44,7 +44,18 @@ def _known_decisions() -> set[str] | None:
     if not DECISIONS.is_file():
         return None
     text = DECISIONS.read_text(encoding="utf-8")
-    return set(re.findall(r"(?m)^## (D\d+) — ", text))
+    found = set(re.findall(r"(?m)^## (D\d+) — ", text))
+    if not found:
+        # A decisions file that parses to zero entries means a format
+        # mismatch — treating it as "no decisions" would flag every D-ref
+        # as missing. Say so and leave D-refs unchecked instead.
+        print(
+            f"audit_notes: {DECISIONS} has no '## Dn — ' sections; "
+            "check its format (D-refs left unchecked)",
+            file=sys.stderr,
+        )
+        return None
+    return found
 
 
 def _flags_note(text: str, commands: set[str] | None,
