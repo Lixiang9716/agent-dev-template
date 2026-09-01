@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/Lixiang9716/govrail/compare/v0.7.1...v0.8.0) (2026-09-01)
+
+
+### Features
+
+* gov init --upgrade — seeing template drift, never writing it (D27) ([#71](https://github.com/Lixiang9716/govrail/issues/71)) ([1c35ebe](https://github.com/Lixiang9716/govrail/commit/1c35ebe4f23ef957a533f153b4f8255bf624fe03))
+
 ## [0.7.1](https://github.com/Lixiang9716/govrail/compare/v0.7.0...v0.7.1) (2026-09-01)
 
 
