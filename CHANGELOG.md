@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.5](https://github.com/Lixiang9716/govrail/compare/v0.6.4...v0.6.5) (2026-09-01)
+
+
+### Bug Fixes
+
+* the seal gets a detector, re-sealing cannot launder, uninstall is two-step (D23) ([#63](https://github.com/Lixiang9716/govrail/issues/63)) ([be77464](https://github.com/Lixiang9716/govrail/commit/be77464288c4ae45b64300ef6aa8f22adb2caa0a))
+
 ## [0.6.4](https://github.com/Lixiang9716/govrail/compare/v0.6.3...v0.6.4) (2026-09-01)
 
 
