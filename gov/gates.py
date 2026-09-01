@@ -37,6 +37,8 @@ import shutil
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any
@@ -323,6 +325,7 @@ def run_gates(
     concurrency: int,
     fail_fast: bool,
     json_mode: bool = False,
+    record_path: Path | None = None,
 ) -> int:
     """Run the selected gates (every enabled gate when selection is None).
 
@@ -452,22 +455,31 @@ def run_gates(
         f"{len(outcomes)} gates: " + (", ".join(parts) if parts else "none ran")
     )
 
+    records = []
+    for g in gates:
+        if not g.enabled:
+            records.append(
+                {"gate": g.id, "outcome": "DISABLED", "blocking": False,
+                 "duration_ms": 0, "detail": ""}
+            )
+        elif g.id in outcomes:
+            records.append(
+                {"gate": g.id, "outcome": outcomes[g.id],
+                 "blocking": blocking.get(g.id, False),
+                 "duration_ms": durations.get(g.id, 0),
+                 "detail": details.get(g.id, "")}
+            )
     if json_mode:
-        records = []
-        for g in gates:
-            if not g.enabled:
-                records.append(
-                    {"gate": g.id, "outcome": "DISABLED", "blocking": False,
-                     "duration_ms": 0, "detail": ""}
-                )
-            elif g.id in outcomes:
-                records.append(
-                    {"gate": g.id, "outcome": outcomes[g.id],
-                     "blocking": blocking.get(g.id, False),
-                     "duration_ms": durations.get(g.id, 0),
-                     "detail": details.get(g.id, "")}
-                )
         print(json.dumps(records, indent=2))
+    if record_path is not None:
+        # Wish 12/D28: append-only history — one line per run, the plane's
+        # own philosophy. Opt-in; runs stay stateless without --record.
+        record_path.parent.mkdir(parents=True, exist_ok=True)
+        with record_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(
+                {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                 "gates": records}, separators=(",", ":")
+            ) + "\n")
     return 1 if failed else 0
 
 
@@ -488,6 +500,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--every-gate", action="store_true",
                         help="run every enabled gate — the full matrix, ignoring "
                              "modes and defaultMode (CI owns this)")
+    parser.add_argument("--record", action="store_true",
+                        help="append this run to .gov/history/gates.jsonl "
+                             "(see gov trend)")
     parser.add_argument("--json", action="store_true",
                         help="machine-readable: stdout is exactly one JSON array "
                              "of {gate, outcome, blocking, duration_ms, detail}; "
@@ -558,7 +573,9 @@ def main(argv: list[str] | None = None) -> int:
         print("no gates configured", file=sys.stderr)
         return 0
 
-    return run_gates(gates, selection, concurrency, args.fail_fast, json_mode=args.json)
+    return run_gates(gates, selection, concurrency, args.fail_fast,
+                     json_mode=args.json,
+                     record_path=Path('.gov/history/gates.jsonl') if args.record else None)
 
 
 if __name__ == "__main__":

@@ -669,6 +669,46 @@ def test_self_test_adopts_project_rejection_cases() -> None:
         assert "case-broken.sh" in result.stdout, "the case must be named"
 
 
+def test_verify_decisions_rejects_broken_table() -> None:
+    """Wish 9: duplicate ids, gaps, and alternative-less decisions fail loud."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        docs = root / "docs"
+        docs.mkdir()
+        (docs / "decisions.md").write_text(
+            "## D1 — a\n\n- **选项**：x\n\n## D1 — b\n\n- **选项**：x\n\n"
+            "## D3 — c\n\n- **状态**：已决\n",
+            encoding="utf-8",
+        )
+        result = _run("verify_decisions.py", root)
+        assert result.returncode == 1, "a broken decisions table must fail"
+        assert "duplicate" in result.stdout
+        assert "missing: D2" in result.stdout
+        assert "D3: records no options" in result.stdout
+
+
+def test_skills_text_command_drift_is_named() -> None:
+    """Wish 11: a typo'd command in a skill file is named, not silently stale."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        notes = root / ".agents" / "notes" / "implemented" / "architecture"
+        notes.mkdir(parents=True)
+        (notes / "x.md").write_text(
+            "# Agent Note: x\n\nStatus: implemented\n\n## Decision\nd\n\n"
+            "## Problem\np\n\n## Alternatives considered\na\n", encoding="utf-8")
+        skills = root / ".agents" / "skills" / "probe"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text("run `gov run --every-gat`\n", encoding="utf-8")
+        env = dict(os.environ)
+        env["PYTHONPATH"] = str(HERE.parent) + os.pathsep + env.get("PYTHONPATH", "")
+        result = subprocess.run(
+            [sys.executable, "-m", "gov", "audit-notes"],
+            cwd=root, env=env, capture_output=True, text=True,
+        )  # package mode: the command registry is importable
+        assert result.returncode == 0, result.stdout + result.stderr  # advisory
+        assert "--every-gat" in result.stdout, "the typo'd flag must be named"
+
+
 def test_passing_gate_output_stays_visible() -> None:
     """A pass that printed a warning must not be silenced (P1-2)."""
     with tempfile.TemporaryDirectory() as td:
@@ -720,6 +760,8 @@ CASES = [
     test_archive_seal_detects_tampering_and_refuses_laundering,
     test_gates_rejects_gate_in_no_mode,
     test_self_test_adopts_project_rejection_cases,
+    test_verify_decisions_rejects_broken_table,
+    test_skills_text_command_drift_is_named,
 ]
 
 

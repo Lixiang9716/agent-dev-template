@@ -257,3 +257,10 @@
 - **状态**：已决
 - **决定**：**`gov init --upgrade` 只做"看见"**：读 manifest 记录的 init 版本与当前包版本对（时代上下文），对每个注入文件（rules.md + notes README + rejections README + 技能 + created 里的 gates.json/gov.yml）做"现模板 vs 本地"逐文件统一 diff；缺失文件（新版模板新增、旧 init 没建过）标 MISSING-safe-to-add；全部一致时提示 safe to refresh。**绝不写入任何文件**；采纳仍是人的动作（定制文件遵循 D23 两步哲学）。差异归因诚实：init 版本=当前版本 → "customized locally"；更旧 → "customized locally and/or template evolved"（无法区分就明说无法区分）。
 - **被否**：自动合并/覆盖——模板与定制三方合并是数据丢失机器，D23 刚为 uninstall 修过同类；只报"版本不同"不报文件 diff——版本号不携带哪些文件变了，等于让人继续手工 diff。
+
+## D28 — 愿望轮 II：决策守卫、评审档案、技能防漂移、时延趋势、降噪、孤儿记录
+
+- **问题**：六愿望。① decisions.md 是治理脊柱却是纯散文——D 编号唯一/连续、被否段在座、孤儿决策零校验（复现：重复 D9、跳号、删被否行——无工具报错）。② 评审者冷启动要手工串联 4 个命令装配材料。③ 技能文本里的 `gov` 命令/旗标引用无人校验，命令改名时面向 agent 的说明书静默过期（agent 是最照本宣科的用户）。④ `--json` 的 duration_ms 每次即弃，耗时回归只能靠人眼记忆。⑤ 长会话大量未跟踪文件让 note-presence advisory 刷屏。⑥ 双侧删除后的孤儿 .i18n.yaml 永不清点。
+- **状态**：已决
+- **决定**：① **`gov verify-decisions`**（verify-rubric 模式的下一个对象）：编号唯一且从 D0/D1 起连续；每条含 选项/被否/Alternatives（规则 3 精神跨文档适用）；孤儿（无笔记引用）信息性不违规。自仓库 D0–D27 首跑全绿即首位用户；进本仓库 gates.json（paths 限定 decisions.md），不进模板（内容因项目而异，同 D17 立场）。② **`gov review --base <ref>`** 四段档案：变更面（change-scope 数据）/范围内笔记（note-presence 数据）/变更关键词 recall 前五/量规条目（无量规优雅降三段）；坏 ref exit 2；code-review 技能（双份）改从档案开工。③ **audit-notes 扩技能**：`.agents/skills/**/*.md` 的反引号 `gov` 命令与旗标对照 CLI 注册表 + 旗标表（-h/--help/-v/--version 通用豁免；表覆盖全部命令）。④ **`gov run --record`** 追加一行 JSON 到 `.gov/history/gates.jsonl`（ISO 时间戳+records；append-only；**opt-in，运行默认仍无状态**）+ **`gov trend`**（窗口对半，逐门 p50 变化比，≥1.5×/≤0.67× 报为 movers）；history 不进任何 gates 校验范围，本仓库 gitignore 之。⑤ note-presence **`--staged`**（只看 index，干净即静默）+ 超五条折叠 `…and N more`；否决 ignore_untracked 配置旋钮（D26 同理）。⑥ verify-pairing 增 **dangling record** 检查（记录在、双侧皆缺 → 点名"删除或重建后 --write"）。
+- **被否**：① 孤儿决策算违规——决策可以先于引用它的笔记存在，信息性是对的强度；③ 旗标注册表从 argparse 运行时反推——解析器在 main() 里运行时构建，反推的成本高于静态表+用例钉住；④ 默认记录——违背运行无状态，--record 是显式同意；⑤ 折叠阈值可配——5 条固定值足够。

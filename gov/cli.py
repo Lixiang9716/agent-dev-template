@@ -17,8 +17,10 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
-from . import archive_notes, audit_notes, change_scope, gates, recall, self_test
-from . import verify_archive, verify_note_presence, verify_notes, verify_rubric
+from . import archive_notes, audit_notes, change_scope, gates, recall, review
+from . import self_test, trend
+from . import verify_archive, verify_decisions, verify_note_presence
+from . import verify_notes, verify_rubric
 from . import verify_translation_pairing
 from . import __version__
 
@@ -427,6 +429,9 @@ _COMMANDS = {
     "verify-note-presence": "warn when a non-trivial diff carries no note (e.g. --base <ref>, --strict)",
     "verify-rubric": "check the review rubric's structure (ids, fields, parity)",
     "verify-archive": "verify the archived-notes seal (pinned sha256 per file)",
+    "verify-decisions": "verify the decisions table (numbering, alternatives, orphans)",
+    "review": "assemble the review dossier for a diff (scope, notes, recall, rubric)",
+    "trend": "gate duration trends from .gov/history/ (p50 per window)",
     "recall": "retrieve notes, decisions, and postmortems (all terms, ranked)",
     "audit-notes": "report mechanical staleness signals in implemented notes",
     "change-scope": "report touched surfaces (e.g. --base <ref>)",
@@ -524,6 +529,12 @@ def main(argv: list[str] | None = None) -> int:
         return verify_rubric.main(rest)
     if cmd == "verify-archive":
         return verify_archive.main(rest)
+    if cmd == "verify-decisions":
+        return verify_decisions.main(rest)
+    if cmd == "review":
+        return review.main(rest)
+    if cmd == "trend":
+        return trend.main(rest)
     if cmd == "recall":
         return recall.main(rest)
     if cmd == "audit-notes":

@@ -49,6 +49,9 @@ gov verify-pairing --write    # re-confirm a bilingual pair after editing one si
 gov verify-pairing --write en:docs/a.md zh:docs/a_CN.md  # register any naming
 gov verify-note-presence      # warn when a non-trivial diff carries no Agent Note
 gov verify-rubric             # check the review rubric's structure
+gov verify-decisions          # guard the decisions table (ids, alternatives)
+gov review --base <ref>       # one-shot review dossier (scope/notes/recall/rubric)
+gov trend                     # gate duration trends from --record history
 gov recall <terms>            # retrieve notes, decisions, postmortems
 gov audit-notes               # staleness signals in implemented notes
 gov change-scope --base <ref> # smallest sufficient set (.gov/surfaces.json maps paths)

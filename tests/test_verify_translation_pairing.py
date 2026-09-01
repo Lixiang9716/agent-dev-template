@@ -116,3 +116,19 @@ def test_write_records_pairable_and_reports_rest(tmp_path, monkeypatch, capsys):
     assert (docs / "good.i18n.yaml").exists()  # the good pair got baselined
     assert not (docs / "lonely.i18n.yaml").exists()
     assert "lonely.md" in err and "wrote 1, left 1" in err
+
+
+def test_dangling_record_reported_and_recoverable(tmp_path, monkeypatch, capsys):
+    """Wish 14: both sides deleted, record remains — named, then cleared."""
+    monkeypatch.chdir(tmp_path)
+    docs = _pair(tmp_path)  # docs/foo.md + foo.zh.md
+    assert vtp.main(["--write", "foo"]) == 0
+    (docs / "foo.md").unlink()
+    (docs / "foo.zh.md").unlink()
+    assert vtp.main([]) == 1
+    assert "dangling record" in capsys.readouterr().out
+    # recover: re-create the pair and re-register
+    (docs / "foo.md").write_text("# foo v2\n")
+    (docs / "foo.zh.md").write_text("# foo 中文 v2\n")
+    assert vtp.main(["--write", "foo"]) == 0
+    assert vtp.main([]) == 0
