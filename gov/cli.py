@@ -129,6 +129,11 @@ def init(project: Path, hooks: bool = False, ci: bool = False) -> int:
         _copy(TEMPLATES.joinpath("skills") / name / "SKILL.md", skill)
         created.append(f".agents/skills/{name}/SKILL.md")
 
+    rejections_readme = gov_dir / "rejections" / "README.md"
+    if not rejections_readme.exists():
+        _copy(TEMPLATES.joinpath("rejections-README.md"), rejections_readme)
+        created.append(".gov/rejections/README.md")
+
     ag = project / "AGENTS.md"
     if ag.exists():
         text = ag.read_text(encoding="utf-8")
@@ -236,6 +241,8 @@ def _template_for(rel: str):
         return TEMPLATES.joinpath("gates.json")
     if rel == ".agents/notes/README.md":
         return TEMPLATES.joinpath("notes-README.md")
+    if rel == ".gov/rejections/README.md":
+        return TEMPLATES.joinpath("rejections-README.md")
     if rel == ".github/workflows/gov.yml":
         return TEMPLATES.joinpath("gov.yml")
     if rel.startswith(".agents/skills/") and rel.endswith("/SKILL.md"):
@@ -353,7 +360,7 @@ _HELP_FLAGS = ("-h", "--help", "help")
 _VERSION_FLAGS = ("-v", "--version", "version")
 # Commands whose args are NOT forwarded to an argparse parser: they must
 # intercept help/version themselves so a trailing flag never runs the action.
-_NO_FORWARD = ("init", "uninstall", "self-test", "verify-notes")
+_NO_FORWARD = ("init", "uninstall", "verify-notes")
 
 
 def _init_uninstall_args(
@@ -417,7 +424,7 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "run":
         return gates.main(rest)
     if cmd == "self-test":
-        return self_test.main()
+        return self_test.main(rest)
     if cmd == "verify-notes":
         return verify_notes.main()
     if cmd == "verify-pairing":

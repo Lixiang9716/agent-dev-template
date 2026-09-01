@@ -1,6 +1,8 @@
 import json
 import subprocess
 
+import pytest
+
 from gov import change_scope
 
 
@@ -55,3 +57,38 @@ def test_no_ghost_gate_in_fallback(tmp_path, monkeypatch, capsys):
     assert change_scope.main(["--base", "HEAD"]) == 0
     out = capsys.readouterr().out
     assert "links" not in out
+
+
+def test_surfaces_config_scopes_suggestion(tmp_path, monkeypatch, capsys):
+    """D25 wish 4: eval/** → experiments → [source-limits] only."""
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    gov = tmp_path / ".gov"
+    gov.mkdir()
+    (gov / "surfaces.json").write_text(json.dumps({
+        "eval/**": {"surface": "experiments", "gates": ["source-limits"]},
+    }))
+    (tmp_path / "gates.json").write_text(json.dumps({"gates": []}))
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)  # commit the
+    subprocess.run(  # config itself, so the diff below is eval-only
+        ["git", "-c", "commit.gpgsign=false", "commit", "-qm", "config"],
+        cwd=tmp_path, check=True,
+    )
+    (tmp_path / "eval").mkdir()
+    (tmp_path / "eval" / "run.py").write_text("x = 1\n")
+    assert change_scope.main(["--base", "HEAD"]) == 0
+    out = capsys.readouterr().out
+    assert "experiments: 1 file(s)" in out
+    assert "source-limits" in out
+    assert "self-test" not in out  # configured matches replace the fallback
+    assert ".gov/surfaces.json" in out
+
+
+def test_surfaces_config_malformed_fails_loud(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    gov = tmp_path / ".gov"
+    gov.mkdir()
+    (gov / "surfaces.json").write_text(json.dumps({"x/**": {"surface": "s"}}))
+    with pytest.raises(SystemExit) as exc:
+        change_scope.main(["--base", "HEAD"])
+    assert exc.value.code == 2

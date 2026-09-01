@@ -350,3 +350,19 @@ def test_every_gate_ignores_default_mode(tmp_path, capsys, monkeypatch):
     assert gates.main([]) == 0
     out = capsys.readouterr().out
     assert "PASS b" not in out
+
+
+def test_json_mode_pure_stdout(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _write(tmp_path, {"gates": [{"id": "a", "command": ["true"]},
+                                {"id": "off", "command": ["false"], "enabled": False}]})
+    assert gates.main(["--json", "--every-gate"]) == 0
+    import json as _json
+    captured = capsys.readouterr()
+    records = _json.loads(captured.out)  # stdout is exactly the JSON array
+    assert [r["gate"] for r in records] == ["a", "off"]
+    assert records[0]["outcome"] == "PASS"
+    assert records[1]["outcome"] == "DISABLED"
+    assert isinstance(records[0]["duration_ms"], int) and records[0]["duration_ms"] >= 0
+    assert sorted(records[0].keys()) == ["blocking", "detail", "duration_ms", "gate", "outcome"]
+    assert "PASS a" in captured.err  # the human report moved to stderr

@@ -1,20 +1,36 @@
 #!/usr/bin/env python3
-"""Rejection cases for each governance gate (D3).
+"""Rejection cases for each governance gate (D3, D25).
 
 Every case introduces a deliberate violation, runs the gate, and asserts the
 gate FAILS — proving it can reject, not just pass. A green self-test means
 each governance gate has demonstrated it catches the violation it claims to.
+
+Two families, reported separately so they never blur:
+
+- **tools**: the cases built into this file — the govrail gates' own proofs;
+- **project**: every executable under ``.gov/rejections/`` in the project
+  root (rule 6's last mile: a project-defined gate ships its rejection
+  proof here, run with the repository root as cwd; exit 0 = the proof
+  holds). ``README*`` files are skipped.
+
+Cases run concurrently; the report order stays deterministic (tools in
+CASES order, project sorted by path). ``--scope tools|project`` runs one
+family. All failures are reported, not just the first.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+REJECTIONS_DIR = Path(".gov/rejections")
+CONCURRENCY = 4
 
 
 def _run(script: str, cwd: Path) -> subprocess.CompletedProcess:
@@ -631,6 +647,25 @@ def test_gates_rejects_gate_in_no_mode() -> None:
         assert "stranded" in result.stderr
 
 
+def test_self_test_adopts_project_rejection_cases() -> None:
+    """Wish 1: .gov/rejections/ is rule 6's last mile — wired and enforced."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        rej = root / ".gov" / "rejections"
+        rej.mkdir(parents=True)
+        bad = rej / "case-broken.sh"
+        bad.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        bad.chmod(0o755)
+        # --scope project: proves the wiring without recursing into the
+        # tools family (this very case lives there).
+        result = subprocess.run(
+            [sys.executable, str(HERE / "self_test.py"), "--scope", "project"],
+            cwd=root, capture_output=True, text=True, timeout=120,
+        )
+        assert result.returncode == 1, "a failing project case must fail self-test"
+        assert "case-broken.sh" in result.stdout, "the case must be named"
+
+
 def test_passing_gate_output_stays_visible() -> None:
     """A pass that printed a warning must not be silenced (P1-2)."""
     with tempfile.TemporaryDirectory() as td:
@@ -681,14 +716,80 @@ CASES = [
     test_verify_notes_rejects_status_lying,
     test_archive_seal_detects_tampering_and_refuses_laundering,
     test_gates_rejects_gate_in_no_mode,
+    test_self_test_adopts_project_rejection_cases,
 ]
 
 
-def main() -> int:
-    for case in CASES:
+def _project_cases() -> list[Path]:
+    if not REJECTIONS_DIR.is_dir():
+        return []
+    return [
+        p
+        for p in sorted(REJECTIONS_DIR.rglob("*"))
+        if p.is_file() and not p.name.startswith("README")
+    ]
+
+
+def _run_project_case(p: Path) -> tuple[str, bool]:
+    """(report line, ok) — exit 0 means the rejection proof holds."""
+    if not os.access(p, os.X_OK):
+        return f"FAIL {p} (not executable — chmod +x it)", False
+    try:
+        proc = subprocess.run(
+            [str(p)], capture_output=True, text=True, timeout=120,
+            cwd=str(Path.cwd()),
+        )
+    except subprocess.TimeoutExpired:
+        return f"FAIL {p} (timed out)", False
+    if proc.returncode == 0:
+        return f"PASS {p}", True
+    tail = ((proc.stdout or "") + (proc.stderr or "")).strip().splitlines()
+    why = f": {tail[0]}" if tail else ""
+    return f"FAIL {p} (exit {proc.returncode}{why})", False
+
+
+def _run_tool_case(case) -> tuple[str, bool]:
+    try:
         case()
-        print(f"PASS {case.__name__}")
-    print(f"self-test: {len(CASES)} rejection case(s) pass")
+    except Exception as e:  # noqa: BLE001 — report, don't traceback
+        first = str(e).strip().splitlines()
+        why = f": {first[0]}" if first else ""
+        return f"FAIL {case.__name__} ({type(e).__name__}{why})", False
+    return f"PASS {case.__name__}", True
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="gov self-test",
+        description="Run rejection cases: the tools' own plus the project's "
+                    "under .gov/rejections/.",
+    )
+    parser.add_argument("--scope", choices=("all", "tools", "project"),
+                        default="all", help="which family of cases to run")
+    args = parser.parse_args(argv)
+
+    tool_jobs = [] if args.scope == "project" else list(CASES)
+    project_jobs = [] if args.scope == "tools" else _project_cases()
+
+    results: list[tuple[str, bool]] = []
+    with ThreadPoolExecutor(max_workers=CONCURRENCY) as pool:
+        tool_futures = [pool.submit(_run_tool_case, c) for c in tool_jobs]
+        project_futures = [pool.submit(_run_project_case, p) for p in project_jobs]
+        for fut in tool_futures:
+            results.append(fut.result())
+        for fut in project_futures:
+            results.append(fut.result())
+
+    failures = [line for line, ok in results if not ok]
+    for line, ok in results:
+        print(line)
+    tools_n, project_n = len(tool_jobs), len(project_jobs)
+    parts = [f"tools {tools_n}" if tools_n else "", f"project {project_n}" if project_n else ""]
+    family = " + ".join(p for p in parts if p)
+    if failures:
+        print(f"self-test: {len(failures)} failure(s) ({family})")
+        return 1
+    print(f"self-test: {family or 'no cases selected'} — all pass")
     return 0
 
 

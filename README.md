@@ -42,14 +42,15 @@ gov uninstall --project <path>  # reverse it exactly
 gov run                        # run the default mode's gate DAG (defaultMode)
 gov run --base HEAD~1          # only the gates whose paths match the diff
 gov run --gate pairing         # rerun a single gate
-gov self-test                  # prove every governance gate can reject
+gov self-test                  # rejection cases: the tools' + yours (.gov/rejections/)
+gov run --json                 # machine-readable: [{gate, outcome, duration_ms, ...}]
 gov verify-pairing --write    # re-confirm a bilingual pair after editing one side
 gov verify-pairing --write en:docs/a.md zh:docs/a_CN.md  # register any naming
 gov verify-note-presence      # warn when a non-trivial diff carries no Agent Note
 gov verify-rubric             # check the review rubric's structure
 gov recall <terms>            # retrieve notes, decisions, postmortems
 gov audit-notes               # staleness signals in implemented notes
-gov change-scope --base <ref> # smallest sufficient check set for a diff
+gov change-scope --base <ref> # smallest sufficient set (.gov/surfaces.json maps paths)
 ```
 
 `init` is non-invasive and idempotent: it creates `.gov/rules.md`, adds

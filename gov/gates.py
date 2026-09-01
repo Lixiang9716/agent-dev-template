@@ -36,6 +36,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any
@@ -254,8 +255,9 @@ def _run_one(gate: Gate) -> tuple[Gate, str, str, bool]:
     silences a gate (D20 amends D2's "passes are silent").
     """
     exe = gate.command[0]
+    started = time.monotonic()
     if shutil.which(exe) is None:
-        return gate, "MISSING", f"command not found: {exe}", True
+        return gate, "MISSING", f"command not found: {exe}", True, 0
     try:
         proc = subprocess.run(
             gate.command,
@@ -264,11 +266,12 @@ def _run_one(gate: Gate) -> tuple[Gate, str, str, bool]:
             timeout=gate.timeout_ms / 1000 if gate.timeout_ms else None,
         )
     except subprocess.TimeoutExpired:
-        return gate, "TIMEOUT", f"exceeded {gate.timeout_ms}ms", True
+        return gate, "TIMEOUT", f"exceeded {gate.timeout_ms}ms", True, gate.timeout_ms
+    duration_ms = int((time.monotonic() - started) * 1000)
     output = ((proc.stdout or "") + (proc.stderr or "")).strip()
     if proc.returncode == 0:
-        return gate, "PASS", output, False
-    return gate, "FAIL", _tail(output), True
+        return gate, "PASS", output, False, duration_ms
+    return gate, "FAIL", _tail(output), True, duration_ms
 
 
 def _tail(text: str, limit: int = 2000) -> str:
@@ -319,11 +322,25 @@ def run_gates(
     selection: list[str] | None,
     concurrency: int,
     fail_fast: bool,
+    json_mode: bool = False,
 ) -> int:
-    """Run the selected gates (every enabled gate when selection is None)."""
+    """Run the selected gates (every enabled gate when selection is None).
+
+    In ``json_mode`` the human-readable report goes to stderr and stdout
+    carries exactly one JSON array — one object per gate, in config order:
+    ``{gate, outcome, blocking, duration_ms, detail}`` (D25). Disabled
+    gates appear with outcome ``DISABLED``.
+    """
+
+    def emit(text: str) -> None:
+        if json_mode:
+            print(text, file=sys.stderr, flush=True)
+        else:
+            print(text, flush=True)
+
     for g in gates:
         if not g.enabled:
-            print(f"DISABLED {g.id}", flush=True)
+            emit(f"DISABLED {g.id}")
     active = [g for g in gates if g.enabled]
     if selection is None:
         selected = active
@@ -336,6 +353,7 @@ def run_gates(
     outcomes: dict[str, str] = {}
     details: dict[str, str] = {}
     blocking: dict[str, bool] = {}
+    durations: dict[str, int] = {}
     skipped_set: set[str] = set()
 
     indegree = {g.id: len([n for n in g.needs if n in selected_ids]) for g in selected}
@@ -367,10 +385,10 @@ def run_gates(
                 ]
                 if failed_needs:
                     outcomes[child] = "SKIP"
+                    durations[child] = 0
                     skipped_set.add(child)
-                    print(
-                        f"SKIP {child} (needs failed: {', '.join(failed_needs)})",
-                        flush=True,
+                    emit(
+                        f"SKIP {child} (needs failed: {', '.join(failed_needs)})"
                     )
                     settle(child)
                 else:
@@ -383,11 +401,12 @@ def run_gates(
         while pending and not stop:
             for fut in list(as_completed(pending)):
                 gate = pending.pop(fut)
-                g, outcome, detail, is_blocking = fut.result()
+                g, outcome, detail, is_blocking, duration_ms = fut.result()
                 outcomes[g.id] = outcome
                 details[g.id] = detail
+                durations[g.id] = duration_ms
                 blocking[g.id] = is_blocking and not g.allow_failure
-                print(_outcome_line(g, outcome), flush=True)
+                emit(_outcome_line(g, outcome))
                 if fail_fast and blocking[g.id]:
                     stop = True
                     for other in pending:
@@ -401,11 +420,11 @@ def run_gates(
         if outcome not in BLOCKING_OUTCOMES or not details[gid]:
             continue
         if blocking.get(gid, False):
-            print(f"--- output of {gid} ---", flush=True)
+            emit(f"--- output of {gid} ---")
         else:
             # allowFailure: report loudly, block never (advisory, D2/D13).
-            print(f"--- output of {gid} (advisory; allowFailure) ---", flush=True)
-        print(details[gid], flush=True)
+            emit(f"--- output of {gid} (advisory; allowFailure) ---")
+        emit(details[gid])
 
     # A pass that said something (a warning, an advisory) stays visible:
     # last 3 lines, exit code and PASS outcome unchanged (D20).
@@ -415,24 +434,40 @@ def run_gates(
         lines = details[gid].splitlines()
         shown = lines[-3:]
         omitted = len(lines) - len(shown)
-        print(f"--- output of {gid} (passed with output) ---", flush=True)
-        print("\n".join(shown), flush=True)
+        emit(f"--- output of {gid} (passed with output) ---")
+        emit("\n".join(shown))
         if omitted > 0:
-            print(f"... ({omitted} earlier line(s) not shown)", flush=True)
+            emit(f"... ({omitted} earlier line(s) not shown)")
 
     if failed:
-        print(f"--- summary: {len(failed)} blocking failure(s) ---", flush=True)
+        emit(f"--- summary: {len(failed)} blocking failure(s) ---")
         for gid in failed:
             first = details[gid].strip().splitlines()[0] if details[gid].strip() else ""
-            print(f"{gid}: {first}" if first else f"{gid}:", flush=True)
-        print("rerun a single gate: gov run --gate <id>", flush=True)
+            emit(f"{gid}: {first}" if first else f"{gid}:")
+        emit("rerun a single gate: gov run --gate <id>")
 
     counts = {o: sum(1 for v in outcomes.values() if v == o) for o in OUTCOME_ORDER}
     parts = [f"{n} {o.lower()}" for o, n in counts.items() if n]
-    print(
-        f"{len(outcomes)} gates: " + (", ".join(parts) if parts else "none ran"),
-        flush=True,
+    emit(
+        f"{len(outcomes)} gates: " + (", ".join(parts) if parts else "none ran")
     )
+
+    if json_mode:
+        records = []
+        for g in gates:
+            if not g.enabled:
+                records.append(
+                    {"gate": g.id, "outcome": "DISABLED", "blocking": False,
+                     "duration_ms": 0, "detail": ""}
+                )
+            elif g.id in outcomes:
+                records.append(
+                    {"gate": g.id, "outcome": outcomes[g.id],
+                     "blocking": blocking.get(g.id, False),
+                     "duration_ms": durations.get(g.id, 0),
+                     "detail": details.get(g.id, "")}
+                )
+        print(json.dumps(records, indent=2))
     return 1 if failed else 0
 
 
@@ -453,6 +488,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--every-gate", action="store_true",
                         help="run every enabled gate — the full matrix, ignoring "
                              "modes and defaultMode (CI owns this)")
+    parser.add_argument("--json", action="store_true",
+                        help="machine-readable: stdout is exactly one JSON array "
+                             "of {gate, outcome, blocking, duration_ms, detail}; "
+                             "the human report moves to stderr")
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
@@ -516,7 +555,7 @@ def main(argv: list[str] | None = None) -> int:
         print("no gates configured", file=sys.stderr)
         return 0
 
-    return run_gates(gates, selection, concurrency, args.fail_fast)
+    return run_gates(gates, selection, concurrency, args.fail_fast, json_mode=args.json)
 
 
 if __name__ == "__main__":

@@ -36,14 +36,15 @@ gov uninstall --project <path> # 精确反转
 gov run                        # 跑默认模式（defaultMode）的门禁 DAG
 gov run --base HEAD~1          # 只跑 paths 命中本次 diff 的门
 gov run --gate pairing         # 单门重跑
-gov self-test                  # 证明每个治理门禁都能拒绝
+gov self-test                  # 拒绝用例：工具自带 + 你的（.gov/rejections/）
+gov run --json                 # 机器可读：[{gate, outcome, duration_ms, ...}]
 gov verify-pairing --write     # 编辑一侧后重新确认双语配对
 gov verify-pairing --write en:docs/a.md zh:docs/a_CN.md  # 登记任意命名的配对
 gov verify-note-presence       # 非平凡 diff 未带 Agent Note 时警告
 gov verify-rubric              # 检查评审量规的结构
 gov recall <terms>             # 检索笔记、决策、postmortem
 gov audit-notes                # implemented 笔记的新鲜度信号
-gov change-scope --base <ref>  # 一次 diff 的最小充分检查集
+gov change-scope --base <ref>  # 最小充分集（.gov/surfaces.json 可映射路径）
 ```
 
 `init` 非侵入且幂等：创建 `.gov/rules.md`，仅在缺失时添加 `gates.json`、笔记 README 与 agent 技能（recall-first、pre-push-checks、code-review、archive-agent-notes），向 AGENTS.md 追加一行引用，绝不覆盖项目自己的文件——包括它自己的技能。`--hooks`/`--ci` 可**事后补装**（已初始化项目 `gov init --hooks` 只装该加装，定制原样不动）。`uninstall` 精确反转一切；文件与模板有差异时点名并列出，需 `--force` 才继续（真两步）。新装首跑不红：pairing 门禁以 advisory 落地，`gov verify-pairing --write` 为存量文档建立基线后，摘除 `allowFailure` 即升级为强制。`enabled: false` 让门禁下线而不删除定义。
