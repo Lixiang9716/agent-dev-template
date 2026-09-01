@@ -47,6 +47,8 @@ gov verify-pairing --write    # re-confirm a bilingual pair after editing one si
 gov verify-pairing --write en:docs/a.md zh:docs/a_CN.md  # register any naming
 gov verify-note-presence      # warn when a non-trivial diff carries no Agent Note
 gov verify-rubric             # check the review rubric's structure
+gov recall <terms>            # retrieve notes, decisions, postmortems
+gov audit-notes               # staleness signals in implemented notes
 gov change-scope --base <ref> # smallest sufficient check set for a diff
 ```
 
@@ -63,8 +65,9 @@ deleting its definition.
 
 - `gov/` — the Python package: `gates` (the DAG runner over `gates.json`),
   `verify_notes` (three required sections), `verify_translation_pairing`
-  (git blob hashes), `verify_note_presence`, `verify_rubric`,
-  `change_scope`, `self_test`, `archive_notes`.
+  (git blob hashes), `verify_note_presence`, `verify_rubric`, `recall`
+  (memory retrieval), `audit_notes` (staleness signals), `change_scope`,
+  `self_test`, `archive_notes`.
 - `gov/templates/` — the rules, default `gates.json`, and notes format that
   `gov init` injects into a project.
 - `.gov/rules.md` — the single source of truth for the rules.

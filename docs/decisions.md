@@ -174,3 +174,12 @@
 - **状态**：已决
 - **决定**：`docs/review-rubric.md`（+.zh.md+.i18n.yaml 双语三件套，规则 7）：R1–R8，每条四字段 `Checks`/`Evidence`/`Anti-pattern`/`Gate candidate`——**条目是评审态，门禁是运行态**，`Gate candidate` 显式标注毕业去向，可机械化的按事件驱动成长升级成门禁（D14 即先例）。code-review skill 按量规逐项判定（"约定第三次被手工执行 → skill"，成长表原文）。`gov verify-rubric` 只查**量规自身结构**：ID 从 R1 连续唯一、四字段齐全非空、`yes` 必须写去向、`.zh.md` 侧 ID 集合对齐（跨语言契约是 ID，措辞是译者自由）——判断本身永不伪机械化。rubric 门禁进本仓库 gates.json（paths 限定量规两文件）；**不进注入模板**。
 - **被否**：(a) 无结构散文=各人各标，正是量规要消灭的；(c) 同时把模板量规注入所有项目——违背事件驱动成长：没有采用者第三次手工执行过"写量规"这件事，就不该模板化；采用者的量规内容取决于他们的规则。
+
+## D18 — 记忆的读侧：recall 与 audit-notes
+
+- **问题**：写侧纪律已闭环（笔记必须存在、格式必须对——"notes are the agent memory"），但读侧只有裸 grep：找一条决策要手翻三四个目录；笔记契约说 implemented 要"与已交付事实保持一致"，漂移却完全无声。
+- **选项**：(a) 只靠 grep 与人工；(b) `gov recall` 结构感知检索 + `gov audit-notes` 机械新鲜度信号；(c) 嵌入/向量检索；(d) 会话级工作记忆
+- **倾向**：(b)
+- **状态**：已决
+- **决定**：(b)。`gov recall <terms>`：跨 notes（implemented+archived）、decisions.md（每个 `## Dn` 节是一条）、postmortem 条目（README 除外）的确定性检索；全词 AND、大小写不敏感；按命中位置排序（标题 > 节标题 > 正文）；无命中 exit 1（fail loud——不许对着空结果推理）。`gov audit-notes`：只报**机械**信号——backtick 的 `gov <子命令>` 已不存在、`Dn` 引用在 decisions.md 无对应条目、带分隔符+扩展名的 backtick 路径解析失败（占位符与 glob 豁免）；archived 冻结豁免（D5）；发现即报告、exit 0——是给 archive-agent-notes 技能的证据，不是判决。两者均为工具而非门禁（不进 gates.json），随包分发给采用者。
+- **被否**：(a) 读侧摩擦正是记忆"写了没人读"的直接原因；(c) 零依赖是锁定承诺，且语义检索不可审计、在此规模（几十篇）是伪需求；(d) 工作记忆属 harness/session 层——治理平面只管版本化的仓库记忆，平画分离。
