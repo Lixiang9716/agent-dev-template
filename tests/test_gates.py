@@ -366,3 +366,30 @@ def test_json_mode_pure_stdout(tmp_path, capsys, monkeypatch):
     assert isinstance(records[0]["duration_ms"], int) and records[0]["duration_ms"] >= 0
     assert sorted(records[0].keys()) == ["blocking", "detail", "duration_ms", "gate", "outcome"]
     assert "PASS a" in captured.err  # the human report moved to stderr
+
+
+@pytest.mark.parametrize("selector", [
+    [], ["--mode", "quick"], ["--every-gate"], ["--gate", "notes"],
+])
+def test_json_stdout_is_pure_for_every_selector(tmp_path, capsys, monkeypatch, selector):
+    """D26: with --json, stdout is exactly one JSON value — no leaks."""
+    import json as _json
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "a.md").write_text("x\n")  # gives --base something
+    _write(tmp_path, {
+        "modes": {"quick": ["notes"], "all": ["notes", "scope-gate"]},
+        "defaultMode": "quick",
+        "gates": [{"id": "notes", "command": ["true"], "paths": ["docs/**"]},
+                  {"id": "scope-gate", "command": ["true"], "paths": ["other/**"]}],
+    })
+    rc = gates.main(["--json", *selector])
+    assert rc == 0
+    records = _json.loads(capsys.readouterr().out)  # must parse as pure JSON
+    assert records and all("duration_ms" in r for r in records)
+    # --base is its own exclusive selector; its scope line must not leak
+    rc = gates.main(["--json", "--base", "HEAD"])
+    assert rc == 0
+    records = _json.loads(capsys.readouterr().out)
+    assert records
