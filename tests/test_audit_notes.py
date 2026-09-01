@@ -81,3 +81,30 @@ def test_archived_exempt(tmp_path, monkeypatch, capsys):
 def test_no_tree_fails_loud(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert audit_notes.main([]) == 2
+
+
+def test_summary_distinguishes_missing_from_malformed_decisions(tmp_path, monkeypatch, capsys):
+    """decisions.md exists but parses to zero sections — the summary must
+    say format, not claim the file is missing."""
+    monkeypatch.chdir(tmp_path)
+    _note(tmp_path, "2026-01-01-d.md",
+          "# Agent Note: d\n\nStatus: implemented\n\n## Decision\nLocked by D1.\n\n"
+          "## Problem\np\n\n## Alternatives considered\na\n")
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "decisions.md").write_text("- D1: colon list format\n")
+    assert audit_notes.main([]) == 0
+    out = capsys.readouterr()
+    assert "has no '## Dn — ' sections" in out.out
+    assert "no docs/decisions.md" not in out.out
+    assert "D1" not in out.out  # unchecked, not false-flagged
+
+
+def test_summary_missing_decisions_still_reported(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _note(tmp_path, "2026-01-01-c.md",
+          "# Agent Note: c\n\nStatus: implemented\n\n## Decision\nfine.\n\n"
+          "## Problem\np\n\n## Alternatives considered\na\n")
+    assert audit_notes.main([]) == 0
+    out = capsys.readouterr()
+    assert "no docs/decisions.md; D-refs unchecked" in out.out
