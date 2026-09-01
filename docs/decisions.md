@@ -249,3 +249,11 @@
 - **状态**：已决
 - **决定**：① 每个拒绝用例预算 **10s**（`REJECTION_TIMEOUT_S`），超时 = FAIL 并点名 `(timed out after 10s)`，运行继续；约定写入 rejections README（拒绝证明天然是小用例）。② **--json 契约：stdout 恰一个 JSON 值**——一切人读输出（含 `scope vs` 行）走 stderr；以参数化测试锁住每个选择器路径。③ `duration_ms` 已在 0.7.0 交付（愿望 7 无需改动）。
 - **被否**：预算可配置——10s 固定值 + 文档说明足够，配置项是为极端 case 服务的复杂度；用例超时缩到 3s——git init 类用例在慢 CI 上会假红。
+
+## D27 — 模板演化的升级路径：看见，绝不代写
+
+- **问题**：`gov init` 对已初始化项目拒绝，增量入口只有 --hooks/--ci；模板在演进（rules.md 规则、gates.json 门禁、rejections README、技能），存量采用者没有任何机械途径看到"模板变了什么、我的定制如何合并"——只能读 changelog 手工 diff（radiant 的 rules.md 已含项目规则 8，下次模板更新即手工 diff 冒险）。
+- **选项**：--upgrade 自动合并/覆盖；--upgrade 只读报告；维持现状靠 changelog
+- **状态**：已决
+- **决定**：**`gov init --upgrade` 只做"看见"**：读 manifest 记录的 init 版本与当前包版本对（时代上下文），对每个注入文件（rules.md + notes README + rejections README + 技能 + created 里的 gates.json/gov.yml）做"现模板 vs 本地"逐文件统一 diff；缺失文件（新版模板新增、旧 init 没建过）标 MISSING-safe-to-add；全部一致时提示 safe to refresh。**绝不写入任何文件**；采纳仍是人的动作（定制文件遵循 D23 两步哲学）。差异归因诚实：init 版本=当前版本 → "customized locally"；更旧 → "customized locally and/or template evolved"（无法区分就明说无法区分）。
+- **被否**：自动合并/覆盖——模板与定制三方合并是数据丢失机器，D23 刚为 uninstall 修过同类；只报"版本不同"不报文件 diff——版本号不携带哪些文件变了，等于让人继续手工 diff。

@@ -235,3 +235,43 @@ def test_uninstall_without_customization_is_one_step(tmp_path):
     _git_repo(tmp_path)
     assert cli.init(tmp_path) == 0
     assert cli.uninstall(tmp_path) == 0  # no warning, no --force needed
+
+
+def test_upgrade_report_sees_drift_never_writes(tmp_path, capsys):
+    """Wish 8: --upgrade diffs templates vs local, changes nothing."""
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    rules = tmp_path / ".gov" / "rules.md"
+    before = rules.read_text()
+    # simulate radiant: a project rule appended + an older init version
+    rules.write_text(before + "\n## 8. Project rule (custom)\ncustom content\n")
+    manifest = json.loads((tmp_path / ".gov" / "manifest.json").read_text())
+    manifest["version"] = "0.6.5"
+    (tmp_path / ".gov" / "manifest.json").write_text(json.dumps(manifest))
+    # and a template addition the old init never created
+    (tmp_path / ".gov" / "rejections" / "README.md").unlink()
+
+    assert cli.init(tmp_path, upgrade=True) == 0
+    out = capsys.readouterr().out
+    assert "nothing is changed by this report" in out
+    assert "DIFFERS (customized locally and/or template evolved since v0.6.5)" in out
+    assert "shipped-template/.gov/rules.md" in out
+    assert "+## 8. Project rule (custom)" in out  # the diff shows the customization
+    assert "rejections/README.md" in out and "MISSING" in out
+    # never writes:
+    assert rules.read_text().endswith("custom content\n")
+    assert not (tmp_path / ".gov" / "rejections" / "README.md").exists()
+    assert "safe to refresh" not in out  # drift exists
+
+
+def test_upgrade_report_clean_project(tmp_path, capsys):
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    assert cli.init(tmp_path, upgrade=True) == 0
+    out = capsys.readouterr().out
+    assert "every injected file matches the shipped templates — safe to refresh" in out
+
+
+def test_upgrade_on_uninitialized_fails_loud(tmp_path):
+    assert cli.init(tmp_path, upgrade=True) == 0  # no manifest yet: normal init path
+    assert (tmp_path / ".gov" / "manifest.json").exists()

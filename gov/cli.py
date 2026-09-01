@@ -15,6 +15,7 @@ import shutil
 import sys
 from importlib.resources import files
 from pathlib import Path
+from typing import Any
 
 from . import archive_notes, audit_notes, change_scope, gates, recall, self_test
 from . import verify_archive, verify_note_presence, verify_notes, verify_rubric
@@ -82,13 +83,16 @@ def _install_ci(project: Path, created: list[str]) -> None:
     created.append(".github/workflows/gov.yml")
 
 
-def init(project: Path, hooks: bool = False, ci: bool = False) -> int:
+def init(project: Path, hooks: bool = False, ci: bool = False,
+         upgrade: bool = False) -> int:
     project = project.resolve()
     if not project.is_dir():
         print(f"init: {project} is not a directory", file=sys.stderr)
         return 2
     manifest_path = project / ".gov" / "manifest.json"
     if manifest_path.exists():
+        if upgrade:
+            return _upgrade_report(project, manifest_path)  # wish 8: see, never write
         if not (hooks or ci):
             print(f"init: {project} is already initialized")
             return 0
@@ -184,6 +188,87 @@ def init(project: Path, hooks: bool = False, ci: bool = False) -> int:
         else:
             print("  2. no paired docs detected — leave pairing advisory, or disable it:")
             print("     set \"enabled\": false on the pairing gate in gates.json")
+    return 0
+
+
+def _upgrade_report(project: Path, manifest_path: Path) -> int:
+    """Wish 8/D27: show how the shipped templates and this project drifted.
+
+    Reads, never writes: per-file diff of every injected file against the
+    current package template, with the manifest's init version for era
+    context. Adopting a change stays a human act (D23's two-step).
+    """
+    import difflib
+
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"init: corrupt manifest {manifest_path}: {e}", file=sys.stderr)
+        return 2
+    created = set(data.get("created", []))
+    init_version = data.get("version", "unknown")
+
+    expected: list[tuple[str, Any]] = [
+        (".gov/rules.md", TEMPLATES.joinpath("rules.md")),
+        (".agents/notes/README.md", TEMPLATES.joinpath("notes-README.md")),
+        (".gov/rejections/README.md", TEMPLATES.joinpath("rejections-README.md")),
+    ]
+    expected += [
+        (f".agents/skills/{name}/SKILL.md", TEMPLATES.joinpath("skills") / name / "SKILL.md")
+        for name in SKILLS
+    ]
+    if "gates.json" in created:
+        expected.append(("gates.json", TEMPLATES.joinpath("gates.json")))
+    if ".github/workflows/gov.yml" in created:
+        expected.append((".github/workflows/gov.yml", TEMPLATES.joinpath("gov.yml")))
+
+    current: list[str] = []
+    missing: list[str] = []
+    differing: list[tuple[str, Any]] = []
+    for rel, tpl in expected:
+        local = project / rel
+        if not local.exists():
+            missing.append(rel)
+            continue
+        try:
+            if local.read_bytes() == tpl.read_bytes():
+                current.append(rel)
+            else:
+                differing.append((rel, tpl))
+        except OSError:
+            differing.append((rel, tpl))
+
+    print(f"init: upgrade report for {project} — nothing is changed by this report")
+    print(f"  initialized with govrail {init_version} · this package {__version__}")
+    for rel in current:
+        print(f"  {rel:<40} matches the shipped template")
+    for rel in missing:
+        print(f"  {rel:<40} MISSING — added by newer templates; safe to add by hand")
+    for rel, tpl in differing:
+        era = ("customized locally" if init_version == __version__
+               else f"customized locally and/or template evolved since v{init_version}")
+        print(f"  {rel:<40} DIFFERS ({era}):")
+        diff = list(
+            difflib.unified_diff(
+                tpl.read_text(encoding="utf-8").splitlines(),
+                (project / rel).read_text(encoding="utf-8").splitlines(),
+                fromfile=f"shipped-template/{rel}",
+                tofile=f"local/{rel}",
+                lineterm="",
+            )
+        )
+        shown = diff[:40]
+        for line in shown:
+            print(f"      {line}")
+        if len(diff) > len(shown):
+            print(f"      ... ({len(diff) - len(shown)} more diff line(s))")
+
+    if not missing and not differing:
+        print("  every injected file matches the shipped templates — safe to refresh")
+        return 0
+    print("  to adopt a template change: edit the file by hand (customized files")
+    print("  first — see the two-step philosophy); a fresh `gov init` after")
+    print("  `gov uninstall` re-injects everything and warns per D23.")
     return 0
 
 
@@ -333,7 +418,7 @@ def uninstall(project: Path, force: bool = False) -> int:
 
 
 _COMMANDS = {
-    "init": "inject the plane into a project (rules, gates, notes, skills; --hooks/--ci add the runners)",
+    "init": "inject the plane into a project (--hooks/--ci add runners; --upgrade shows template drift)",
     "uninstall": "reverse init",
     "run": "run the project's gate DAG (args forwarded to gates.py)",
     "self-test": "run governance rejection cases",
@@ -365,10 +450,10 @@ _NO_FORWARD = ("init", "uninstall", "verify-notes")
 
 def _init_uninstall_args(
     args: list[str], what: str
-) -> tuple[Path, bool, bool, bool] | None:
-    """Parse --project (+ init's --hooks/--ci, uninstall's --force); reject the rest."""
+) -> tuple[Path, bool, bool, bool, bool] | None:
+    """Parse --project (+ init's --hooks/--ci/--upgrade, uninstall's --force)."""
     project = "."
-    hooks = ci = force = False
+    hooks = ci = force = upgrade = False
     i = 0
     while i < len(args):
         a = args[i]
@@ -384,6 +469,9 @@ def _init_uninstall_args(
         elif what == "init" and a == "--ci":
             ci = True
             i += 1
+        elif what == "init" and a == "--upgrade":
+            upgrade = True
+            i += 1
         elif what == "uninstall" and a == "--force":
             force = True
             i += 1
@@ -391,7 +479,7 @@ def _init_uninstall_args(
             print(f"gov {what}: unexpected argument '{a}'", file=sys.stderr)
             _usage()
             return None
-    return Path(project), hooks, ci, force
+    return Path(project), hooks, ci, force, upgrade
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -417,7 +505,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
     if cmd == "init":
         parsed = _init_uninstall_args(rest, "init")
-        return 2 if parsed is None else init(parsed[0], hooks=parsed[1], ci=parsed[2])
+        return 2 if parsed is None else init(parsed[0], hooks=parsed[1], ci=parsed[2],
+                                            upgrade=parsed[4])
     if cmd == "uninstall":
         parsed = _init_uninstall_args(rest, "uninstall")
         return 2 if parsed is None else uninstall(parsed[0], force=parsed[3])
