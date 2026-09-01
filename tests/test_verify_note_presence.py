@@ -90,3 +90,52 @@ def test_single_commit_repo_works_by_default(tmp_path, monkeypatch):
     _git_repo(tmp_path)  # exactly one commit
     (tmp_path / "app.py").write_text("print('v2')\n")
     assert vnp.main([]) == 0  # runs (and warns), never dies on HEAD~1
+
+
+def _commit_all(root, msg="wip"):
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "commit", "-qm", msg],
+        cwd=root, check=True,
+    )
+
+
+def test_auto_base_reviews_committed_clean_work(tmp_path, monkeypatch, capsys):
+    """F1: clean tree + committed no-note work must not pass silently."""
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    (tmp_path / "app.py").write_text("v1\n")
+    _commit_all(tmp_path, "first")
+    (tmp_path / "app.py").write_text("v2\n")
+    _commit_all(tmp_path, "second")  # clean now; no upstream configured
+    assert vnp.main(["--strict"]) == 1
+    out = capsys.readouterr().out
+    assert "base=HEAD~1" in out
+    assert "app.py" in out
+
+
+def test_auto_base_prefers_upstream_range(tmp_path, monkeypatch, capsys):
+    """F1: with an upstream, the clean tree reviews commits ahead of it."""
+    import subprocess as sp
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    remote = tmp_path / "remote.git"
+    sp.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+    sp.run(["git", "remote", "add", "origin", str(remote)], cwd=tmp_path, check=True)
+    (tmp_path / "app.py").write_text("v1\n")
+    _commit_all(tmp_path, "first")
+    sp.run(["git", "push", "-q", "-u", "origin", "HEAD"], cwd=tmp_path, check=True)
+    (tmp_path / "app.py").write_text("v2\n")
+    _commit_all(tmp_path, "second-no-note")  # ahead of upstream, clean tree
+    assert vnp.main(["--strict"]) == 1
+    out = capsys.readouterr().out
+    assert "upstream" in out
+    assert "app.py" in out
+
+
+def test_auto_base_dirty_tree_uses_head(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    (tmp_path / "app.py").write_text("uncommitted\n")  # dirty
+    assert vnp.main([]) == 0
+    assert "base=HEAD" in capsys.readouterr().out

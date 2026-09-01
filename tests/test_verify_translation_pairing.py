@@ -71,7 +71,7 @@ def test_write_hint_names_the_conventions(tmp_path, monkeypatch, capsys):
     docs.mkdir()
     (docs / "foo.md").write_text("# foo\n")
     result = vtp.main(["--write", "foo"])
-    assert result == 2
+    assert result == 1  # unpairable: reported, not silently passed (F3)
     err = capsys.readouterr().err
     assert "{stem}.zh.md" in err  # what was tried
     assert "en:docs/foo.md" in err  # how to register explicitly
@@ -101,3 +101,18 @@ def test_exclude_removes_a_doc_from_scope(tmp_path, monkeypatch):
     (gov / "pairing.json").write_text(json.dumps({"exclude": ["docs/foo.md"]}))
     _pair(tmp_path)
     assert vtp.main([]) == 0  # excluded source without counterpart is fine
+
+
+def test_write_records_pairable_and_reports_rest(tmp_path, monkeypatch, capsys):
+    """F3: one unpaired file must not block the baseline of the others."""
+    monkeypatch.chdir(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "good.md").write_text("# g\n")
+    (docs / "good.zh.md").write_text("# 好\n")
+    (docs / "lonely.md").write_text("# l\n")  # no counterpart
+    assert vtp.main(["--write"]) == 1
+    err = capsys.readouterr().err
+    assert (docs / "good.i18n.yaml").exists()  # the good pair got baselined
+    assert not (docs / "lonely.i18n.yaml").exists()
+    assert "lonely.md" in err and "wrote 1, left 1" in err

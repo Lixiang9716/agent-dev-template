@@ -26,6 +26,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+try:  # package context (`gov ...`)
+    from .root import anchor_to_git_root
+except ImportError:  # direct script execution (self-test runs files by path)
+    from root import anchor_to_git_root
+
 NOTES = Path(".agents/notes")
 DECISIONS = Path("docs/decisions.md")
 POSTMORTEM = Path("docs/postmortem")
@@ -105,6 +110,7 @@ def _score(entry: Entry, terms: list[str]) -> tuple[int, str] | None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    anchor_to_git_root("recall")
     parser = argparse.ArgumentParser(
         prog="gov recall",
         description="Retrieve notes, decisions, and postmortems (all terms, ranked by where they hit).",
@@ -131,7 +137,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"recall: no match for {' '.join(args.query)!r}")
         return 1
 
-    hits.sort(key=lambda h: (-h[0], h[1]))
+    # Equal ranks: current authority (implemented/) outranks frozen
+    # evidence (archived/), then path order (F4).
+    hits.sort(key=lambda h: (-h[0], "/archived/" in h[1], h[1]))
     for rank, source, where in hits:
         print(f"{source} — matched in {where}")
     print(f"recall: {len(hits)} hit(s) for {' '.join(args.query)!r}")

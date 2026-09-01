@@ -54,3 +54,21 @@ def test_notes_readme_allowed_at_root(tmp_path, monkeypatch):
     _put(tmp_path, "implemented/architecture/2026-01-01-x.md", _note(GOOD))
     _put(tmp_path, "README.md", "# Agent Notes\nthe format doc\n")
     assert vn.main([]) == 0
+
+
+def test_subdirectory_call_anchors_to_root(tmp_path, monkeypatch, capsys):
+    """F2: from src/deep/, the gates must see the notes, not report zero."""
+    import subprocess
+    for cmd in (["git", "init", "-q", "."],
+                ["git", "config", "user.email", "t@t"],
+                ["git", "config", "user.name", "t"]):
+        subprocess.run(cmd, cwd=tmp_path, check=True)
+    _put(tmp_path, "implemented/architecture/2026-01-01-ok.md", _note(GOOD))
+    sub = tmp_path / "src" / "deep"
+    sub.mkdir(parents=True)
+    monkeypatch.chdir(sub)
+    from gov import verify_notes as vn2
+    assert vn2.main([]) == 0
+    out = capsys.readouterr()
+    assert "1 note(s) ok" in out.out
+    assert "running from repository root" in out.err

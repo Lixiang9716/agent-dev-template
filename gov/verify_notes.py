@@ -21,6 +21,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+try:  # package context (`gov ...`)
+    from .root import anchor_to_git_root
+except ImportError:  # direct script execution (self-test runs files by path)
+    from root import anchor_to_git_root
+
 NOTES_DIR = Path(".agents/notes")
 NOTES_README = "README.md"
 LIFECYCLES = ("implemented", "archived")
@@ -82,6 +87,7 @@ def _check_placement(root: Path) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    anchor_to_git_root("verify_notes")
     notes_root = NOTES_DIR / "implemented"
     notes = sorted(notes_root.rglob("*.md")) if notes_root.exists() else []
     errors = _check_placement(NOTES_DIR)
