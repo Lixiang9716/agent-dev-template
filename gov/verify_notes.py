@@ -41,8 +41,18 @@ def check_note(path: Path) -> list[str]:
         errors.append("missing title heading (first line must start with '# ')")
         return errors
     header = lines[:6]
-    if not any(line.startswith("Status:") for line in header):
-        errors.append("missing 'Status:' line in the header block")
+    status = ""
+    for line in header:
+        if line.startswith("Status:"):
+            status = line[len("Status:"):].strip()
+            break
+    if status != "implemented":
+        # The lifecycle is the directory (implemented/ vs archived/), never
+        # this field — so the field has a closed set of exactly one value.
+        errors.append(
+            f"Status must be exactly 'implemented' (the lifecycle is the "
+            f"directory; got {status!r})"
+        )
     stripped = [line.strip() for line in lines]
     positions = []
     for section in REQUIRED_SECTIONS:
