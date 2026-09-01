@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.3](https://github.com/Lixiang9716/govrail/compare/v0.6.2...v0.6.3) (2026-09-01)
+
+
+### Bug Fixes
+
+* the executor honesty round — auto base, root anchoring, partial baselines (D21) ([#59](https://github.com/Lixiang9716/govrail/issues/59)) ([5634b4c](https://github.com/Lixiang9716/govrail/commit/5634b4c60876c029b3b0db3c5a5bb234936d29d4))
+
 ## [0.6.2](https://github.com/Lixiang9716/govrail/compare/v0.6.1...v0.6.2) (2026-09-01)
 
 
