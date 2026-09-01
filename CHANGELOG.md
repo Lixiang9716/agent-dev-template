@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/Lixiang9716/govrail/compare/v0.8.0...v0.9.0) (2026-09-01)
+
+
+### Features
+
+* wishes 9-14 — decision guard, review dossier, skill drift, trends, noise, orphans (D28) ([#73](https://github.com/Lixiang9716/govrail/issues/73)) ([f0d7231](https://github.com/Lixiang9716/govrail/commit/f0d7231f8ad36eb86702045fcb0f0e900d557d83))
+
 ## [0.8.0](https://github.com/Lixiang9716/govrail/compare/v0.7.1...v0.8.0) (2026-09-01)
 
 
