@@ -495,6 +495,9 @@ _GOOD_NOTE = (
     "# Agent Note: t\n\nStatus: implemented\n\n"
     "## Problem\np\n\n## Decision\nd\n\n## Alternatives considered\na\n"
 )
+_GOOD_NOTE_BODY = (
+    "## Problem\np\n\n## Decision\nd\n\n## Alternatives considered\na\n"
+)
 
 
 def test_verify_notes_rejects_wrong_section_order() -> None:
@@ -569,6 +572,20 @@ def test_note_presence_auto_base_catches_committed_work() -> None:
         assert strict.returncode == 1, "--strict must catch the committed no-note change"
 
 
+def test_verify_notes_rejects_status_lying() -> None:
+    """The lifecycle is the directory; the Status field must not improvise."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _write_note(
+            root,
+            "implemented/architecture/2026-01-01-s.md",
+            "# Agent Note: s\n\nStatus: banana\n\n" + _GOOD_NOTE_BODY,
+        )
+        result = _run("verify_notes.py", root)
+        assert result.returncode == 1, "Status: banana must fail loud"
+        assert "banana" in result.stdout
+
+
 def test_passing_gate_output_stays_visible() -> None:
     """A pass that printed a warning must not be silenced (P1-2)."""
     with tempfile.TemporaryDirectory() as td:
@@ -616,6 +633,7 @@ CASES = [
     test_rubric_rejects_zero_items,
     test_passing_gate_output_stays_visible,
     test_note_presence_auto_base_catches_committed_work,
+    test_verify_notes_rejects_status_lying,
 ]
 
 

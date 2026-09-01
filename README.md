@@ -56,8 +56,11 @@ gov change-scope --base <ref> # smallest sufficient check set for a diff
 `gates.json`, the notes README, and the agent skills (recall-first,
 pre-push-checks, code-review, archive-agent-notes) only when missing,
 appends one reference line to AGENTS.md, and never overwrites the
-project's own files — including its own skills. `uninstall` reverses
-it exactly — including the hook and workflow `--hooks`/`--ci` added. A fresh
+project's own files — including its own skills. `--hooks`/`--ci` can be
+retrofitted later (`gov init --hooks` on an initialized project installs
+just the add-on; customizations stay untouched). `uninstall` reverses
+everything exactly — naming any file that drifted from its template
+before deleting it. A fresh
 install never goes red on its first run: the pairing gate ships advisory,
 `gov verify-pairing --write` baselines the existing pairs, and removing
 `allowFailure` turns it enforcing. `enabled: false` parks a gate without

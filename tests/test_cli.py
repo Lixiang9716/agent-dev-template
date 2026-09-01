@@ -161,3 +161,52 @@ def test_init_next_steps_with_docs(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "verify-pairing --write" in out
     assert "no paired docs detected" not in out
+
+
+def test_hooks_retrofit_on_initialized_project(tmp_path):
+    """F5: --hooks works incrementally; customizations stay untouched."""
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    rules = tmp_path / ".gov" / "rules.md"
+    rules.write_text(rules.read_text() + "\n# CUSTOM RULE\n")
+    gates = tmp_path / "gates.json"
+    customized = gates.read_text().replace("note format", "CUSTOM LABEL")
+    gates.write_text(customized)
+    assert cli.init(tmp_path, hooks=True, ci=True) == 0
+    assert (tmp_path / ".git" / "hooks" / "pre-push").exists()
+    assert (tmp_path / ".github" / "workflows" / "gov.yml").exists()
+    assert "CUSTOM RULE" in rules.read_text()      # untouched
+    assert "CUSTOM LABEL" in gates.read_text()     # untouched
+    manifest = json.loads((tmp_path / ".gov" / "manifest.json").read_text())
+    assert "pre-push" in manifest["gitHooks"]
+    assert ".github/workflows/gov.yml" in manifest["created"]
+
+
+def test_retrofit_is_idempotent(tmp_path):
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path, hooks=True) == 0
+    assert cli.init(tmp_path, hooks=True) == 0  # re-run: no-op, no duplicate
+    manifest = json.loads((tmp_path / ".gov" / "manifest.json").read_text())
+    assert manifest["gitHooks"] == ["pre-push"]
+
+
+def test_retrofit_respects_foreign_hook(tmp_path):
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    hooks = tmp_path / ".git" / "hooks"
+    hooks.mkdir(parents=True, exist_ok=True)
+    (hooks / "pre-push").write_text("#!/bin/sh\nmine\n")
+    assert cli.init(tmp_path, hooks=True) == 2
+    assert (hooks / "pre-push").read_text() == "#!/bin/sh\nmine\n"
+
+
+def test_uninstall_warns_about_customized_files(tmp_path, capsys):
+    """F5: exact reversal stays, but customized content is named first."""
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    rules = tmp_path / ".gov" / "rules.md"
+    rules.write_text(rules.read_text() + "\n# MY PRECIOUS RULE\n")
+    assert cli.uninstall(tmp_path) == 0
+    err = capsys.readouterr().err
+    assert "customized" in err and ".gov/rules.md" in err
+    assert not rules.exists()  # reversal semantics unchanged (D10)

@@ -72,3 +72,16 @@ def test_subdirectory_call_anchors_to_root(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr()
     assert "1 note(s) ok" in out.out
     assert "running from repository root" in out.err
+
+
+def test_status_value_domain_closed(tmp_path, monkeypatch, capsys):
+    """Status is exactly 'implemented' — the lifecycle is the directory."""
+    monkeypatch.chdir(tmp_path)
+    _put(tmp_path, "implemented/architecture/2026-01-01-b.md",
+         "# Agent Note: b\n\nStatus: banana\n\n" + GOOD)
+    _put(tmp_path, "implemented/architecture/2026-01-01-m.md",
+         "# Agent Note: m\n\nStatus: implemented\n\n" + GOOD)
+    assert vn.main([]) == 1
+    out = capsys.readouterr().out
+    assert "'banana'" in out
+    assert "2026-01-01-m.md" not in out  # the good note is not implicated

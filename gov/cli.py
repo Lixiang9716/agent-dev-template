@@ -87,9 +87,12 @@ def init(project: Path, hooks: bool = False, ci: bool = False) -> int:
     if not project.is_dir():
         print(f"init: {project} is not a directory", file=sys.stderr)
         return 2
-    if (project / ".gov" / "manifest.json").exists():
-        print(f"init: {project} is already initialized")
-        return 0
+    manifest_path = project / ".gov" / "manifest.json"
+    if manifest_path.exists():
+        if not (hooks or ci):
+            print(f"init: {project} is already initialized")
+            return 0
+        return _add_ons(project, manifest_path, hooks, ci)  # F5: retrofit path
 
     # Pre-flight the add-ons: fail loud before mutating anything, so a
     # conflict never leaves a half-initialized project with no manifest.
@@ -179,6 +182,67 @@ def init(project: Path, hooks: bool = False, ci: bool = False) -> int:
     return 0
 
 
+def _add_ons(project: Path, manifest_path: Path, hooks: bool, ci: bool) -> int:
+    """Install --hooks/--ci on an already-initialized project (F5).
+
+    Only the requested add-ons are touched — rules, gates, notes, skills,
+    and the AGENTS.md reference line stay exactly as they are, so
+    retrofitting a hook never resets customizations.
+    """
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"init: corrupt manifest {manifest_path}: {e}", file=sys.stderr)
+        return 2
+    created = list(data.get("created", []))
+    git_hooks = list(data.get("gitHooks", []))
+
+    if hooks:
+        if not (project / ".git").is_dir():
+            print("init: --hooks needs a git repository (no .git found)", file=sys.stderr)
+            return 2
+        if _hook_conflict(project):
+            print(
+                f"init: refusing to overwrite {project / '.git' / 'hooks' / 'pre-push'} — "
+                "it is not a gov hook; merge the two by hand",
+                file=sys.stderr,
+            )
+            return 2
+        _install_hook(project)
+        if "pre-push" not in git_hooks:
+            git_hooks.append("pre-push")
+        print("init: installed .gov/hooks/pre-push + .git/hooks/pre-push (runs gov run before push)")
+    if ci:
+        before = len(created)
+        _install_ci(project, created)
+        if len(created) > before:
+            print("init: created .github/workflows/gov.yml (CI runs gov run)")
+        # _install_ci itself reports the already-exists case.
+
+    manifest_path.write_text(
+        json.dumps(
+            {"version": __version__, "created": created, "gitHooks": git_hooks},
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return 0
+
+
+def _template_for(rel: str):
+    """The shipped template a created file came from, if any."""
+    if rel == "gates.json":
+        return TEMPLATES.joinpath("gates.json")
+    if rel == ".agents/notes/README.md":
+        return TEMPLATES.joinpath("notes-README.md")
+    if rel == ".github/workflows/gov.yml":
+        return TEMPLATES.joinpath("gov.yml")
+    if rel.startswith(".agents/skills/") and rel.endswith("/SKILL.md"):
+        return TEMPLATES.joinpath("skills") / rel.split("/")[2] / "SKILL.md"
+    return None
+
+
 def uninstall(project: Path) -> int:
     project = project.resolve()
     manifest = project / ".gov" / "manifest.json"
@@ -190,6 +254,32 @@ def uninstall(project: Path) -> int:
     except (json.JSONDecodeError, OSError) as e:
         print(f"uninstall: corrupt manifest {manifest}: {e}", file=sys.stderr)
         return 2
+
+    # F5: exact reversal stays (D10), but customized content is never
+    # deleted silently — anything that drifted from its shipped template
+    # is named before it goes.
+    customized = []
+    candidates = [(".gov/rules.md", TEMPLATES.joinpath("rules.md"))]
+    for rel in data.get("created", []):
+        t = _template_for(rel)
+        if t is not None:
+            candidates.append((rel, t))
+    for rel, t in candidates:
+        p = project / rel
+        try:
+            if p.is_file() and p.read_bytes() != t.read_bytes():
+                customized.append(rel)
+        except OSError:
+            pass
+    if customized:
+        print(
+            "uninstall: WARNING — customized file(s) differ from the shipped "
+            "template and will be deleted:",
+            file=sys.stderr,
+        )
+        for rel in customized:
+            print(f"  {rel}", file=sys.stderr)
+        print("  copy out anything you want to keep, then re-run", file=sys.stderr)
 
     ag = project / "AGENTS.md"
     if ag.exists():

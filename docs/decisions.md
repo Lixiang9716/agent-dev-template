@@ -210,3 +210,11 @@
 - **状态**：已决
 - **决定**：① note-presence 默认 base 改为 **auto 级联**：脏树→HEAD（审查工作树）；干净→`upstream...HEAD`（审查未推送提交）；无 upstream→HEAD~1；单提交→空树（一切都是变更）。所选 base 及理由打印在输出首行。CI 模板与本仓库 ci.yml 加 `fetch-depth: 0`（浅克隆会让级联跌到"全仓库"）。钩子保持 `exec gov run`——auto 使其天然正确。显式 `--base` 永远可钉死。② 新增 `gov/root.py::anchor_to_git_root`：在 git 工作树内即 chdir 到根并**在 stderr 宣告**，五个笔记/配对工具（verify-notes、verify-pairing、recall、audit-notes、archive-notes）统一接入；非 git 目录保持原样（缺失标记自然 fail loud）。③ 裸 `--write`（含点名形式）改**部分成功**：能记的记、不能记的逐条报、末行 `wrote N, left M unpairable`、exit 1（点名不存在的路径仍是 exit 2——那是笔误不是配对状态）。④ recall 排序键加生命周期优先级：同分时 implemented/ 先于 archived/，再按路径。
 - **被否**：① 钩子解析 stdin ref 区间——每个执行器各自算 base 必然再漂移；级联一次做对，钩子保持零逻辑。② 各工具自加校验——五份实现两套标准正是本缺陷的成因。③ 维持全有或全无——一个坏文件挟持所有好配对，正是"整体拒绝"在 F3 里的形态。
+
+## D22 — 加装可补、定制不静默重置、Status 值域封闭
+
+- **问题**：① `gov init --hooks` 对已初始化项目只报 "already initialized"——没有任何事后补装钩子的入口；唯一路径 uninstall→init --hooks 会把 `.gov/rules.md` 的定制规则与 `gates.json` 的定制标签**静默重置**为模板默认（笔记因非 init 创建而幸存）。② `Status:` 值域无校验——`Status: banana` 照过 verify-notes；生命周期实际由目录位置编码，字段成了装饰（README 未承诺封闭值域，不算违约，但按诚实标准要么校验要么明说）。
+- **选项**：① 加装支持增量；或 uninstall/init 检测定制并警告/保留。② Status 封闭 {implemented, archived}；或文档声明任意文本
+- **状态**：已决
+- **决定**：① **双管齐下**：`--hooks`/`--ci` 在已初始化项目走**增量路径**（只做预检 + 装所请求的加装 + 合并更新 manifest；rules/gates/notes/skills/引用行一律不碰——补装钩子永不重置定制）；uninstall 保持 D10 精确反转，但删除前把**与模板有字节差异**的文件点名警告（rules.md + created 里能映射回模板的条目），定制不再静默消失。② Status 封闭为**恰一值** `implemented`（archived 笔记按归档程序本就保留 `Status: implemented` + `Archived:` 行；生命周期=目录，字段无第二状态可表达），README（仓库+模板双份）明文"值恰为 implemented，生命周期是目录不是字段"。
+- **被否**：① 定制文件在 uninstall 时保留——破坏 D10 的精确反转契约；只警告不保留。② 允许 {implemented, archived} 两值——archived/ 不经 verify-notes 检查，给了第二值等于给字段塞进目录已有的职责，重新引入双事实源。
