@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/Lixiang9716/govrail/compare/v0.3.0...v0.4.0) (2026-09-01)
+
+
+### Features
+
+* review rubric — judgment gets a structure and a meta-gate ([#48](https://github.com/Lixiang9716/govrail/issues/48)) ([5daaba0](https://github.com/Lixiang9716/govrail/commit/5daaba0307072e53795c4d40863f8c54c4f658a3))
+
 ## [0.3.0](https://github.com/Lixiang9716/govrail/compare/v0.2.0...v0.3.0) (2026-08-28)
 
 
