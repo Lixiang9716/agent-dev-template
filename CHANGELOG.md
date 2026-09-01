@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/Lixiang9716/govrail/compare/v0.4.0...v0.5.0) (2026-09-01)
+
+
+### Features
+
+* the memory read side — gov recall and gov audit-notes ([#50](https://github.com/Lixiang9716/govrail/issues/50)) ([bc5fc79](https://github.com/Lixiang9716/govrail/commit/bc5fc7947111f563de20d0bf04c2dbe6cf65473c))
+
 ## [0.4.0](https://github.com/Lixiang9716/govrail/compare/v0.3.0...v0.4.0) (2026-09-01)
 
 
