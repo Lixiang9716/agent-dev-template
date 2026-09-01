@@ -229,6 +229,20 @@ def load_config(path: str) -> tuple[dict[str, list[str]], list[Gate], int, str |
                 f"'defaultMode' references unknown mode '{default_mode}' (known: {known})"
             )
 
+    # Reachability (D24): with modes defined, an enabled gate that belongs
+    # to no mode silently never runs — a silent parking mechanism the
+    # design never sanctioned. Parking is "enabled": false — the one loud
+    # mechanism (a DISABLED line). Mode omission is not a parking lot.
+    if modes:
+        members = {gid for ids in modes.values() for gid in ids}
+        unreachable = sorted(g.id for g in gates if g.enabled and g.id not in members)
+        if unreachable:
+            raise ConfigError(
+                f"enabled gate(s) not in any mode: {', '.join(unreachable)} — "
+                'park a gate with "enabled": false (the one loud mechanism); '
+                "mode omission silently never runs (rules 1/6)"
+            )
+
     return modes, gates, concurrency or 0, default_mode
 
 
@@ -436,6 +450,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--base", default=None,
                         help="select gates whose 'paths' match the diff against this git ref")
     parser.add_argument("--gate", default=None, help="run a single gate by id")
+    parser.add_argument("--every-gate", action="store_true",
+                        help="run every enabled gate — the full matrix, ignoring "
+                             "modes and defaultMode (CI owns this)")
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
@@ -446,8 +463,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"config error: {e}", file=sys.stderr)
         return 2
 
-    if args.gate and (args.mode or args.base):
-        print("gov run: --gate cannot be combined with --mode or --base", file=sys.stderr)
+    explicit = [flag for flag, on in (("--gate", args.gate), ("--mode", args.mode),
+                                      ("--base", args.base), ("--every-gate", args.every_gate)) if on]
+    if len(explicit) > 1:
+        print(f"gov run: {' and '.join(explicit)} cannot be combined", file=sys.stderr)
         return 2
 
     selection = None
@@ -456,6 +475,16 @@ def main(argv: list[str] | None = None) -> int:
         if args.gate not in known:
             print(
                 f"gov run: unknown gate '{args.gate}' (known: {', '.join(sorted(known)) or 'none'})",
+                file=sys.stderr,
+            )
+            return 2
+        by_id = {g.id: g for g in gates}
+        if not by_id[args.gate].enabled:
+            # N4/D24: explicitly naming a parked gate is operator error —
+            # a silent green hides it. Parking is visible; so is this.
+            print(
+                f"gov run: gate '{args.gate}' is disabled — re-enable it or "
+                "pick another",
                 file=sys.stderr,
             )
             return 2
@@ -479,6 +508,8 @@ def main(argv: list[str] | None = None) -> int:
             f"gate(s) selected" + (f"; out of scope: {', '.join(out)}" if out else ""),
             flush=True,
         )
+    elif args.every_gate:
+        selection = None  # every enabled gate — the explicit full matrix
     elif default_mode:
         selection = modes[default_mode]
     elif not gates:

@@ -1,6 +1,6 @@
 {
   "modes": {
-    "all": ["notes", "pairing", "note-presence", "archive"],
+    "all": ["self-test", "notes", "pairing", "note-presence", "archive"],
     "quick": ["notes"],
     "governance": ["self-test"]
   },

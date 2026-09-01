@@ -106,9 +106,10 @@ def test_init_template_modes_note_presence_and_governance(tmp_path):
     cfg = json.loads((tmp_path / "gates.json").read_text())
     ids = [g["id"] for g in cfg["gates"]]
     assert "note-presence" in ids
-    # self-test is the tools' own regression — not a per-project default run
-    assert "self-test" not in cfg["modes"]["all"]
-    assert cfg["modes"]["governance"] == ["self-test"]
+    # D24: the full matrix includes the tools' own smoke test — CI runs it
+    # from the first push (a fresh install's unpinned govrail is watched).
+    assert "self-test" in cfg["modes"]["all"]
+    assert cfg["modes"]["governance"] == ["self-test"]  # shortcut stays
 
 
 def test_init_injects_skills(tmp_path):

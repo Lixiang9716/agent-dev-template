@@ -51,10 +51,18 @@ def _is_trivially_scoped(path: str) -> bool:
 def _changed_files(base: str) -> tuple[list[str], str | None]:
     """Tracked diff plus untracked files against ``base``; error message."""
     files: set[str] = set()
-    for cmd in (
-        ["git", "diff", "--name-only", base],
-        ["git", "ls-files", "--others", "--exclude-standard"],
-    ):
+    commands: list[tuple[list[str], bool]] = [
+        (["git", "diff", "--name-only", base], True),
+        (["git", "ls-files", "--others", "--exclude-standard"], False),
+    ]
+    for cmd, needs_head in commands:
+        if needs_head and subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", "HEAD"],
+            capture_output=True,
+        ).returncode != 0:
+            continue  # zero-commit repo: there is no HEAD to diff against;
+            # the untracked listing below is the whole change (D13: a fresh
+            # install's first run must not go red)
         proc = subprocess.run(cmd, capture_output=True, text=True)
         if proc.returncode != 0:
             return [], proc.stderr.strip()

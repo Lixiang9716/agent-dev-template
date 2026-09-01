@@ -41,3 +41,8 @@ User-project default runs get faster and less repetitive; govrail's own
 CI keeps running self-test on every push (its `all` mode still lists it).
 Anyone forking the tools gets the regression suite via
 `gov run --mode governance`.
+
+> Partially superseded by `2026-09-01-gate-reachability.md` (D24): the
+> template's `all` mode now includes self-test again — radiant's audit
+> showed the governance-only parking left it with no automatic execution
+> path. The `governance` mode remains as a self-test-only shortcut.

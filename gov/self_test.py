@@ -183,7 +183,7 @@ def test_gates_default_mode_scopes_run() -> None:
         (root / "gates.json").write_text(
             json.dumps(
                 {
-                    "modes": {"all": ["a"]},
+                    "modes": {"all": ["a"], "also": ["b"]},
                     "defaultMode": "all",
                     "gates": [
                         {"id": "a", "command": ["true"]},
@@ -610,6 +610,27 @@ def test_archive_seal_detects_tampering_and_refuses_laundering() -> None:
         assert "refusing to re-seal" in refused.stdout
 
 
+def test_gates_rejects_gate_in_no_mode() -> None:
+    """D24: a gate parked by mode omission silently never runs — fail loud."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "gates.json").write_text(
+            json.dumps(
+                {
+                    "modes": {"all": ["a"]},
+                    "gates": [
+                        {"id": "a", "command": ["true"]},
+                        {"id": "stranded", "command": ["true"]},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = _run("gates.py", root)
+        assert result.returncode == 2, "an enabled gate in no mode is a config error"
+        assert "stranded" in result.stderr
+
+
 def test_passing_gate_output_stays_visible() -> None:
     """A pass that printed a warning must not be silenced (P1-2)."""
     with tempfile.TemporaryDirectory() as td:
@@ -659,6 +680,7 @@ CASES = [
     test_note_presence_auto_base_catches_committed_work,
     test_verify_notes_rejects_status_lying,
     test_archive_seal_detects_tampering_and_refuses_laundering,
+    test_gates_rejects_gate_in_no_mode,
 ]
 
 
