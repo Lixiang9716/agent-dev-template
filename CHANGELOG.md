@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/Lixiang9716/govrail/compare/v0.6.0...v0.6.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* the honesty round — enforce what was already promised (D20) ([#55](https://github.com/Lixiang9716/govrail/issues/55)) ([e7c2261](https://github.com/Lixiang9716/govrail/commit/e7c22610f9703c716ea8c67419cf7371890b6a5f))
+
 ## [0.6.0](https://github.com/Lixiang9716/govrail/compare/v0.5.0...v0.6.0) (2026-09-01)
 
 
