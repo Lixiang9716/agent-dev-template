@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.6](https://github.com/Lixiang9716/govrail/compare/v0.6.5...v0.6.6) (2026-09-01)
+
+
+### Bug Fixes
+
+* gate reachability — one parking mechanism, and it is loud (D24) ([#65](https://github.com/Lixiang9716/govrail/issues/65)) ([014b624](https://github.com/Lixiang9716/govrail/commit/014b624345563c5eb2cb50d0c3a71ba2de2c993c))
+
 ## [0.6.5](https://github.com/Lixiang9716/govrail/compare/v0.6.4...v0.6.5) (2026-09-01)
 
 
