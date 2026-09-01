@@ -53,8 +53,10 @@ gov change-scope --base <ref> # smallest sufficient check set for a diff
 ```
 
 `init` is non-invasive and idempotent: it creates `.gov/rules.md`, adds
-`gates.json` and the notes README only when missing, appends one reference line
-to AGENTS.md, and never overwrites the project's own files. `uninstall` reverses
+`gates.json`, the notes README, and the agent skills (recall-first,
+pre-push-checks, code-review, archive-agent-notes) only when missing,
+appends one reference line to AGENTS.md, and never overwrites the
+project's own files — including its own skills. `uninstall` reverses
 it exactly — including the hook and workflow `--hooks`/`--ci` added. A fresh
 install never goes red on its first run: the pairing gate ships advisory,
 `gov verify-pairing --write` baselines the existing pairs, and removing
@@ -68,8 +70,8 @@ deleting its definition.
   (git blob hashes), `verify_note_presence`, `verify_rubric`, `recall`
   (memory retrieval), `audit_notes` (staleness signals), `change_scope`,
   `self_test`, `archive_notes`.
-- `gov/templates/` — the rules, default `gates.json`, and notes format that
-  `gov init` injects into a project.
+- `gov/templates/` — the rules, default `gates.json`, notes format, and
+  agent skills that `gov init` injects into a project.
 - `.gov/rules.md` — the single source of truth for the rules.
 - `.agents/notes/` — the decision-record format and lifecycle.
 - `.agents/skills/` — the triggers that send agents to the tools first:

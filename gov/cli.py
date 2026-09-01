@@ -27,6 +27,9 @@ REFERENCE_LINE = (
     f"{REFERENCE_MARKER} Read .gov/rules.md and follow it before starting work."
 )
 HOOK_MARKER = "# govrail:"
+# The agent skills that travel with the plane: injected like rules.md,
+# create-if-missing, never overwriting a project's own skill.
+SKILLS = ("recall-first", "pre-push-checks", "code-review", "archive-agent-notes")
 
 
 def _copy(source, dest: Path) -> None:
@@ -116,6 +119,13 @@ def init(project: Path, hooks: bool = False, ci: bool = False) -> int:
         _copy(TEMPLATES.joinpath("notes-README.md"), notes_readme)
         created.append(".agents/notes/README.md")
 
+    for name in SKILLS:
+        skill = project / ".agents" / "skills" / name / "SKILL.md"
+        if skill.exists():
+            continue  # a project's own skill is never overwritten
+        _copy(TEMPLATES.joinpath("skills") / name / "SKILL.md", skill)
+        created.append(f".agents/skills/{name}/SKILL.md")
+
     ag = project / "AGENTS.md"
     if ag.exists():
         text = ag.read_text(encoding="utf-8")
@@ -199,7 +209,7 @@ def uninstall(project: Path) -> int:
 
 
 _COMMANDS = {
-    "init": "inject the plane into a project (--hooks, --ci add the runners)",
+    "init": "inject the plane into a project (rules, gates, notes, skills; --hooks/--ci add the runners)",
     "uninstall": "reverse init",
     "run": "run the project's gate DAG (args forwarded to gates.py)",
     "self-test": "run governance rejection cases",
