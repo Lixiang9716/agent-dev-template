@@ -14,10 +14,9 @@ CI owns exhaustiveness; this skill owns coverage of the outgoing diff at the low
    gov change-scope --base <verified-ref>
    ```
 
-3. From the reported surfaces, pick gates:
-   - `governance` (gates.py, verify_*, self_test.py, gov.py, change_scope.py) → `self-test`
-   - `notes` (`.agents/notes/`) → `notes`
-   - `docs` (`.md`/`.zh.md`/`.i18n.yaml`) → `pairing`
-   - product-plane code → the slots you declared for that surface (test, lint, typecheck)
-4. Run the chosen mode or the individual commands. If there are unstaged or untracked files, either include them or exclude them from your reasoning — never assume they are part of the diff.
-5. Report exactly which commands ran and their outcomes. Do not repeat a passing check to feel safe.
+3. Select the gates:
+   - Prefer the mechanical selector — `gov run --base <verified-ref>` runs exactly the gates whose `paths` cover the diff, plus the unpathed ones, and names what it left out.
+   - Without `paths` configured, pick from the reported surfaces: `gov/` tooling or `tests/` → `self-test`; `.agents/notes/` → `notes`; `.md`/`.zh.md`/`.i18n.yaml` → `pairing`; `docs/review-rubric*.md` → `rubric`; product-plane code → the slots you declared for that surface.
+4. Run the chosen mode, the `--base` selection, or individual commands. If there are unstaged or untracked files, either include them or exclude them from your reasoning — never assume they are part of the diff.
+5. Self-grade the diff against the rubric items it touches ([docs/review-rubric.md](../../docs/review-rubric.md)): the mechanical items (R4, R5) are already covered by the gates you ran; you are grading the judgment ones — honest alternatives (R1), loud failures (R3), a chosen-not-reflexive set (R6), one fact one home (R7).
+6. Report exactly which commands ran and their outcomes. Do not repeat a passing check to feel safe.

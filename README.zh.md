@@ -54,6 +54,9 @@ gov change-scope --base <ref>  # 一次 diff 的最小充分检查集
 - `gov/templates/` — `gov init` 注入项目所用的规则、默认 `gates.json` 和笔记格式。
 - `.gov/rules.md` — 规则的唯一事实源。
 - `.agents/notes/` — 决策记录格式与生命周期。
+- `.agents/skills/` — 让 agent 优先走到工具前的触发器：
+  `recall-first`（先查记忆再提案）、`pre-push-checks`（最小充分集）、
+  `code-review`（量规评审）、`archive-agent-notes`。
 - `docs/review-rubric.md` — PR 如何被评审：门禁查不了的标准，逐条判定。
 
 ## 出处

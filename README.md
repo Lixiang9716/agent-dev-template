@@ -72,6 +72,9 @@ deleting its definition.
   `gov init` injects into a project.
 - `.gov/rules.md` — the single source of truth for the rules.
 - `.agents/notes/` — the decision-record format and lifecycle.
+- `.agents/skills/` — the triggers that send agents to the tools first:
+  `recall-first` (memory before proposals), `pre-push-checks` (smallest
+  sufficient set), `code-review` (rubric), `archive-agent-notes`.
 - `docs/review-rubric.md` — how PRs are judged: the criteria gates cannot
   check, graded item by item.
 
