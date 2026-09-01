@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.4](https://github.com/Lixiang9716/govrail/compare/v0.6.3...v0.6.4) (2026-09-01)
+
+
+### Bug Fixes
+
+* retrofittable add-ons, customizations named before deletion, Status closed (D22) ([#61](https://github.com/Lixiang9716/govrail/issues/61)) ([a6ab82f](https://github.com/Lixiang9716/govrail/commit/a6ab82fc62e5b462d880c4e23062f1611368f8f3))
+
 ## [0.6.3](https://github.com/Lixiang9716/govrail/compare/v0.6.2...v0.6.3) (2026-09-01)
 
 
