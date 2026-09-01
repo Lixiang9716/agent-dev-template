@@ -242,3 +242,10 @@
 - **状态**：已决
 - **决定**：四项全做。① **`.gov/rejections/` 约定**：目录下每个可执行文件是一个拒绝用例（cwd=仓库根，exit 0=拒绝证明成立；README* 跳过；不可执行点名报错）；self-test 递归执行，报告 `tools N + project M` 分开计数；`--scope tools|project` 分域；gov init 注入约定 README。② **`gov run --json`**：stdout 恰一个 JSON 数组 `[{gate, outcome, blocking, duration_ms, detail}]`（config 顺序，DISABLED 以第六种记录值出场），人读报告转 stderr，退出码不变，与一切选择器正交。③ **self-test 并行**（4 workers，输出仍按 CASES 顺序+路径序确定；全部失败一并报告而非只报第一个）。④ **`.gov/surfaces.json`**：`{"<glob>": {"surface": 名, "gates": [id...]}}`，命中者优先于内置分类、其 gates 取代回退建议（全命中时只建议配置门禁），坏配置 exit 2；无配置行为不变。
 - **被否**：① 拒绝用例塞 pytest——另一个运行时、另一份报告，规则 6 的证明散落两处；② JSON 里带汇总对象——数组即记录，聚合是消费者的事（jq 一行）；分号分隔/流式行 JSON——`| jq` 直接消费要求恰一个 JSON 值；③ 用例分域替代并行——分域解决"跑哪些"，并行解决"跑多久"，全矩阵税是后者；④ 表面分类改成全配置——无配置的默认行为是新人第一印象，硬编码默认+可选覆盖才是渐进采用。
+
+## D26 — 拒绝用例预算与 --json 纯度契约
+
+- **问题**：① 项目拒绝用例的超时预算是 120s——一个失控用例（sleep 300）能把进了默认模式与 CI 的 self-test 拖住两分钟才失败，与门禁超时属同一家族（运行器必须有预算）。② `--json` 存在一处泄漏：`--base` 的 `scope vs` 行打到 stdout，机器消费端在 JSON 前读到人读行。
+- **状态**：已决
+- **决定**：① 每个拒绝用例预算 **10s**（`REJECTION_TIMEOUT_S`），超时 = FAIL 并点名 `(timed out after 10s)`，运行继续；约定写入 rejections README（拒绝证明天然是小用例）。② **--json 契约：stdout 恰一个 JSON 值**——一切人读输出（含 `scope vs` 行）走 stderr；以参数化测试锁住每个选择器路径。③ `duration_ms` 已在 0.7.0 交付（愿望 7 无需改动）。
+- **被否**：预算可配置——10s 固定值 + 文档说明足够，配置项是为极端 case 服务的复杂度；用例超时缩到 3s——git init 类用例在慢 CI 上会假红。

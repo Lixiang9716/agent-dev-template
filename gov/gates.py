@@ -542,11 +542,14 @@ def main(argv: list[str] | None = None) -> int:
         if changed is None:
             return 2
         selection, out = _select_by_paths(gates, changed)
-        print(
+        scope_line = (
             f"scope vs {args.base}: {len(selection)}/{len([g for g in gates if g.enabled])} "
-            f"gate(s) selected" + (f"; out of scope: {', '.join(out)}" if out else ""),
-            flush=True,
+            f"gate(s) selected" + (f"; out of scope: {', '.join(out)}" if out else "")
         )
+        if args.json:  # stdout carries exactly one JSON value (D26)
+            print(scope_line, file=sys.stderr, flush=True)
+        else:
+            print(scope_line, flush=True)
     elif args.every_gate:
         selection = None  # every enabled gate — the explicit full matrix
     elif default_mode:

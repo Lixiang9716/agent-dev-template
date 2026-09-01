@@ -61,3 +61,18 @@ def test_parallel_reports_all_failures(tmp_path, monkeypatch, capsys):
     assert st.main(["--scope", "project"]) == 1
     out = capsys.readouterr().out
     assert "case-a.sh" in out and "case-b.sh" in out  # both, not just the first
+
+
+def test_runaway_case_times_out_fast(tmp_path, monkeypatch, capsys):
+    """Wish 5: a sleep-30 case fails as TIMEOUT within the 10s budget."""
+    import time
+    monkeypatch.chdir(tmp_path)
+    _rejection(tmp_path, "case-hang.sh", "#!/bin/sh\nsleep 30\n")
+    _rejection(tmp_path, "case-fine.sh", "#!/bin/sh\nexit 0\n")
+    t0 = time.monotonic()
+    assert st.main(["--scope", "project"]) == 1
+    wall = time.monotonic() - t0
+    out = capsys.readouterr().out
+    assert "FAIL .gov/rejections/case-hang.sh (timed out after 10s)" in out
+    assert "PASS .gov/rejections/case-fine.sh" in out  # the run continues
+    assert wall < 20, f"a runaway case must not hold the run ({wall:.1f}s)"

@@ -31,6 +31,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REJECTIONS_DIR = Path(".gov/rejections")
 CONCURRENCY = 4
+# A runaway rejection case must not hold a CI job hostage (D26): each
+# project case gets a small budget — a rejection proof is small by nature.
+REJECTION_TIMEOUT_S = 10
 
 
 def _run(script: str, cwd: Path) -> subprocess.CompletedProcess:
@@ -736,11 +739,11 @@ def _run_project_case(p: Path) -> tuple[str, bool]:
         return f"FAIL {p} (not executable — chmod +x it)", False
     try:
         proc = subprocess.run(
-            [str(p)], capture_output=True, text=True, timeout=120,
-            cwd=str(Path.cwd()),
+            [str(p)], capture_output=True, text=True,
+            timeout=REJECTION_TIMEOUT_S, cwd=str(Path.cwd()),
         )
     except subprocess.TimeoutExpired:
-        return f"FAIL {p} (timed out)", False
+        return f"FAIL {p} (timed out after {REJECTION_TIMEOUT_S}s)", False
     if proc.returncode == 0:
         return f"PASS {p}", True
     tail = ((proc.stdout or "") + (proc.stderr or "")).strip().splitlines()
