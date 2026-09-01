@@ -54,6 +54,12 @@ gate, its first output line, and how to rerun it alone.
   gate rejects the violation it claims to catch, so no gate is a vacuous
   script. It is the tools' own regression: it ships in the template's
   `governance` mode, not in every project's default run.
+- **The review rubric** carries the judgment criteria gates cannot check:
+  [review-rubric.md](review-rubric.md) grades PRs item by item with
+  evidence; each item's `Gate candidate` field says whether it graduates
+  into a gate when its promise becomes mechanically checkable.
+  `gov verify-rubric` checks the rubric's own structure — never the
+  judgment itself.
 
 ## Adoption: gov init / uninstall
 

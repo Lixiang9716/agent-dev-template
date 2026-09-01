@@ -19,6 +19,7 @@
 - **Agent Notes** 承载决策（`implemented/` 然后冻结的 `archived/`）。`gov verify-notes` 强制三段必填：`## Problem`、`## Decision`、`## Alternatives considered`（`## Consequences` 可选）。`gov verify-note-presence` 检查规则 2 可观察的那一半——diff 触及行为面而无 note 变更时警告（带规则出处）；`--strict` 升级为拦截。
 - **双语配对** 承载对外展示文档：源 `foo.md` + 译文侧 + `foo.i18n.yaml` 记录，用 git blob 哈希钉死两侧（并钉住译文侧文件名）。命名约定是 `.gov/pairing.json` 里的配置（`include`、`counterparts`、`exclude`）；不符合任何约定的配对用 `gov verify-pairing --write en:<path> zh:<path>` 显式登记。单边编辑失败。
 - **`gov self-test`** 为每个治理门禁跑一个拒绝用例——证明每个门禁都能拦住所声称的违规，所以没有空转脚本。它是工具自身的回归：在模板里归入 `governance` 模式，不进每个项目的默认运行。
+- **评审量规** 承载门禁查不了的判断标准：[review-rubric.md](review-rubric.zh.md) 对 PR 逐条带证据判定；每条的 `Gate candidate` 字段写明承诺可机械化后是否毕业成门禁。`gov verify-rubric` 检查量规自身的结构——永不检查判断本身。
 
 ## 采用：gov init / uninstall
 

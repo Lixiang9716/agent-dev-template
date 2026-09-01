@@ -17,7 +17,8 @@ from importlib.resources import files
 from pathlib import Path
 
 from . import archive_notes, change_scope, gates, self_test
-from . import verify_note_presence, verify_notes, verify_translation_pairing
+from . import verify_note_presence, verify_notes, verify_rubric
+from . import verify_translation_pairing
 from . import __version__
 
 TEMPLATES = files("gov.templates")
@@ -205,6 +206,7 @@ _COMMANDS = {
     "verify-notes": "check note format",
     "verify-pairing": "check bilingual pairing (e.g. --write)",
     "verify-note-presence": "warn when a non-trivial diff carries no note (e.g. --base <ref>, --strict)",
+    "verify-rubric": "check the review rubric's structure (ids, fields, parity)",
     "change-scope": "report touched surfaces (e.g. --base <ref>)",
     "archive-notes": "seal the archived-notes manifest",
 }
@@ -287,6 +289,8 @@ def main(argv: list[str] | None = None) -> int:
         return verify_translation_pairing.main(rest)
     if cmd == "verify-note-presence":
         return verify_note_presence.main(rest)
+    if cmd == "verify-rubric":
+        return verify_rubric.main(rest)
     if cmd == "change-scope":
         return change_scope.main(rest)
     if cmd == "archive-notes":

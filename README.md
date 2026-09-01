@@ -46,6 +46,7 @@ gov self-test                  # prove every governance gate can reject
 gov verify-pairing --write    # re-confirm a bilingual pair after editing one side
 gov verify-pairing --write en:docs/a.md zh:docs/a_CN.md  # register any naming
 gov verify-note-presence      # warn when a non-trivial diff carries no Agent Note
+gov verify-rubric             # check the review rubric's structure
 gov change-scope --base <ref> # smallest sufficient check set for a diff
 ```
 
@@ -62,11 +63,14 @@ deleting its definition.
 
 - `gov/` — the Python package: `gates` (the DAG runner over `gates.json`),
   `verify_notes` (three required sections), `verify_translation_pairing`
-  (git blob hashes), `change_scope`, `self_test`, `archive_notes`.
+  (git blob hashes), `verify_note_presence`, `verify_rubric`,
+  `change_scope`, `self_test`, `archive_notes`.
 - `gov/templates/` — the rules, default `gates.json`, and notes format that
   `gov init` injects into a project.
 - `.gov/rules.md` — the single source of truth for the rules.
 - `.agents/notes/` — the decision-record format and lifecycle.
+- `docs/review-rubric.md` — how PRs are judged: the criteria gates cannot
+  check, graded item by item.
 
 ## Origin
 

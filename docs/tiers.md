@@ -14,5 +14,6 @@ drift.
 | Why a decision was made, what it beat | `.agents/notes/` (Agent Notes) |
 | Why a failure happened, why guardrails missed it | `docs/postmortem/` |
 | Bilingual pairing contract | [i18n/README.md](i18n/README.md) |
+| How PRs are judged (the judgment gates cannot check) | [review-rubric.md](review-rubric.md) |
 | Gate definitions and modes | `gates.json` |
 | Product code knowledge | the product plane's own docs, owned by you |
