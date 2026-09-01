@@ -206,7 +206,31 @@ def test_uninstall_warns_about_customized_files(tmp_path, capsys):
     assert cli.init(tmp_path) == 0
     rules = tmp_path / ".gov" / "rules.md"
     rules.write_text(rules.read_text() + "\n# MY PRECIOUS RULE\n")
-    assert cli.uninstall(tmp_path) == 0
+    assert cli.uninstall(tmp_path) == 1  # two-step: warns, keeps everything
     err = capsys.readouterr().err
     assert "customized" in err and ".gov/rules.md" in err
+    assert rules.exists()
+    assert cli.uninstall(tmp_path, force=True) == 0
     assert not rules.exists()  # reversal semantics unchanged (D10)
+
+
+def test_uninstall_twostep_requires_force(tmp_path, capsys):
+    """F6: customized files → first run deletes nothing; --force proceeds."""
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    rules = tmp_path / ".gov" / "rules.md"
+    rules.write_text(rules.read_text() + "\n# MY PRECIOUS RULE\n")
+    assert cli.uninstall(tmp_path) == 1  # warns, deletes NOTHING
+    assert rules.exists()
+    assert (tmp_path / "gates.json").exists()
+    err = capsys.readouterr().err
+    assert "nothing has been deleted" in err and "--force" in err
+    assert cli.uninstall(tmp_path, force=True) == 0
+    assert not rules.exists()
+    assert not (tmp_path / "gates.json").exists()
+
+
+def test_uninstall_without_customization_is_one_step(tmp_path):
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    assert cli.uninstall(tmp_path) == 0  # no warning, no --force needed

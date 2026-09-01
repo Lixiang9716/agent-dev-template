@@ -59,8 +59,8 @@ appends one reference line to AGENTS.md, and never overwrites the
 project's own files — including its own skills. `--hooks`/`--ci` can be
 retrofitted later (`gov init --hooks` on an initialized project installs
 just the add-on; customizations stay untouched). `uninstall` reverses
-everything exactly — naming any file that drifted from its template
-before deleting it. A fresh
+everything exactly; when a file drifted from its template it names the
+file and requires `--force` to proceed (a genuine two-step). A fresh
 install never goes red on its first run: the pairing gate ships advisory,
 `gov verify-pairing --write` baselines the existing pairs, and removing
 `allowFailure` turns it enforcing. `enabled: false` parks a gate without

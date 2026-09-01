@@ -17,7 +17,7 @@ from importlib.resources import files
 from pathlib import Path
 
 from . import archive_notes, audit_notes, change_scope, gates, recall, self_test
-from . import verify_note_presence, verify_notes, verify_rubric
+from . import verify_archive, verify_note_presence, verify_notes, verify_rubric
 from . import verify_translation_pairing
 from . import __version__
 
@@ -243,7 +243,7 @@ def _template_for(rel: str):
     return None
 
 
-def uninstall(project: Path) -> int:
+def uninstall(project: Path, force: bool = False) -> int:
     project = project.resolve()
     manifest = project / ".gov" / "manifest.json"
     if not manifest.exists():
@@ -272,14 +272,31 @@ def uninstall(project: Path) -> int:
         except OSError:
             pass
     if customized:
-        print(
-            "uninstall: WARNING — customized file(s) differ from the shipped "
-            "template and will be deleted:",
-            file=sys.stderr,
-        )
-        for rel in customized:
-            print(f"  {rel}", file=sys.stderr)
-        print("  copy out anything you want to keep, then re-run", file=sys.stderr)
+        # F6: a genuine two-step — without --force this run deletes
+        # nothing. The message must never promise an abort the code does
+        # not perform.
+        if force:
+            print(
+                "uninstall: --force — deleting customized file(s) that differ "
+                "from the shipped template:",
+                file=sys.stderr,
+            )
+            for rel in customized:
+                print(f"  {rel}", file=sys.stderr)
+        else:
+            print(
+                "uninstall: WARNING — customized file(s) differ from the shipped "
+                "template; nothing has been deleted:",
+                file=sys.stderr,
+            )
+            for rel in customized:
+                print(f"  {rel}", file=sys.stderr)
+            print(
+                "  copy out anything you want to keep, then re-run with --force "
+                "to uninstall anyway",
+                file=sys.stderr,
+            )
+            return 1
 
     ag = project / "AGENTS.md"
     if ag.exists():
@@ -317,6 +334,7 @@ _COMMANDS = {
     "verify-pairing": "check bilingual pairing (e.g. --write)",
     "verify-note-presence": "warn when a non-trivial diff carries no note (e.g. --base <ref>, --strict)",
     "verify-rubric": "check the review rubric's structure (ids, fields, parity)",
+    "verify-archive": "verify the archived-notes seal (pinned sha256 per file)",
     "recall": "retrieve notes, decisions, and postmortems (all terms, ranked)",
     "audit-notes": "report mechanical staleness signals in implemented notes",
     "change-scope": "report touched surfaces (e.g. --base <ref>)",
@@ -338,10 +356,12 @@ _VERSION_FLAGS = ("-v", "--version", "version")
 _NO_FORWARD = ("init", "uninstall", "self-test", "verify-notes")
 
 
-def _init_uninstall_args(args: list[str], what: str) -> tuple[Path, bool, bool] | None:
-    """Parse ``--project <dir>`` (plus init's ``--hooks``/``--ci``); reject the rest."""
+def _init_uninstall_args(
+    args: list[str], what: str
+) -> tuple[Path, bool, bool, bool] | None:
+    """Parse --project (+ init's --hooks/--ci, uninstall's --force); reject the rest."""
     project = "."
-    hooks = ci = False
+    hooks = ci = force = False
     i = 0
     while i < len(args):
         a = args[i]
@@ -357,11 +377,14 @@ def _init_uninstall_args(args: list[str], what: str) -> tuple[Path, bool, bool] 
         elif what == "init" and a == "--ci":
             ci = True
             i += 1
+        elif what == "uninstall" and a == "--force":
+            force = True
+            i += 1
         else:
             print(f"gov {what}: unexpected argument '{a}'", file=sys.stderr)
             _usage()
             return None
-    return Path(project), hooks, ci
+    return Path(project), hooks, ci, force
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -390,7 +413,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2 if parsed is None else init(parsed[0], hooks=parsed[1], ci=parsed[2])
     if cmd == "uninstall":
         parsed = _init_uninstall_args(rest, "uninstall")
-        return 2 if parsed is None else uninstall(parsed[0])
+        return 2 if parsed is None else uninstall(parsed[0], force=parsed[3])
     if cmd == "run":
         return gates.main(rest)
     if cmd == "self-test":
@@ -403,6 +426,8 @@ def main(argv: list[str] | None = None) -> int:
         return verify_note_presence.main(rest)
     if cmd == "verify-rubric":
         return verify_rubric.main(rest)
+    if cmd == "verify-archive":
+        return verify_archive.main(rest)
     if cmd == "recall":
         return recall.main(rest)
     if cmd == "audit-notes":

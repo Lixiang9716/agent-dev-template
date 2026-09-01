@@ -586,6 +586,30 @@ def test_verify_notes_rejects_status_lying() -> None:
         assert "banana" in result.stdout
 
 
+def test_archive_seal_detects_tampering_and_refuses_laundering() -> None:
+    """F7: the seal has a detector, and re-sealing cannot wash a drift."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        arch = root / ".agents" / "notes" / "archived" / "process"
+        arch.mkdir(parents=True)
+        note = arch / "2026-01-01-x.md"
+        note.write_text("# Agent Note: x\n", encoding="utf-8")
+        seal = subprocess.run(
+            [sys.executable, str(HERE / "archive_notes.py")],
+            cwd=root, capture_output=True, text=True,
+        )
+        assert seal.returncode == 0, seal.stderr
+        note.write_text("# Agent Note: x  # tampered\n", encoding="utf-8")
+        _case("verify_archive.py", root, 1,
+              "a tampered archived note must fail the seal check")
+        refused = subprocess.run(
+            [sys.executable, str(HERE / "archive_notes.py")],
+            cwd=root, capture_output=True, text=True,
+        )
+        assert refused.returncode == 1, "re-sealing a drift must refuse (no laundering)"
+        assert "refusing to re-seal" in refused.stdout
+
+
 def test_passing_gate_output_stays_visible() -> None:
     """A pass that printed a warning must not be silenced (P1-2)."""
     with tempfile.TemporaryDirectory() as td:
@@ -634,6 +658,7 @@ CASES = [
     test_passing_gate_output_stays_visible,
     test_note_presence_auto_base_catches_committed_work,
     test_verify_notes_rejects_status_lying,
+    test_archive_seal_detects_tampering_and_refuses_laundering,
 ]
 
 

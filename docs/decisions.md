@@ -218,3 +218,11 @@
 - **状态**：已决
 - **决定**：① **双管齐下**：`--hooks`/`--ci` 在已初始化项目走**增量路径**（只做预检 + 装所请求的加装 + 合并更新 manifest；rules/gates/notes/skills/引用行一律不碰——补装钩子永不重置定制）；uninstall 保持 D10 精确反转，但删除前把**与模板有字节差异**的文件点名警告（rules.md + created 里能映射回模板的条目），定制不再静默消失。② Status 封闭为**恰一值** `implemented`（archived 笔记按归档程序本就保留 `Status: implemented` + `Archived:` 行；生命周期=目录，字段无第二状态可表达），README（仓库+模板双份）明文"值恰为 implemented，生命周期是目录不是字段"。
 - **被否**：① 定制文件在 uninstall 时保留——破坏 D10 的精确反转契约；只警告不保留。② 允许 {implemented, archived} 两值——archived/ 不经 verify-notes 检查，给了第二值等于给字段塞进目录已有的职责，重新引入双事实源。
+
+## D23 — 封条有读者、重封不洗白、uninstall 真两步
+
+- **问题**：① uninstall 的定制警告文案说 "copy out ... then re-run"，暗示首跑已中止——实际同一运行内警告后直接删除（照提示等 re-run 再备份的用户已丢数据）。② 归档封条承诺 "any later edit is detectable"，但 manifest 只有写者没有读者：篡改归档笔记后 verify-notes（D5 跳过）/audit-notes（豁免）/recall（照常索引）无一发现；更糟的是重跑 archive-notes 按篡改后内容重算哈希重新封条——违规被永久洗白。
+- **选项**：① 警告后 return 1 真两步（--force 继续）；或只改文案为"即将删除"。② 新增 verify-archive 检测器 + 重封前验旧封条；或并入 verify-notes；或维持现状加文档声明
+- **状态**：已决
+- **决定**：① **真两步**：检测到定制文件 → 警告 + `return 1`，**本次不删任何东西**；`gov uninstall --force` 为显式同意（仍点名删除的定制文件）。无定制时单步直删不变。② **封条闭环**：新增 `gov verify-archive` 门禁——每个归档文件对封条验 sha256、封条条目对文件双向缺失检查；未封（有文件无 manifest）也是违规。`archive-notes` 重封前**先验旧封条**：漂移 → exit 1 拒绝并列名（"restore or --rebaseline"）；`--rebaseline` 为显式同意并大声打印 RE-BASELINED 了哪些。门禁以 paths 限定 `.agents/notes/archived/**` 进本仓库与注入模板（篡改即触发）。归档技能同步：程序加"封后用 verify-archive 确认"，Never 加"不许对被篡改文件重封"。
+- **被否**：① 只改文案——空头支票换成如实告示仍是单步数据丢失；两步多一次确认是 uninstall 低频操作付得起的价格。② 检测并入 verify-notes——封条是完整性不是格式，混关注点；独立门禁可被 paths 精确触发。重封无条件允许（迁移便利）——便利通道就是洗白通道，必须显式且大声。

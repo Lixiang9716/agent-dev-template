@@ -1,6 +1,6 @@
 {
   "modes": {
-    "all": ["self-test", "notes", "pairing", "note-presence", "rubric"],
+    "all": ["self-test", "notes", "pairing", "note-presence", "rubric", "archive"],
     "quick": ["notes", "note-presence"]
   },
   "defaultMode": "all",
@@ -34,6 +34,12 @@
       "label": "review rubric structure",
       "command": ["gov", "verify-rubric"],
       "paths": ["docs/review-rubric.md", "docs/review-rubric.zh.md"]
+    },
+    {
+      "id": "archive",
+      "label": "archived-notes seal",
+      "command": ["gov", "verify-archive"],
+      "paths": [".agents/notes/archived/**"]
     }
   ]
 }
