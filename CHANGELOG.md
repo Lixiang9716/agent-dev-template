@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/Lixiang9716/govrail/compare/v0.7.0...v0.7.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* rejection-case budget and the --json purity contract (D26) ([#69](https://github.com/Lixiang9716/govrail/issues/69)) ([c3ad756](https://github.com/Lixiang9716/govrail/commit/c3ad756fa5641951110e55d2ae02dc6cd27755c6))
+
 ## [0.7.0](https://github.com/Lixiang9716/govrail/compare/v0.6.6...v0.7.0) (2026-09-01)
 
 
