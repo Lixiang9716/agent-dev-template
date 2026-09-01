@@ -107,16 +107,31 @@ def main(argv: list[str] | None = None) -> int:
                              "else everything; pass an explicit ref to pin)")
     parser.add_argument("--strict", action="store_true",
                         help="a violation blocks (exit 1) instead of warning")
+    parser.add_argument("--staged", action="store_true",
+                        help="review only the index (git diff --cached) — quiet on a "
+                             "clean index (D28: long-session noise reduction)")
     args = parser.parse_args(argv)
 
-    base, why = (args.base, "") if args.base != "auto" else _resolve_auto_base()
-    files, err = _changed_files(base)
-    if err is not None:
-        print(f"verify_note_presence: cannot diff against {base!r}: {err}",
-              file=sys.stderr)
-        return 2
-    print(f"verify_note_presence: base={base}"
-          + (f" ({why})" if why else ""))
+    if args.staged:
+        import subprocess as _sp
+        proc = _sp.run(["git", "diff", "--name-only", "--cached"],
+                       capture_output=True, text=True)
+        if proc.returncode != 0:
+            print(f"verify_note_presence: --staged failed: {proc.stderr.strip()}",
+                  file=sys.stderr)
+            return 2
+        files = [f for f in proc.stdout.splitlines() if f]
+        if not files:
+            return 0  # clean index: silent, per the contract
+    else:
+        base, why = (args.base, "") if args.base != "auto" else _resolve_auto_base()
+        files, err = _changed_files(base)
+        if err is not None:
+            print(f"verify_note_presence: cannot diff against {base!r}: {err}",
+                  file=sys.stderr)
+            return 2
+        print(f"verify_note_presence: base={base}"
+              + (f" ({why})" if why else ""))
 
     non_trivial = [f for f in files if not _is_trivially_scoped(f)]
     notes = [f for f in files if f.startswith(NOTES_DIR)]
@@ -127,7 +142,8 @@ def main(argv: list[str] | None = None) -> int:
               f"{len(notes)} note file(s) — ok")
         return 0
 
-    listing = ", ".join(non_trivial[:5]) + ("…" if len(non_trivial) > 5 else "")
+    listing = ", ".join(non_trivial[:5]) + (" …and "
+              f"{len(non_trivial) - 5} more" if len(non_trivial) > 5 else "")
     print(f"verify_note_presence: {len(non_trivial)} non-trivial file(s) "
           f"({listing}) changed with no note under {NOTES_DIR}/")
     print(f"  if the change is non-trivial, add or update a note (see {RULE})")

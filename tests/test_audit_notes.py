@@ -75,7 +75,7 @@ def test_archived_exempt(tmp_path, monkeypatch, capsys):
           "# Agent Note: clean\n\nStatus: implemented\n\n## Decision\nfine.\n")
     assert audit_notes.main([]) == 0
     out = capsys.readouterr().out
-    assert "frozen" not in out and "1 implemented note(s), clean" in out
+    assert "frozen" not in out and "1 implemented note(s), 0 skill file(s), clean" in out
 
 
 def test_no_tree_fails_loud(tmp_path, monkeypatch):
@@ -108,3 +108,22 @@ def test_summary_missing_decisions_still_reported(tmp_path, monkeypatch, capsys)
     assert audit_notes.main([]) == 0
     out = capsys.readouterr()
     assert "no docs/decisions.md; D-refs unchecked" in out.out
+
+
+def test_skills_command_and_flag_drift(tmp_path, monkeypatch, capsys):
+    """Wish 11: typos in skill text are named; legal refs stay silent."""
+    monkeypatch.chdir(tmp_path)
+    _note(tmp_path, "2026-01-01-c.md",
+          "# Agent Note: c\n\nStatus: implemented\n\n## Decision\nfine.\n\n"
+          "## Problem\np\n\n## Alternatives considered\na\n")
+    skills = tmp_path / ".agents" / "skills" / "x"
+    skills.mkdir(parents=True)
+    (skills / "SKILL.md").write_text(
+        "run `gov run --every-gat` then `gov verife-pairing`, "
+        "legally `gov run --every-gate` and `gov archive-notes --rebaseline`.\n")
+    assert audit_notes.main([]) == 0  # advisory report
+    out = capsys.readouterr().out
+    assert "unknown flag `--every-gat` on `gov run`" in out
+    assert "unknown command `gov verife-pairing`" in out
+    assert "--rebaseline" not in out  # legal refs: zero false positives
+    assert "--every-gate`" not in out.replace("--every-gat`", "")

@@ -149,3 +149,21 @@ def test_zero_commit_repo_first_run_stays_green(tmp_path, monkeypatch, capsys):
     (tmp_path / "app.py").write_text("x = 1\n")  # untracked, no commits yet
     assert vnp.main([]) == 0
     assert "app.py" in capsys.readouterr().out
+
+
+def test_staged_silent_on_clean_index(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    (tmp_path / "app.py").write_text("uncommitted\n")  # dirty worktree only
+    assert vnp.main(["--staged"]) == 0
+    assert capsys.readouterr().out == ""  # silent: the index is clean
+
+
+def test_long_lists_collapse(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    for i in range(8):
+        (tmp_path / f"file{i}.py").write_text("x\n")
+    assert vnp.main([]) == 0
+    out = capsys.readouterr().out
+    assert "…and 3 more" in out

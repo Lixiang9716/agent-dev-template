@@ -166,6 +166,18 @@ def _record_path(src: Path) -> Path:
     return src.with_name(src.stem + ".i18n.yaml")
 
 
+def _record_files(cfg: dict[str, list[str]]) -> list[Path]:
+    """Every .i18n.yaml in the include scope (deduped, sorted)."""
+    files: dict[Path, None] = {}
+    for pattern in cfg["include"]:
+        for match in _glob.glob(pattern.replace(".md", ".i18n.yaml"),
+                                recursive=True):
+            p = Path(match)
+            if p.is_file():
+                files[p] = None
+    return sorted(files)
+
+
 def _recorded_counterpart(src: Path) -> Path | None:
     """The counterpart a record explicitly pins, if any (may not exist)."""
     rec = _record_path(src)
@@ -357,6 +369,18 @@ def main(argv: list[str] | None = None) -> int:
                 errors.append(f"{rec.name}: missing recorded hash for {side}")
             elif recorded[side] != current[side]:
                 errors.append(f"{expect}: out of sync — re-confirm with --write")
+    # Wish 14/D28: a record whose both sides are gone is garbage that
+    # nothing ever reported — count it.
+    for rec in sorted(_record_files(cfg)):
+        src = rec.with_suffix("").with_suffix(".md")  # foo.i18n.yaml -> foo.md
+        pinned = _parse_record(rec).get("counterpart", "")
+        counterpart = rec.parent / pinned if pinned else None
+        if not src.exists() and (counterpart is None or not counterpart.exists()):
+            errors.append(
+                f"{rec}: dangling record — both sides are gone; delete it, or "
+                "re-create the source and re-register with --write"
+            )
+
     if errors:
         for e in errors:
             print(e)
