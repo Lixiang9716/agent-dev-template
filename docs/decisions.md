@@ -234,3 +234,11 @@
 - **状态**：已决
 - **决定**：三层全做。**可达性校验（fail loud）**：modes 非空时，已启用门禁不属于任何 mode → ConfigError 点名（"park with enabled:false — the one loud mechanism"）；停靠只有一条路且必响。存量项目不受影响（governance mode 里的门禁属于"某 mode"）。**模板修复**：modes.all 加入 self-test（governance mode 保留为单跑自检的快捷方式）——部分翻案 0.3.0 的"self-test 不进项目默认运行"：模板 CI 装的是**未钉版本**的 govrail，self-test 是采用者侧的工具冒烟测试，7 秒换消费者级回归检测，且规则 1"CI owns the full matrix"自洽。**--every-gate**：无视 modes/defaultMode 跑全部已启用门禁，给"full matrix"一个显式落点。**N4**：`--gate` 点名被停门禁 → exit 2（显式请求停用物是操作错误，静默绿会掩盖它）。附带：note-presence 在零提交仓库不再因无 HEAD 而 exit 2（未跟踪清单即全部变更，守住 D13 首跑不红）。
 - **被否**：只修模板不封哑停靠——下一个配置还会悄悄长出 never-runs 门禁；允许"未引用 mode 的门禁"合法存在——可达性判据必须落在"属于某 mode"而非"属于 defaultMode"（否则 governance 快捷方式非法）；CI 跑两条命令（run && run --mode governance）——比一行模板改动静态多、语义少。
+
+## D25 — 采用者愿望轮：本地拒绝用例、--json、并行分域、表面映射
+
+- **问题**：radiant 四愿望，按价值排序：① 规则 6 要求每个治理门禁自带拒绝用例，但 self-test 只跑 govrail 自带用例——采用者给自定义门禁写的拒绝证明没有机械接线入口（"没有执行路径的承诺不存在"的自我应用）；② gate 结果只有人读行文本，机械消费（趋势、耗时回归、报告聚合）只能解析 stdout；③ self-test 进默认集后用例串行线性累积，全矩阵税会诱惑采用者把它再挪出去（G2 复发）；④ 表面分类硬编码，eval/ 这类实验装置全归 "code"，monorepo 更甚。
+- **选项**：逐项采纳 vs 部分缓做
+- **状态**：已决
+- **决定**：四项全做。① **`.gov/rejections/` 约定**：目录下每个可执行文件是一个拒绝用例（cwd=仓库根，exit 0=拒绝证明成立；README* 跳过；不可执行点名报错）；self-test 递归执行，报告 `tools N + project M` 分开计数；`--scope tools|project` 分域；gov init 注入约定 README。② **`gov run --json`**：stdout 恰一个 JSON 数组 `[{gate, outcome, blocking, duration_ms, detail}]`（config 顺序，DISABLED 以第六种记录值出场），人读报告转 stderr，退出码不变，与一切选择器正交。③ **self-test 并行**（4 workers，输出仍按 CASES 顺序+路径序确定；全部失败一并报告而非只报第一个）。④ **`.gov/surfaces.json`**：`{"<glob>": {"surface": 名, "gates": [id...]}}`，命中者优先于内置分类、其 gates 取代回退建议（全命中时只建议配置门禁），坏配置 exit 2；无配置行为不变。
+- **被否**：① 拒绝用例塞 pytest——另一个运行时、另一份报告，规则 6 的证明散落两处；② JSON 里带汇总对象——数组即记录，聚合是消费者的事（jq 一行）；分号分隔/流式行 JSON——`| jq` 直接消费要求恰一个 JSON 值；③ 用例分域替代并行——分域解决"跑哪些"，并行解决"跑多久"，全矩阵税是后者；④ 表面分类改成全配置——无配置的默认行为是新人第一印象，硬编码默认+可选覆盖才是渐进采用。

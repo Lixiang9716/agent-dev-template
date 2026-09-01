@@ -5,11 +5,17 @@ This is the "check only what changed" hint (rule 1). It does not run gates;
 it maps the touched files to the gates that cover them so a developer picks
 the smallest sufficient set instead of reflexively running everything.
 
-Suggestions come from the single source of truth: each gate's ``paths``
-globs in ``gates.json`` (gates without ``paths`` are always relevant and
-always suggested). When the config has no ``paths`` at all, a surface-based
-fallback applies. It also reminds whether the diff carries an Agent Note
-(rule 2) — the same check ``gov verify-note-presence`` gates.
+Suggestions come from two sources, most specific first (D25):
+
+1. ``.gov/surfaces.json`` — optional project mapping of path globs to a
+   surface name and the gates that cover it (``"eval/**": {"surface":
+   "experiments", "gates": ["source-limits"]}``); a matched file reports
+   that surface and suggests exactly those gates;
+2. each gate's ``paths`` globs in ``gates.json`` (unpathed gates are
+   always suggested); a legacy surface fallback applies without them.
+
+It also reminds whether the diff carries an Agent Note (rule 2) — the
+same check ``gov verify-note-presence`` gates.
 """
 from __future__ import annotations
 
@@ -17,6 +23,7 @@ import argparse
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 try:  # package context (`gov change-scope`)
     from .gates import _glob_regex
@@ -31,9 +38,39 @@ SURFACE_GATES = {
     "config": ["self-test"],
 }
 NOTES_DIR = ".agents/notes/implemented"
+SURFACES_CONFIG = Path(".gov/surfaces.json")
 
 
-def _classify(path: str) -> str:
+def _load_surfaces() -> dict[str, dict] | None:
+    """The optional path-pattern → {surface, gates} mapping; None = absent."""
+    if not SURFACES_CONFIG.is_file():
+        return None
+    try:
+        raw = json.loads(SURFACES_CONFIG.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"change_scope: cannot read {SURFACES_CONFIG}: {e}", file=sys.stderr)
+        raise SystemExit(2)
+    if not isinstance(raw, dict):
+        print(f"change_scope: {SURFACES_CONFIG} must be an object", file=sys.stderr)
+        raise SystemExit(2)
+    for pattern, value in raw.items():
+        if not isinstance(value, dict) or not isinstance(value.get("surface"), str) \
+                or not isinstance(value.get("gates"), list) \
+                or not all(isinstance(g, str) for g in value["gates"]):
+            print(
+                f"change_scope: '{pattern}' in {SURFACES_CONFIG} must map to "
+                '{"surface": "<name>", "gates": ["<id>", ...]}',
+                file=sys.stderr,
+            )
+            raise SystemExit(2)
+    return raw
+
+
+def _classify(path: str, surfaces: dict[str, dict] | None) -> str:
+    if surfaces:
+        for pattern, value in surfaces.items():
+            if _glob_regex(pattern).match(path):
+                return value["surface"]
     if path.startswith(".agents/notes/"):
         return "notes"
     if path.endswith(".md"):
@@ -56,8 +93,25 @@ def _changed(base: str) -> tuple[list[str], str | None]:
     return sorted(files), None
 
 
-def _suggest_gates(files: list[str]) -> tuple[list[str], bool]:
+def _configured_gates(path: str, surfaces: dict[str, dict] | None) -> list[str] | None:
+    if not surfaces:
+        return None
+    for pattern, value in surfaces.items():
+        if _glob_regex(pattern).match(path):
+            return list(value["gates"])
+    return None
+
+
+def _suggest_gates(files: list[str], surfaces: dict[str, dict] | None) -> tuple[list[str], bool]:
     """Gate ids covering the change; True when sourced from gates.json paths."""
+    matched: set[str] = set()
+    rest: list[str] = []
+    for f in files:
+        via_config = _configured_gates(f, surfaces)
+        if via_config is not None:
+            matched.update(via_config)
+        else:
+            rest.append(f)
     try:
         with open("gates.json", encoding="utf-8") as f:
             cfg = json.load(f)
@@ -70,11 +124,12 @@ def _suggest_gates(files: list[str]) -> tuple[list[str], bool]:
             for g in gates
             if isinstance(g, dict) and "id" in g
             and (not g.get("paths")
-                 or any(_glob_regex(p).match(f) for p in g["paths"] for f in files))
+                 or any(_glob_regex(p).match(f) for p in g["paths"] for f in rest))
         ]
-        return sorted(suggested), True
-    surfaces = {_classify(f) for f in files}
-    return sorted({g for s in surfaces for g in SURFACE_GATES.get(s, [])}), False
+        return sorted(matched | set(suggested)), True
+    fallback_surfaces = {_classify(f, surfaces) for f in rest}
+    fallback = {g for s in fallback_surfaces for g in SURFACE_GATES.get(s, [])}
+    return sorted(matched | fallback), False
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -85,6 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--base", default="HEAD~1", help="git ref to diff against")
     args = parser.parse_args(argv)
 
+    surfaces = _load_surfaces()
     files, err = _changed(args.base)
     if err is not None:
         print(f"change_scope: git diff failed: {err}", file=sys.stderr)
@@ -93,14 +149,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"change_scope: no changes since {args.base}")
         return 0
 
-    surfaces = sorted({_classify(f) for f in files})
-    print(f"touched surfaces: {', '.join(surfaces)}")
-    for s in surfaces:
-        changed = [f for f in files if _classify(f) == s]
+    names = sorted({_classify(f, surfaces) for f in files})
+    print(f"touched surfaces: {', '.join(names)}")
+    for s in names:
+        changed = [f for f in files if _classify(f, surfaces) == s]
         print(f"  {s}: {len(changed)} file(s)")
 
-    suggested, from_paths = _suggest_gates(files)
+    suggested, from_paths = _suggest_gates(files, surfaces)
     source = "gates.json paths" if from_paths else "surface fallback"
+    if surfaces:
+        source += " + .gov/surfaces.json"
     print(f"suggested gates ({source}): {', '.join(suggested) or 'code gates (project toolchain)'}")
     print("run them: gov run --base " + args.base + "  (or: gov run --gate <id>)")
 
