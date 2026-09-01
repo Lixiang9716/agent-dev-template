@@ -62,8 +62,13 @@ gate, its first output line, and how to rerun it alone.
   `gov verify-pairing --write en:<path> zh:<path>`. A one-sided edit fails.
 - **`gov self-test`** runs a rejection case per governance gate — proving each
   gate rejects the violation it claims to catch, so no gate is a vacuous
-  script. It is the tools' own regression: it ships in the template's
-  `governance` mode, not in every project's default run.
+  script. It is the tools' own regression and ships in the template's
+  default run (`governance` mode stays as a self-test-only shortcut):
+  the template CI installs an unpinned govrail, so the smoke test of the
+  tool itself runs on the adopter's side. Every enabled gate must belong
+  to a mode — parking is `"enabled": false`, the one loud mechanism
+  (a `DISABLED` line); `gov run --every-gate` is the explicit full
+  matrix.
 - **The review rubric** carries the judgment criteria gates cannot check:
   [review-rubric.md](review-rubric.md) grades PRs item by item with
   evidence; each item's `Gate candidate` field says whether it graduates

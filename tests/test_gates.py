@@ -153,7 +153,7 @@ def test_main_default_mode_scopes_run(tmp_path, capsys, monkeypatch):
     _write(
         tmp_path,
         {
-            "modes": {"all": ["a"]},
+            "modes": {"all": ["a"], "also": ["b"]},
             "defaultMode": "all",
             "gates": [
                 {"id": "a", "command": ["true"]},
@@ -301,3 +301,52 @@ def test_pass_with_output_stays_visible(capsys):
     assert "line1" not in out
     # the omission note reads after the shown content, not before it
     assert out.index("last warning") < out.index("earlier line(s) not shown")
+
+
+def test_load_config_rejects_gate_in_no_mode(tmp_path):
+    """D24: mode omission is not a parking mechanism — it silently never runs."""
+    p = _write(tmp_path, {
+        "modes": {"all": ["a"]},
+        "gates": [{"id": "a", "command": ["true"]},
+                  {"id": "ghost-gate", "command": ["true"]}],
+    })
+    with pytest.raises(gates.ConfigError) as e:
+        gates.load_config(str(p))
+    assert "ghost-gate" in str(e.value)
+    assert "enabled\": false" in str(e.value)
+
+
+def test_disabled_gate_may_omit_modes(tmp_path):
+    p = _write(tmp_path, {
+        "modes": {"all": ["a"]},
+        "gates": [{"id": "a", "command": ["true"]},
+                  {"id": "parked", "command": ["true"], "enabled": False}],
+    })
+    modes, gs, concurrency, default_mode = gates.load_config(str(p))
+    assert [g.id for g in gs] == ["a", "parked"]
+
+
+def test_gate_on_disabled_gate_fails_loud(tmp_path, capsys, monkeypatch):
+    """N4: naming a parked gate is operator error, not a silent green."""
+    monkeypatch.chdir(tmp_path)
+    _write(tmp_path, {"gates": [{"id": "a", "command": ["true"], "enabled": False}]})
+    assert gates.main(["--gate", "a"]) == 2
+    assert "disabled" in capsys.readouterr().err
+
+
+def test_every_gate_ignores_default_mode(tmp_path, capsys, monkeypatch):
+    """D24: the explicit full matrix for CI."""
+    monkeypatch.chdir(tmp_path)
+    _write(tmp_path, {
+        "modes": {"all": ["a"], "also": ["b"]},
+        "defaultMode": "all",
+        "gates": [{"id": "a", "command": ["true"]},
+                  {"id": "b", "command": ["true"]}],
+    })
+    assert gates.main(["--every-gate"]) == 0
+    out = capsys.readouterr().out
+    assert "PASS a" in out and "PASS b" in out
+    # and the default run still scopes to `all`
+    assert gates.main([]) == 0
+    out = capsys.readouterr().out
+    assert "PASS b" not in out

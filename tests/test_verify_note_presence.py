@@ -139,3 +139,13 @@ def test_auto_base_dirty_tree_uses_head(tmp_path, monkeypatch, capsys):
     (tmp_path / "app.py").write_text("uncommitted\n")  # dirty
     assert vnp.main([]) == 0
     assert "base=HEAD" in capsys.readouterr().out
+
+
+def test_zero_commit_repo_first_run_stays_green(tmp_path, monkeypatch, capsys):
+    """D13: a fresh install with zero commits must not go red (no HEAD)."""
+    import subprocess
+    monkeypatch.chdir(tmp_path)
+    subprocess.run(["git", "init", "-q", "."], cwd=tmp_path, check=True)
+    (tmp_path / "app.py").write_text("x = 1\n")  # untracked, no commits yet
+    assert vnp.main([]) == 0
+    assert "app.py" in capsys.readouterr().out

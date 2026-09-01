@@ -226,3 +226,11 @@
 - **状态**：已决
 - **决定**：① **真两步**：检测到定制文件 → 警告 + `return 1`，**本次不删任何东西**；`gov uninstall --force` 为显式同意（仍点名删除的定制文件）。无定制时单步直删不变。② **封条闭环**：新增 `gov verify-archive` 门禁——每个归档文件对封条验 sha256、封条条目对文件双向缺失检查；未封（有文件无 manifest）也是违规。`archive-notes` 重封前**先验旧封条**：漂移 → exit 1 拒绝并列名（"restore or --rebaseline"）；`--rebaseline` 为显式同意并大声打印 RE-BASELINED 了哪些。门禁以 paths 限定 `.agents/notes/archived/**` 进本仓库与注入模板（篡改即触发）。归档技能同步：程序加"封后用 verify-archive 确认"，Never 加"不许对被篡改文件重封"。
 - **被否**：① 只改文案——空头支票换成如实告示仍是单步数据丢失；两步多一次确认是 uninstall 低频操作付得起的价格。② 检测并入 verify-notes——封条是完整性不是格式，混关注点；独立门禁可被 paths 精确触发。重封无条件允许（迁移便利）——便利通道就是洗白通道，必须显式且大声。
+
+## D24 — 门禁可达性：唯一且响的停靠机制（radiant #5 审计）
+
+- **问题**：① 模板把 self-test 只放进 governance mode，而 defaultMode=all 不含它，注入的 CI 与 pre-push 钩子都裸跑 `gov run`——每个新 init 项目的治理自检从第一天起没有任何自动执行路径（radiant 实证：26 个拒绝用例从未在自动路径上跑过，人工审计才发现；补进 all 后 CI 10s→17s）。② 结构性根因：gates.json 存在两种停靠机制——`enabled: false`（响的：DISABLED 行）与 mode 省略（哑的：不执行也不报告，完全不可见）；后者从未被承认为停靠手段，模板自己却在用。这是 vacuous pass 的镜像：never runs 的 gate 连失败的资格都没有。③ N4：`--gate <被停门禁>` 静默 exit 0。
+- **选项**：模板补 self-test 即可；或同时封死哑停靠；或引入 --every-gate
+- **状态**：已决
+- **决定**：三层全做。**可达性校验（fail loud）**：modes 非空时，已启用门禁不属于任何 mode → ConfigError 点名（"park with enabled:false — the one loud mechanism"）；停靠只有一条路且必响。存量项目不受影响（governance mode 里的门禁属于"某 mode"）。**模板修复**：modes.all 加入 self-test（governance mode 保留为单跑自检的快捷方式）——部分翻案 0.3.0 的"self-test 不进项目默认运行"：模板 CI 装的是**未钉版本**的 govrail，self-test 是采用者侧的工具冒烟测试，7 秒换消费者级回归检测，且规则 1"CI owns the full matrix"自洽。**--every-gate**：无视 modes/defaultMode 跑全部已启用门禁，给"full matrix"一个显式落点。**N4**：`--gate` 点名被停门禁 → exit 2（显式请求停用物是操作错误，静默绿会掩盖它）。附带：note-presence 在零提交仓库不再因无 HEAD 而 exit 2（未跟踪清单即全部变更，守住 D13 首跑不红）。
+- **被否**：只修模板不封哑停靠——下一个配置还会悄悄长出 never-runs 门禁；允许"未引用 mode 的门禁"合法存在——可达性判据必须落在"属于某 mode"而非"属于 defaultMode"（否则 governance 快捷方式非法）；CI 跑两条命令（run && run --mode governance）——比一行模板改动静态多、语义少。
