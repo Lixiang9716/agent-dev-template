@@ -54,11 +54,15 @@ def _headings_of(text: str) -> list[str]:
 def _entries() -> list[Entry]:
     out: list[Entry] = []
     sources = 0
-    if NOTES.is_dir():
+    # Notes are the two lifecycle states (D5) — the same definition
+    # verify-notes enforces; anything else under .agents/notes/ is not a
+    # note and stays unrecalled.
+    for lifecycle in ("implemented", "archived"):
+        root = NOTES / lifecycle
+        if not root.is_dir():
+            continue
         sources += 1
-        for p in sorted(NOTES.rglob("*.md")):
-            if p.name == "README.md":
-                continue
+        for p in sorted(root.rglob("*.md")):
             text = p.read_text(encoding="utf-8")
             out.append(Entry(str(p), _title_of(text), _headings_of(text), text))
     if DECISIONS.is_file():

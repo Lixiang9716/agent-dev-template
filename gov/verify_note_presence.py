@@ -28,15 +28,22 @@ RULE = ".gov/rules.md rule 2 (every non-trivial change carries an Agent Note)"
 
 # Surfaces whose change is presumptively non-trivial. Documentation and the
 # notes themselves are excluded: docs answer to the pairing gate, and a
-# notes-only diff is the note.
+# notes-only diff is the note. Root-level presentation files (README,
+# CHANGELOG) are trivial; other root .md files (DESIGN.md, ARCHITECTURE.md)
+# are treated as behavior-bearing — in doc-driven repositories they are the
+# contract (D20).
 TRIVIAL_PREFIXES = (".agents/notes/", "docs/")
-TRIVIAL_SUFFIXES = (".md", ".i18n.yaml")
+TRIVIAL_ROOT_STEMS = ("README", "CHANGELOG", "CHANGES", "CONTRIBUTING")
+TRIVIAL_SUFFIXES = (".i18n.yaml",)
 
 
 def _is_trivially_scoped(path: str) -> bool:
     if path.startswith(TRIVIAL_PREFIXES):
         return True
-    return path.endswith(TRIVIAL_SUFFIXES) and "/" not in path
+    if "/" in path:
+        return path.endswith(TRIVIAL_SUFFIXES)
+    stem = path[: -len(".md")] if path.endswith(".md") else path
+    return stem.startswith(TRIVIAL_ROOT_STEMS)
 
 
 def _changed_files(base: str) -> tuple[list[str], str | None]:

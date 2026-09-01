@@ -32,7 +32,9 @@ single gate.
 Each gate resolves to one of five outcomes — `PASS`, `FAIL`, `TIMEOUT`,
 `MISSING` (executable absent), `SKIP` — and `allowFailure: true` keeps a
 gate's failure advisory: the outcome line and its output are reported tagged
-`advisory`, but the exit code stays 0. Exit code 0 = all green,
+`advisory`, but the exit code stays 0. A gate that passes with output keeps
+its last lines visible in a `(passed with output)` block — passing with
+something to say is never silenced (D20). Exit code 0 = all green,
 1 = a blocking failure, which ends with a summary block naming each failed
 gate, its first output line, and how to rerun it alone.
 

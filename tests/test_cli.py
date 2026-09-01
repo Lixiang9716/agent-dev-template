@@ -145,3 +145,19 @@ def test_templates_match_live_skills():
         assert shipped.read_text() == live.read_text(), (
             f"{name}: template and live skill drifted — align them"
         )
+
+
+def test_init_next_steps_match_reality(tmp_path, capsys):
+    """No paired docs → no baseline advice (the old step 2 exit-2'd)."""
+    assert cli.init(tmp_path) == 0
+    out = capsys.readouterr().out
+    assert "no paired docs detected" in out
+    assert "verify-pairing --write" not in out
+
+
+def test_init_next_steps_with_docs(tmp_path, capsys):
+    (tmp_path / "README.md").write_text("# x\n")
+    assert cli.init(tmp_path) == 0
+    out = capsys.readouterr().out
+    assert "verify-pairing --write" in out
+    assert "no paired docs detected" not in out
