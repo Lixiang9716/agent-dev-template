@@ -23,7 +23,7 @@
 
 ## 采用：gov init / uninstall
 
-`gov init` 把平面注入项目：复制 `.gov/rules.md`（规则的唯一事实源），仅在缺失时创建 `gates.json` 和笔记 README，向 AGENTS.md 追加一行引用，并把创建了什么记进 `.gov/manifest.json`。`gov uninstall` 读取该 manifest 精确反转 init——只删 init 创建的东西，绝不碰项目自己的文件。两者都幂等。
+`gov init` 把平面注入项目：复制 `.gov/rules.md`（规则的唯一事实源），仅在缺失时创建 `gates.json`、笔记 README 与 agent 技能（recall-first、pre-push-checks、code-review、archive-agent-notes）——项目自己的技能绝不被覆盖——向 AGENTS.md 追加一行引用，并把创建了什么记进 `.gov/manifest.json`。`gov uninstall` 读取该 manifest 精确反转 init——只删 init 创建的东西，绝不碰项目自己的文件。两者都幂等。
 
 执行路径是显式选装：`gov init --hooks` 装 pre-push 钩子跑门禁 DAG（外来的 pre-push 绝不覆盖——加装在任何变更之前预检、fail loud），`gov init --ci` 仅在文件不存在时生成 `.github/workflows/gov.yml` 跑 `gov run`。两者都记入 manifest，`uninstall` 精确反转。
 

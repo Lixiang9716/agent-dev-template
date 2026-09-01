@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from gov import __version__, cli
 
@@ -108,3 +109,39 @@ def test_init_template_modes_note_presence_and_governance(tmp_path):
     # self-test is the tools' own regression — not a per-project default run
     assert "self-test" not in cfg["modes"]["all"]
     assert cfg["modes"]["governance"] == ["self-test"]
+
+
+def test_init_injects_skills(tmp_path):
+    assert cli.init(tmp_path) == 0
+    for name in cli.SKILLS:
+        p = tmp_path / ".agents" / "skills" / name / "SKILL.md"
+        assert p.exists(), name
+    manifest = json.loads((tmp_path / ".gov" / "manifest.json").read_text())
+    assert ".agents/skills/recall-first/SKILL.md" in manifest["created"]
+
+
+def test_init_never_overwrites_own_skill(tmp_path):
+    own = tmp_path / ".agents" / "skills" / "code-review" / "SKILL.md"
+    own.parent.mkdir(parents=True)
+    own.write_text("my own review convention\n")
+    assert cli.init(tmp_path) == 0
+    assert own.read_text() == "my own review convention\n"
+    manifest = json.loads((tmp_path / ".gov" / "manifest.json").read_text())
+    assert ".agents/skills/code-review/SKILL.md" not in manifest["created"]
+
+
+def test_uninstall_removes_injected_skills(tmp_path):
+    cli.init(tmp_path)
+    assert cli.uninstall(tmp_path) == 0
+    assert not (tmp_path / ".agents" / "skills").exists()
+
+
+def test_templates_match_live_skills():
+    """The shipped templates and this repo's live skills are one source."""
+    root = Path(__file__).resolve().parent.parent
+    for name in cli.SKILLS:
+        shipped = root / "gov" / "templates" / "skills" / name / "SKILL.md"
+        live = root / ".agents" / "skills" / name / "SKILL.md"
+        assert shipped.read_text() == live.read_text(), (
+            f"{name}: template and live skill drifted — align them"
+        )

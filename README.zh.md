@@ -46,12 +46,12 @@ gov audit-notes                # implemented 笔记的新鲜度信号
 gov change-scope --base <ref>  # 一次 diff 的最小充分检查集
 ```
 
-`init` 非侵入且幂等：创建 `.gov/rules.md`，仅在缺失时添加 `gates.json` 和笔记 README，向 AGENTS.md 追加一行引用，绝不覆盖项目自己的文件。`uninstall` 精确反转——包括 `--hooks`/`--ci` 装的钩子与 workflow。新装首跑不红：pairing 门禁以 advisory 落地，`gov verify-pairing --write` 为存量文档建立基线后，摘除 `allowFailure` 即升级为强制。`enabled: false` 让门禁下线而不删除定义。
+`init` 非侵入且幂等：创建 `.gov/rules.md`，仅在缺失时添加 `gates.json`、笔记 README 与 agent 技能（recall-first、pre-push-checks、code-review、archive-agent-notes），向 AGENTS.md 追加一行引用，绝不覆盖项目自己的文件——包括它自己的技能。`uninstall` 精确反转——包括 `--hooks`/`--ci` 装的钩子与 workflow。新装首跑不红：pairing 门禁以 advisory 落地，`gov verify-pairing --write` 为存量文档建立基线后，摘除 `allowFailure` 即升级为强制。`enabled: false` 让门禁下线而不删除定义。
 
 ## 内部内容
 
 - `gov/` — Python 包：`gates`（`gates.json` 上的 DAG 运行器）、`verify_notes`（三段必填）、`verify_translation_pairing`（git blob 哈希）、`verify_note_presence`、`verify_rubric`、`recall`（记忆检索）、`audit_notes`（新鲜度信号）、`change_scope`、`self_test`、`archive_notes`。
-- `gov/templates/` — `gov init` 注入项目所用的规则、默认 `gates.json` 和笔记格式。
+- `gov/templates/` — `gov init` 注入项目所用的规则、默认 `gates.json`、笔记格式与 agent 技能。
 - `.gov/rules.md` — 规则的唯一事实源。
 - `.agents/notes/` — 决策记录格式与生命周期。
 - `.agents/skills/` — 让 agent 优先走到工具前的触发器：

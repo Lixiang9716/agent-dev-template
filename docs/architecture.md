@@ -68,8 +68,10 @@ gate, its first output line, and how to rerun it alone.
 ## Adoption: gov init / uninstall
 
 `gov init` injects the plane into a project: it copies `.gov/rules.md` (the
-single source of truth for the rules), creates `gates.json` and the notes README
-only when they are missing, appends one reference line to AGENTS.md, and records
+single source of truth for the rules), creates `gates.json`, the notes
+README, and the agent skills (recall-first, pre-push-checks, code-review,
+archive-agent-notes) only when they are missing — a project's own skill is
+never overwritten — appends one reference line to AGENTS.md, and records
 what it created in `.gov/manifest.json`. `gov uninstall` reads that manifest and
 reverses init exactly — removing only what init created, never the project's own
 files. Both are idempotent.
