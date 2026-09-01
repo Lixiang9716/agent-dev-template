@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/Lixiang9716/govrail/compare/v0.6.6...v0.7.0) (2026-09-01)
+
+
+### Features
+
+* the adopter wishes — local rejection cases, --json, parallel self-test, surface mapping (D25) ([#67](https://github.com/Lixiang9716/govrail/issues/67)) ([a0aada4](https://github.com/Lixiang9716/govrail/commit/a0aada4c9a6f2372eb40fc68029240045ebb8e32))
+
 ## [0.6.6](https://github.com/Lixiang9716/govrail/compare/v0.6.5...v0.6.6) (2026-09-01)
 
 
