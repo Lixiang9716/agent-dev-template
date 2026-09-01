@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/Lixiang9716/govrail/compare/v0.6.1...v0.6.2) (2026-09-01)
+
+
+### Bug Fixes
+
+* audit-notes summary tells the truth; truncation marker reads in order ([#57](https://github.com/Lixiang9716/govrail/issues/57)) ([844bb88](https://github.com/Lixiang9716/govrail/commit/844bb888b08f16a1472265782b29ac9b7a4b3ff8))
+
 ## [0.6.1](https://github.com/Lixiang9716/govrail/compare/v0.6.0...v0.6.1) (2026-09-01)
 
 
