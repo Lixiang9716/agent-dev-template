@@ -43,7 +43,11 @@ gate, its first output line, and how to rerun it alone.
   `## Decision`, `## Alternatives considered` (`## Consequences` optional).
   `gov verify-note-presence` checks the observable half of rule 2 — a diff
   that touches behavior-bearing surfaces with no note change warns (naming
-  the rule); `--strict` makes it block.
+  the rule); `--strict` makes it block. The read side of this memory:
+  `gov recall <terms>` retrieves across notes, decisions, and postmortems
+  (ranked by where the terms hit), and `gov audit-notes` reports mechanical
+  staleness signals — references the world no longer satisfies — as
+  evidence for the archive skill's judgment.
 - **Bilingual pairs** carry the external-presentation docs: a source `foo.md`,
   a counterpart translation, and a `foo.i18n.yaml` record pinning both sides
   by git blob hashes (plus the counterpart's name). Naming conventions are
