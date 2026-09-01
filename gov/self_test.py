@@ -540,6 +540,35 @@ def test_rubric_rejects_zero_items() -> None:
         )
 
 
+def test_note_presence_auto_base_catches_committed_work() -> None:
+    """F1: a clean tree with committed no-note work must not pass silently."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _git_repo(root)
+        (root / "app.py").write_text("v1\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+        subprocess.run(
+            ["git", "-c", "commit.gpgsign=false", "commit", "-qm", "one"],
+            cwd=root, check=True,
+        )
+        (root / "app.py").write_text("v2\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+        subprocess.run(
+            ["git", "-c", "commit.gpgsign=false", "commit", "-qm", "two"],
+            cwd=root, check=True,
+        )  # clean tree, committed, no upstream
+        script = str(HERE / "verify_note_presence.py")
+        warn = subprocess.run(
+            [sys.executable, script], cwd=root, capture_output=True, text=True
+        )
+        assert warn.returncode == 0, warn.stderr
+        assert "app.py" in warn.stdout, "the pushed work must be reviewed, not an empty diff"
+        strict = subprocess.run(
+            [sys.executable, script, "--strict"], cwd=root, capture_output=True, text=True
+        )
+        assert strict.returncode == 1, "--strict must catch the committed no-note change"
+
+
 def test_passing_gate_output_stays_visible() -> None:
     """A pass that printed a warning must not be silenced (P1-2)."""
     with tempfile.TemporaryDirectory() as td:
@@ -586,6 +615,7 @@ CASES = [
     test_verify_notes_rejects_unknown_lifecycle,
     test_rubric_rejects_zero_items,
     test_passing_gate_output_stays_visible,
+    test_note_presence_auto_base_catches_committed_work,
 ]
 
 

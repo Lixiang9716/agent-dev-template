@@ -39,6 +39,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:  # package context (`gov ...`)
+    from .root import anchor_to_git_root
+except ImportError:  # direct script execution (self-test runs files by path)
+    from root import anchor_to_git_root
+
 CONFIG_PATH = Path(".gov/pairing.json")
 STEM = "{stem}"
 DEFAULT_CONFIG: dict[str, list[str]] = {
@@ -272,31 +277,44 @@ def _write(items: list[str], cfg: dict[str, list[str]]) -> int:
         sources = sorted({_resolve_source(a, cfg) for a in items})
     else:
         sources = _sources(cfg)
+    wrote = 0
+    unpairable = 0
     for src in sources:
         if not src.exists():
             print(f"verify_translation_pairing: no such pair source: {src}", file=sys.stderr)
-            return 2
+            return 2  # a named path that does not exist is a typo, not a pair state
         zh = _counterpart(src, cfg)
+        problem = None
         if zh is None:
-            print(
-                f"verify_translation_pairing: no counterpart for {src} "
-                f"(conventions: {_convention_hint(cfg)}) — translate it, or register "
-                f"explicitly: --write en:{src} zh:<path>",
-                file=sys.stderr,
+            problem = (
+                f"no counterpart for {src} (conventions: {_convention_hint(cfg)}) — "
+                f"translate it, or register explicitly: --write en:{src} zh:<path>"
             )
-            return 2
-        if not zh.exists():
-            print(
-                f"verify_translation_pairing: recorded counterpart '{zh.name}' for {src} "
-                "is missing — re-register: --write en:" + str(src) + " zh:<path>",
-                file=sys.stderr,
+        elif not zh.exists():
+            problem = (
+                f"recorded counterpart '{zh.name}' for {src} is missing — "
+                "re-register: --write en:" + str(src) + " zh:<path>"
             )
-            return 2
+        if problem is not None:
+            # One unpaired file must not block the baseline of the rest
+            # (F3): record what can be recorded, report what cannot.
+            print(f"verify_translation_pairing: {problem}", file=sys.stderr)
+            unpairable += 1
+            continue
         print(f"wrote {_register(src, zh)}")
+        wrote += 1
+    if unpairable:
+        print(
+            f"verify_translation_pairing: wrote {wrote}, left {unpairable} "
+            "unpairable (see above)",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
+    anchor_to_git_root("verify_translation_pairing")
     parser = argparse.ArgumentParser(
         prog="gov verify-pairing", description="Verify bilingual pairing."
     )

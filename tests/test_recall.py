@@ -72,3 +72,16 @@ def test_recall_archived_notes_searchable(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     assert recall.main(["old way"]) == 0
     assert "archived/process/2026-01-01-old.md" in capsys.readouterr().out
+
+
+def test_implemented_outranks_archived_at_equal_rank(tmp_path, monkeypatch, capsys):
+    """F4: current authority lists before frozen evidence."""
+    monkeypatch.chdir(tmp_path)
+    for rel in ("implemented/architecture", "archived/architecture"):
+        d = tmp_path / ".agents" / "notes" / rel
+        d.mkdir(parents=True)
+        (d / "2026-01-01-pairing.md").write_text(
+            "# Agent Note: pairing\n\n## Problem\nx\n")
+    assert recall.main(["pairing"]) == 0
+    lines = [l for l in capsys.readouterr().out.splitlines() if "2026-01-01-pairing.md" in l]
+    assert lines[0].startswith(".agents/notes/implemented/")

@@ -10,11 +10,13 @@ naming the rule, so the warning is a prompt rather than a verdict.
 
 By default a violation is a warning (exit 0, D3: warn, never block);
 ``--strict`` turns it into a blocking failure (exit 1) for teams that have
-earned it. The default base is ``HEAD`` — the working tree and index, the
-natural unit of a local pre-push check, and a ref that exists from a
-repository's first commit (CI passes an explicit ``--base origin/main`` or
-similar). Unrunnable prerequisites (git failure, bad ref) exit 2 — fail
-loud, never silently pass.
+earned it. The default base is ``auto`` (F1/D21): a dirty worktree reviews
+the working tree (``HEAD``); a clean one reviews the commits ahead of the
+upstream, else the last commit, else everything — so the shipped runners
+(pre-push hook, CI) see the pushed work instead of an empty diff. Pin with
+an explicit ``--base`` when you want a specific range. Unrunnable
+prerequisites (git failure, bad ref) exit 2 — fail loud, never silently
+pass.
 """
 from __future__ import annotations
 
@@ -60,23 +62,53 @@ def _changed_files(base: str) -> tuple[list[str], str | None]:
     return sorted(files), None
 
 
+def _run_git(args: list[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], capture_output=True, text=True)
+
+
+def _resolve_auto_base() -> tuple[str, str]:
+    """Pick the base that answers 'what does THIS change carry a note for?'.
+
+    The cascade (F1: the shipped runners — pre-push hook and CI — see a
+    clean tree, where a fixed HEAD base diffs nothing):
+    1. dirty worktree      -> HEAD          (review the working tree)
+    2. clean + upstream    -> up...HEAD     (review the unpushed commits)
+    3. clean, no upstream  -> HEAD~1        (review the last commit)
+    4. single commit       -> the empty tree (everything is the change)
+    """
+    status = _run_git(["status", "--porcelain"])
+    if status.returncode == 0 and status.stdout.strip():
+        return "HEAD", "dirty worktree — reviewing the working tree"
+    up = _run_git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"])
+    if up.returncode == 0 and up.stdout.strip():
+        return f"{up.stdout.strip()}...HEAD", "clean tree — reviewing commits ahead of upstream"
+    if _run_git(["rev-parse", "--verify", "--quiet", "HEAD~1"]).returncode == 0:
+        return "HEAD~1", "clean tree, no upstream — reviewing the last commit"
+    tree = _run_git(["hash-object", "-t", "tree", "/dev/null"])
+    return tree.stdout.strip(), "clean tree, single commit — reviewing everything"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="gov verify-note-presence",
         description="Warn when a non-trivial diff carries no Agent Note.",
     )
-    parser.add_argument("--base", default="HEAD",
-                        help="git ref to diff against (default: HEAD — the "
-                             "working tree; CI passes an explicit ref)")
+    parser.add_argument("--base", default="auto",
+                        help="git base to diff against (default: auto — dirty "
+                             "tree: HEAD; clean: upstream..HEAD, else HEAD~1, "
+                             "else everything; pass an explicit ref to pin)")
     parser.add_argument("--strict", action="store_true",
                         help="a violation blocks (exit 1) instead of warning")
     args = parser.parse_args(argv)
 
-    files, err = _changed_files(args.base)
+    base, why = (args.base, "") if args.base != "auto" else _resolve_auto_base()
+    files, err = _changed_files(base)
     if err is not None:
-        print(f"verify_note_presence: cannot diff against {args.base!r}: {err}",
+        print(f"verify_note_presence: cannot diff against {base!r}: {err}",
               file=sys.stderr)
         return 2
+    print(f"verify_note_presence: base={base}"
+          + (f" ({why})" if why else ""))
 
     non_trivial = [f for f in files if not _is_trivially_scoped(f)]
     notes = [f for f in files if f.startswith(NOTES_DIR)]

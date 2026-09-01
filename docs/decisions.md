@@ -201,3 +201,12 @@
 - **状态**：已决
 - **决定**：① archive-notes：写前 `mkdir(parents=True)`、零笔记报 "nothing to seal"（不写空 seal）、argparse 强制（未知参数 exit 2）、非 governed 目录 exit 2。② runner（**修订 D2 的"通过静默"**）：exit 0 且有输出的门禁，PASS 结局与退出码不变，输出末尾 ≤3 行以 `(passed with output)` 块展示——"通过且无输出才静默，绿灯不吞警告"。③ verify-rubric：0 条目 = vacuous pass，拒绝。④ verify-notes：三段行级匹配且按承诺顺序强制（乱序报错）；`implemented/<class>/<file>.md` 双段路径强制、class 限 D5 封闭集；`.agents/notes/` 下未知生命周期目录 fail loud。⑤ recall 同步只检索 implemented/ + archived/——笔记的定义在两工具间唯一。⑥ verify-note-presence：根级展示文档（README*/CHANGELOG*/CHANGES*/CONTRIBUTING*）仍 trivial，**其余根级 .md（DESIGN.md、ARCHITECTURE.md 等）视为行为面**；docs/ 子树仍 trivial（配对门禁的领地）。⑦ init next-steps 做**只读存在性探测**（README.md / docs/*.md）选择指引文案——不是 D13 否决的自动 baseline：不评判、不写入，只挑建议。⑧ audit-notes：decisions.md 存在但解析出 0 条 `## Dn —` → stderr 警告格式不符、D-ref 置为 unchecked，不再全量误报。
 - **被否**：WARN 第六结局——改 D2 锁定的五结局契约，展示输出尾部已达到目的；根级 .md 全部判非平凡——README/CHANGELOG 纯展示改动会刷屏警告，advisory 也怕"狼来了"；生命周期目录可配置——D5 已锁定最小集，事件未到。
+
+## D21 — 执行器诚实轮：auto base、根锚定、部分 baseline、排序
+
+- **问题**：① note-presence 默认 `--base HEAD`（工作树），但两个 shipped 执行器看到的都是**干净树**——push 钩子在工作树干净后运行、CI checkout 后工作树干净 → diff 恒空 → 门禁在真正的执行点上结构性失明（实测：无笔记提交推送，钩子全绿放行）。② 子目录调用时 verify-notes/verify-pairing 报 "0 notes ok / 0 pairs ok" 静默空过（路径 cwd 相对），而 recall/audit/archive/run 都会 fail loud——同一"受治理根"判断五命令两套标准。③ 裸 `--write` 遇到一个未配对文件即整体拒绝，好配对的基线也写不成。④ recall 同分排序按路径字母序，archived/ 恰在 implemented/ 前——当前权威排在冻结证据后面。
+- **选项**：① 钩子从 stdin ref 区间算 base + CI 显式传 ref；或工具端 auto base 级联。② 各工具自加根校验；或共享 git 根锚定。③ 维持全有或全无；或部分成功。④ 忽略；或排序加生命周期优先级
+- **倾向**：工具端统一解决
+- **状态**：已决
+- **决定**：① note-presence 默认 base 改为 **auto 级联**：脏树→HEAD（审查工作树）；干净→`upstream...HEAD`（审查未推送提交）；无 upstream→HEAD~1；单提交→空树（一切都是变更）。所选 base 及理由打印在输出首行。CI 模板与本仓库 ci.yml 加 `fetch-depth: 0`（浅克隆会让级联跌到"全仓库"）。钩子保持 `exec gov run`——auto 使其天然正确。显式 `--base` 永远可钉死。② 新增 `gov/root.py::anchor_to_git_root`：在 git 工作树内即 chdir 到根并**在 stderr 宣告**，五个笔记/配对工具（verify-notes、verify-pairing、recall、audit-notes、archive-notes）统一接入；非 git 目录保持原样（缺失标记自然 fail loud）。③ 裸 `--write`（含点名形式）改**部分成功**：能记的记、不能记的逐条报、末行 `wrote N, left M unpairable`、exit 1（点名不存在的路径仍是 exit 2——那是笔误不是配对状态）。④ recall 排序键加生命周期优先级：同分时 implemented/ 先于 archived/，再按路径。
+- **被否**：① 钩子解析 stdin ref 区间——每个执行器各自算 base 必然再漂移；级联一次做对，钩子保持零逻辑。② 各工具自加校验——五份实现两套标准正是本缺陷的成因。③ 维持全有或全无——一个坏文件挟持所有好配对，正是"整体拒绝"在 F3 里的形态。

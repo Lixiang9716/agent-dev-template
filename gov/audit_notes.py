@@ -24,6 +24,11 @@ import re
 import sys
 from pathlib import Path
 
+try:  # package context (`gov ...`)
+    from .root import anchor_to_git_root
+except ImportError:  # direct script execution (self-test runs files by path)
+    from root import anchor_to_git_root
+
 IMPLEMENTED = Path(".agents/notes/implemented")
 DECISIONS = Path("docs/decisions.md")
 GOV_CMD_RX = re.compile(r"`gov ([a-z][a-z0-9-]*)`")
@@ -88,6 +93,7 @@ def _flags_note(text: str, commands: set[str] | None,
 
 
 def main(argv: list[str] | None = None) -> int:
+    anchor_to_git_root("audit_notes")
     parser = argparse.ArgumentParser(
         prog="gov audit-notes",
         description="Report mechanical staleness signals in implemented notes.",

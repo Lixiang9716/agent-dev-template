@@ -45,7 +45,11 @@ gate, its first output line, and how to rerun it alone.
   `## Decision`, `## Alternatives considered` (`## Consequences` optional).
   `gov verify-note-presence` checks the observable half of rule 2 — a diff
   that touches behavior-bearing surfaces with no note change warns (naming
-  the rule); `--strict` makes it block. The read side of this memory:
+  the rule); `--strict` makes it block. Its base is auto: a dirty worktree
+  reviews the working tree, a clean one reviews the commits ahead of
+  upstream (else the last commit) — so the pre-push hook and CI, which
+  always see clean trees, review the pushed work instead of an empty diff.
+  The read side of this memory:
   `gov recall <terms>` retrieves across notes, decisions, and postmortems
   (ranked by where the terms hit), and `gov audit-notes` reports mechanical
   staleness signals — references the world no longer satisfies — as

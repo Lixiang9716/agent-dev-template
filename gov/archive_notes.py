@@ -14,11 +14,17 @@ import json
 import sys
 from pathlib import Path
 
+try:  # package context (`gov ...`)
+    from .root import anchor_to_git_root
+except ImportError:  # direct script execution (self-test runs files by path)
+    from root import anchor_to_git_root
+
 NOTES_ROOT = Path(".agents/notes")
 ARCHIVED = NOTES_ROOT / "archived"
 
 
 def main(argv: list[str] | None = None) -> int:
+    anchor_to_git_root("archive_notes")
     parser = argparse.ArgumentParser(
         prog="gov archive-notes",
         description="Seal the archived-notes manifest (recompute every sha256).",
