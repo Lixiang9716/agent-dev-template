@@ -46,3 +46,15 @@ def test_non_executable_hook_is_a_problem(tmp_path, monkeypatch, capsys):
     (hooks / "pre-push").write_text("#!/bin/sh\n")  # no +x
     assert doctor.main([]) == 1
     assert "not executable" in capsys.readouterr().out
+
+
+def test_missing_gate_command_is_a_problem(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "gates.json").write_text(json.dumps(
+        {"modes": {"all": ["x", "y"]},
+         "gates": [{"id": "x", "command": ["no-such-bin-xyz"]},
+                   {"id": "y", "command": ["true"]}]}))
+    assert doctor.main([]) == 1
+    out = capsys.readouterr().out
+    assert "gate 'x': command 'no-such-bin-xyz' not found on PATH" in out
+    assert "ok: gate 'y' command resolves" in out

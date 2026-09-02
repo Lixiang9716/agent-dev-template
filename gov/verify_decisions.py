@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from datetime import date, datetime
 from pathlib import Path
 
 try:  # package context (`gov ...`)
@@ -107,15 +108,33 @@ def main(argv: list[str] | None = None) -> int:
 
     orphans = sorted(set(ids) - _note_refs(), key=lambda d: int(d[1:]))
 
+    # Wish 3/D30: decisions may declare a half-life ("review-by: 2026-09-01")
+    # — a passed date is a prompt to re-read, reported like orphans.
+    overdue: list[str] = []
+    for d, body in sections:
+        m = re.search(r"(?m)^-\s*\*\*review-by\*\*:?\s*(\S+)", body)
+        if not m:
+            continue
+        try:
+            due = date.fromisoformat(m.group(1))
+        except ValueError:
+            violations.append(f"{d}: unparseable review-by date {m.group(1)!r}")
+            continue
+        if due < date.today():
+            overdue.append(f"{d} (review-by {m.group(1)})")
+
     for v in violations:
         print(v)
     if orphans:
         print(f"note: referenced by no note: {', '.join(orphans)} (informational)")
+    if overdue:
+        print(f"note: review due — context may have drifted: {', '.join(overdue)}")
     if violations:
         print(f"verify_decisions: {len(violations)} violation(s) in {len(sections)} decision(s)")
         return 1
     print(f"verify_decisions: {len(sections)} decision(s) ok"
-          + (f", {len(orphans)} orphan(s)" if orphans else ""))
+          + (f", {len(orphans)} orphan(s)" if orphans else "")
+          + (f", {len(overdue)} review-due" if overdue else ""))
     return 0
 
 

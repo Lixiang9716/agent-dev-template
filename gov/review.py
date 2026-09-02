@@ -64,6 +64,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="git ref to diff against (default: HEAD — the working tree)")
     parser.add_argument("--hits", type=int, default=5,
                         help="recall hits to include (default: 5)")
+    parser.add_argument("--grade", action="store_true",
+                        help="grade the rubric items interactively after the "
+                             "dossier; emits the code-review verdict block")
     args = parser.parse_args(argv)
 
     files, err = cs._changed(args.base)
@@ -125,6 +128,7 @@ def main(argv: list[str] | None = None) -> int:
         for rank, source, where in scored[: args.hits]:
             print(f"  {source} — matched in {where}")
 
+    items = []
     if RUBRIC.is_file():
         print("## 4. rubric")
         text = RUBRIC.read_text(encoding="utf-8")
@@ -166,6 +170,65 @@ def main(argv: list[str] | None = None) -> int:
         print("  (no review rubric — reviewing without one)")
 
     print(f"review: dossier for {len(files)} file(s) vs {args.base}")
+
+    if args.grade:
+        if not items:
+            print("review: --grade needs a rubric to grade against",
+                  file=sys.stderr)
+            return 2
+        return _grade(items)
+    return 0
+
+
+def _grade(items: list[str]) -> int:
+    """Wish 1/D30: the human decides, the machine transcribes.
+
+    Prompts per rubric item (p/f/s/q), then emits the code-review skill's
+    output contract: one line per graded item (Rn — verdict — evidence),
+    the blocker list, and the explicit final verdict.
+    """
+    verdicts: list[tuple[str, str, str]] = []  # (Rn, verdict, evidence)
+    print()
+    print("grade the items the diff touches — [p]ass, [f]ail, [s]kip, [q]uit")
+    for heading in items:
+        rid, title = heading.split(" — ", 1)
+        try:
+            answer = input(f"{rid} — {title} [p/f/s/q]: ").strip().lower()
+        except EOFError:
+            print("review: grade aborted (input ended)")
+            return 1
+        if answer in ("q", "quit"):
+            print("review: grade quit")
+            return 1
+        if answer in ("s", "skip", ""):
+            continue
+        if answer in ("f", "fail"):
+            try:
+                evidence = input(f"    evidence (file:line or text): ").strip()
+            except EOFError:
+                evidence = "(no evidence given)"
+            if not evidence:
+                evidence = "(no evidence given)"
+            verdicts.append((rid, "fail", evidence))
+        elif answer in ("p", "pass"):
+            verdicts.append((rid, "pass", ""))
+        else:
+            print(f"    (unrecognized '{answer}' — item skipped)")
+    print()
+    print("--- review verdict ---")
+    blockers = []
+    for rid, verdict, evidence in verdicts:
+        line = f"{rid} — {verdict}" + (f" — {evidence}" if evidence else "")
+        print(line)
+        if verdict == "fail":
+            blockers.append(f"{rid}: {evidence}")
+    if blockers:
+        print("blockers:")
+        for b in blockers:
+            print(f"  {b}")
+        print(f"verdict: request changes ({len(blockers)} blocker(s))")
+        return 1
+    print("verdict: approve")
     return 0
 
 

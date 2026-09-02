@@ -271,3 +271,10 @@
 - **状态**：已决
 - **决定**：① **`gov init --adopt [file…|all]`**：只落地本地缺失的模板文件（绝不覆盖已有；钩子模板落 .gov/hooks 并 chmod +x），记入 manifest；升级报告的 MISSING 行改标 `adoptable: gov init --adopt <rel>`；修改类 diff 维持 D23 两步。② **`gov doctor`**（规则 5 风格，问题点名、exit 1）：gov 可达性、Python ≥3.9、两份 pre-push 可执行性、gates.json 严格 schema、decisions 表可解析。钩子模板解析链改为 **GOV_BIN → PATH 上的 gov → python3 -m gov**（pipx 隔离环境仍走 PATH）。③ **`gov note new --class <c> --ref <D> "标题"`**：合法路径脚手架（class 对照封闭集、D 引用对照 decisions 表，写之前就拒）；**`gov note check`**：格式+路径+悬空 D 引用，轻量到可挂 pre-commit。④ review 第 4 段为每个量规条目附**证据候选**：Checks 字段中的反引号锚点在变更文件里内联匹配（±4 行摘录、每条目至多 2 处），明示"是待核对的线索不是结论"。⑤ **load_config 严格键**：顶层与 gate 级未知键即 ConfigError 点名（`enable` 退场）。⑥ **记录默认开启**（本地文件、已 gitignore、append-only——翻转 D28 的 opt-in 子项），`--no-record` 退出；trend 区分"从未记录"与"历史存在但不足两轮"。
 - **被否**：① adopt 顺带修改类文件——那是两步哲学的领地；② doctor 自动修——点名不代修，修复动作必须过人手；③ note new 自动填充内容——骨架+预校验止步，代写决策即代撒谎；⑤ 未知键警告不阻断——静默跳过的温和变体仍是静默跳过；⑥ 维持 opt-in——"本地遥测默认关"换来的只是没人打开它。
+
+## D30 — 愿望轮 IV：评审工作台、配对往返、决策半衰期、覆盖账本、试跑、单门趋势
+
+- **问题**：① 证据预取解决了"找证据"，裁决仍要人工誊写成 skill 契约格式。② 配对修复三步往返（变红→回想命令→全量 --write），且漂移时看不出谁先动的。③ 决策无半衰期——"D3 的上下文可能过期了"无人提示。④ 规则 6 的覆盖无人记账——13 个门禁是否都有拒绝用例纯靠自觉（evalkit-tests 差点漏掉）。⑤ gates.json 改错命令要等下次普通改动才爆（MISSING 才现形）。⑥ trend 缺单门视图与基准切分；upgrade 报告机器不可读。
+- **状态**：已决
+- **决定**：① **`gov review --grade`**：档案后逐条交互收 `Rn [p/f/s/q]`（f 追问 evidence），末尾生成 skill 输出契约的裁决块（逐条行 + blockers + 显式 verdict；fail → exit 1）。**人裁决、机器誊写**。② 配对：out-of-sync 报错**内联修复命令** `gov verify-pairing --write <stem>`（--write 本就支持点名对）；sidecar 增 `last_confirmed`（ISO 时刻）与 `en_commit`/`zh_commit`（双侧最后修改提交），漂移报错带"哪侧在哪个提交动的、何时确认的"。③ 决策可选 **`review-by:`** 字段（ISO 日期）：过期 → 提示行（信息性，同孤儿）；不可解析日期 → 违规。④ self-test 末尾输出**覆盖账本**：项目用例以 `# gate: <id>` 声明归属（首五行内，shebang 保持首行），报告 `gate(n)` 矩阵，无用例门禁点名 "NONE — rule 6"，幽灵 gate 名也点名；信息性不失败；坏 shebang 用例被点名而非炸穿。⑤ doctor 对每个 gate 命令做**可执行解析检查**（which 失败 → problem，把"配置能跑"与"配置是对的"分开）。⑥ trend **`--gate <id>`** 单门过滤 + **`--base <ref>`** 以该提交时间切早晚窗（变更前后对比）；`init --upgrade --json` 输出恰一个 JSON 值（status: matches/differs/missing/absent-add-on + adoptable）。
+- **被否**：① --grade 自动打分——裁决主体必须是人/评审 agent，机器只管格式；② 过期 review-by 算违规——过期是"该重读"不是"错了"，与孤儿同级；④ 覆盖缺口算失败——覆盖率爬坡期会逼人删门禁而不是补用例。

@@ -68,3 +68,19 @@ def test_orphans_informational_not_blocking(tmp_path, monkeypatch, capsys):
 def test_no_table_is_not_an_error(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert vd.main([]) == 0
+
+
+def test_review_by_overdue_and_future(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "decisions.md").write_text(_table(
+        _d(1, body="- **选项**：x\n- **review-by**: 2020-01-01\n"),
+        _d(2, body="- **选项**：x\n- **review-by**: 2099-01-01\n"),
+        _d(3, body="- **选项**：x\n- **review-by**: not-a-date\n"),
+    ))
+    assert vd.main([]) == 1  # the unparseable date is a real violation
+    out = capsys.readouterr().out
+    assert "D3: unparseable review-by date 'not-a-date'" in out
+    assert "review due — context may have drifted: D1 (review-by 2020-01-01)" in out
+    assert "D2 (review-by" not in out  # future date stays silent

@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -801,11 +802,46 @@ def _run_project_case(p: Path) -> tuple[str, bool]:
         )
     except subprocess.TimeoutExpired:
         return f"FAIL {p} (timed out after {REJECTION_TIMEOUT_S}s)", False
+    except OSError as e:
+        return f"FAIL {p} (cannot execute — missing shebang? {e.strerror})", False
     if proc.returncode == 0:
         return f"PASS {p}", True
     tail = ((proc.stdout or "") + (proc.stderr or "")).strip().splitlines()
     why = f": {tail[0]}" if tail else ""
     return f"FAIL {p} (exit {proc.returncode}{why})", False
+
+
+GATE_RX = re.compile(r"(?m)^#\s*gate:\s*([a-z][a-z0-9-]*)")
+
+
+def _coverage_report() -> None:
+    """Wish 4/D30: rule 6's ledger — which gates have rejection cases.
+
+    A project case declares the gate it proves with a '# gate: <id>'
+    comment in its first lines. Gates without any case are named; this is
+    a reminder, not a failure (coverage ramps up).
+    """
+    import json as _json
+
+    try:
+        with open("gates.json", encoding="utf-8") as f:
+            gate_ids = [g.get("id") for g in _json.load(f).get("gates", [])
+                        if isinstance(g, dict) and g.get("id")]
+    except (OSError, _json.JSONDecodeError):
+        return  # no gates.json here (e.g. the tools' own scratch repos)
+    covered: dict[str, int] = {}
+    for p in _project_cases():
+        for gid in GATE_RX.findall("\n".join(
+                p.read_text(encoding="utf-8", errors="replace").splitlines()[:5])):
+            covered[gid] = covered.get(gid, 0) + 1
+    lines = []
+    for gid in gate_ids:
+        n = covered.get(gid, 0)
+        lines.append(f"{gid}({n})" if n else f"{gid}(NONE — rule 6)")
+    stray = [g for g in covered if g not in gate_ids]
+    print(f"coverage (gate x project rejection cases): {' '.join(lines)}")
+    if stray:
+        print(f"note: case names unknown gate(s): {', '.join(stray)}")
 
 
 def _run_tool_case(case) -> tuple[str, bool]:
@@ -843,6 +879,7 @@ def main(argv: list[str] | None = None) -> int:
     failures = [line for line, ok in results if not ok]
     for line, ok in results:
         print(line)
+    _coverage_report()
     tools_n, project_n = len(tool_jobs), len(project_jobs)
     parts = [f"tools {tools_n}" if tools_n else "", f"project {project_n}" if project_n else ""]
     family = " + ".join(p for p in parts if p)
