@@ -1,21 +1,24 @@
 # Agent Note: add request retry with exponential backoff
 
 Status: implemented
+Related: D1
 
 ## Problem
 
-Upstream API calls failed transiently under load, and every caller had to hand
-roll its own retry, duplicating backoff and jitter logic across the codebase.
+Transient upstream failures aborted runs; operators retried by hand and
+lost the context of what had already succeeded.
 
 ## Decision
 
-Add one shared `retry()` helper with exponential backoff and full jitter.
-Callers opt in with a single decorator, and the helper owns the delay and the
-max-attempts policy.
+Outbound calls retry with exponential backoff — 3 attempts, jittered —
+before surfacing the failure.
 
 ## Alternatives considered
 
-- **Fixed-delay retry** — simpler, but causes a thundering herd on recovery,
-  so it was rejected.
-- **Retry inside each caller** — no shared contract, so backoff drifted across
-  call sites; rejected.
+No retry (rejected: the upstream is documented-flaky); a circuit breaker
+(rejected: out of proportion for a single dependency).
+
+## Consequences
+
+Runs survive transient blips at the cost of up to ~3x latency on a
+hard failure.

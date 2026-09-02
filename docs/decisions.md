@@ -278,3 +278,10 @@
 - **状态**：已决
 - **决定**：① **`gov review --grade`**：档案后逐条交互收 `Rn [p/f/s/q]`（f 追问 evidence），末尾生成 skill 输出契约的裁决块（逐条行 + blockers + 显式 verdict；fail → exit 1）。**人裁决、机器誊写**。② 配对：out-of-sync 报错**内联修复命令** `gov verify-pairing --write <stem>`（--write 本就支持点名对）；sidecar 增 `last_confirmed`（ISO 时刻）与 `en_commit`/`zh_commit`（双侧最后修改提交），漂移报错带"哪侧在哪个提交动的、何时确认的"。③ 决策可选 **`review-by:`** 字段（ISO 日期）：过期 → 提示行（信息性，同孤儿）；不可解析日期 → 违规。④ self-test 末尾输出**覆盖账本**：项目用例以 `# gate: <id>` 声明归属（首五行内，shebang 保持首行），报告 `gate(n)` 矩阵，无用例门禁点名 "NONE — rule 6"，幽灵 gate 名也点名；信息性不失败；坏 shebang 用例被点名而非炸穿。⑤ doctor 对每个 gate 命令做**可执行解析检查**（which 失败 → problem，把"配置能跑"与"配置是对的"分开）。⑥ trend **`--gate <id>`** 单门过滤 + **`--base <ref>`** 以该提交时间切早晚窗（变更前后对比）；`init --upgrade --json` 输出恰一个 JSON 值（status: matches/differs/missing/absent-add-on + adoptable）。
 - **被否**：① --grade 自动打分——裁决主体必须是人/评审 agent，机器只管格式；② 过期 review-by 算违规——过期是"该重读"不是"错了"，与孤儿同级；④ 覆盖缺口算失败——覆盖率爬坡期会逼人删门禁而不是补用例。
+
+## D31 — 果用性轮：样例、食谱、whatsnew、报告内指路
+
+- **问题**：能力不是瓶颈，可发现性是——实证：至少三个已发布功能被当作新愿望重新提出（--json 的 duration_ms、--write 点名对、note new 无表提示）。更新后采用者的全部信息是 CHANGELOG 一行 + README 一行；demo-project 只演示平面约三成（无 rejections/surfaces/rubric/decisions）；无任务导向文档；报告有答案但部分缺"下一步"。
+- **状态**：已决
+- **决定**：四件全做。① **活样例**：demo-project 扩为全功能标本（rubric 双语对、带 review-by 的决策表、`# gate:` 声明的拒绝用例、surfaces.json、带 Related: D 的笔记、gates.json 含 rubric/decisions/source-limits 门），采用者可 `diff -r` 对表。② **食谱**（`docs/cookbook.md` 双语对）：任务导向（"pairing 变红了""加门禁闭环""读 mover""长会话降噪"），收纳本 session 真实撞墙场景，每篇 症状→命令→预期输出。③ **`gov whatsnew [--since]`**：随包分发策划版 `gov/HIGHLIGHTS.md`（用法导向，按 minor 版组织，非 commit 流水），默认 since=manifest 的 init 版本；`init --upgrade` 检测到包新于 manifest 时提示该命令——更新与发现之间的桥。④ **报告内指路铺满**：覆盖账本 NONE 行附用例文件格式；trend mover 附解读句（"是要调查的问题，不是结论"）。
+- **被否**：whatsnew 直接读 CHANGELOG——commit 流水不是用法说明，策划版要维护但每一行都在回答"怎么用"；食谱进包分发——repo 文档足够，包保持轻；样例进 CI 跑全绿——样例住在我们仓库内会被根锚定到主仓库，独立验证留给采用者的拷贝。

@@ -137,7 +137,10 @@ def main(argv: list[str] | None = None) -> int:
         print(m)
     for s in stable:
         print(s)
-    if not movers:
+    if movers:
+        print("  (a mover compares window halves — it is a question to "
+              "investigate, not a verdict; --gate <id> focuses one gate)")
+    else:
         print("  no duration movers in this window")
     return 0
 

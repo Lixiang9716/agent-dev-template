@@ -24,7 +24,8 @@ external-presentation docs in sync.
 | "Why did we do this?" is lost or re-litigated | Each decision is a note with the alternatives it beat |
 | Adopting tooling means a restructure or a new runtime | One command, zero restructure: `gov init` |
 
-See a governed project in [examples/demo-project](examples/demo-project).
+See a governed project in [examples/demo-project](examples/demo-project) — a living specimen exercising every feature (rubric, rejection cases,
+surfaces, decisions). Task-oriented recipes: [docs/cookbook.md](docs/cookbook.md).
 
 ## Install
 

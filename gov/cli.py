@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from . import archive_notes, audit_notes, change_scope, gates, recall, review
-from . import doctor, note, self_test, trend
+from . import doctor, note, self_test, trend, whatsnew
 from . import verify_archive, verify_decisions, verify_note_presence
 from . import verify_notes, verify_rubric
 from . import verify_translation_pairing
@@ -326,6 +326,9 @@ def _upgrade_report(project: Path, manifest_path: Path,
         return 0
     print(f"init: upgrade report for {project} — nothing is changed by this report")
     print(f"  initialized with govrail {init_version} · this package {__version__}")
+    if init_version != "unknown" and init_version != __version__:
+        print(f"  newer releases exist — gov whatsnew --since {init_version} "
+              "shows what arrived and how to use it")
     for rel in current:
         print(f"  {rel:<40} matches the shipped template")
     for rel in missing:
@@ -518,6 +521,7 @@ _COMMANDS = {
     "trend": "gate duration trends from .gov/history/ (p50 per window)",
     "doctor": "environment self-check (PATH, python, hooks, gates schema)",
     "note": "note scaffold and pre-commit check (new/check)",
+    "whatsnew": "usage-oriented highlights since a version",
     "recall": "retrieve notes, decisions, and postmortems (all terms, ranked)",
     "audit-notes": "report mechanical staleness signals in implemented notes",
     "change-scope": "report touched surfaces (e.g. --base <ref>)",
@@ -637,6 +641,8 @@ def main(argv: list[str] | None = None) -> int:
         return doctor.main(rest)
     if cmd == "note":
         return note.main(rest)
+    if cmd == "whatsnew":
+        return whatsnew.main(rest)
     if cmd == "recall":
         return recall.main(rest)
     if cmd == "audit-notes":

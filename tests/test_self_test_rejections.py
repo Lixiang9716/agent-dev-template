@@ -100,3 +100,15 @@ def test_coverage_ledger_and_bad_shebang(tmp_path, monkeypatch, capsys):
     assert "missing shebang" in out
     assert "alpha(1)" in out and "beta(NONE — rule 6)" in out
     assert "case names unknown gate(s): ghost" in out
+
+
+def test_coverage_pointer_when_uncovered(tmp_path, monkeypatch, capsys):
+    import json as _json
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".gov").mkdir()
+    (tmp_path / "gates.json").write_text(_json.dumps(
+        {"modes": {"all": ["x"]}, "gates": [{"id": "x", "command": ["true"]}]}))
+    assert st.main(["--scope", "project"]) == 0  # no cases at all
+    out = capsys.readouterr().out
+    assert "x(NONE — rule 6)" in out
+    assert "write one: .gov/rejections/case-<gate-id>.sh" in out
