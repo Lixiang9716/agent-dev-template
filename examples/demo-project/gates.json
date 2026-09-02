@@ -5,7 +5,9 @@
       "notes",
       "pairing",
       "note-presence",
-      "archive"
+      "archive",
+      "rubric",
+      "decisions"
     ],
     "quick": [
       "notes"
@@ -56,6 +58,42 @@
       "command": [
         "gov",
         "verify-note-presence"
+      ]
+    },
+    {
+      "id": "rubric",
+      "label": "review rubric structure",
+      "command": [
+        "gov",
+        "verify-rubric"
+      ],
+      "paths": [
+        "docs/review-rubric.md",
+        "docs/review-rubric.zh.md"
+      ]
+    },
+    {
+      "id": "decisions",
+      "label": "decisions table guard",
+      "command": [
+        "gov",
+        "verify-decisions"
+      ],
+      "paths": [
+        "docs/decisions.md"
+      ]
+    },
+    {
+      "id": "source-limits",
+      "label": "module size limit (demo)",
+      "command": [
+        "sh",
+        "-c",
+        "exit 0"
+      ],
+      "paths": [
+        "src/**",
+        "eval/**"
       ]
     }
   ]

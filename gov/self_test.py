@@ -840,6 +840,9 @@ def _coverage_report() -> None:
         lines.append(f"{gid}({n})" if n else f"{gid}(NONE — rule 6)")
     stray = [g for g in covered if g not in gate_ids]
     print(f"coverage (gate x project rejection cases): {' '.join(lines)}")
+    if any("(NONE" in l for l in lines):
+        print("  write one: .gov/rejections/case-<gate-id>.sh, shebang on "
+              "line 1, '# gate: <id>' within the first five lines")
     if stray:
         print(f"note: case names unknown gate(s): {', '.join(stray)}")
 

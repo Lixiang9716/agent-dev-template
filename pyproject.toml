@@ -37,6 +37,7 @@ version = { attr = "gov.__version__" }
 include = ["gov*"]
 
 [tool.setuptools.package-data]
+"gov" = ["HIGHLIGHTS.md"]
 "gov.templates" = ["*", "skills/*/SKILL.md"]
 
 [tool.pytest.ini_options]

@@ -19,7 +19,9 @@
 | "为什么这么做"被遗忘或反复争论 | 每个决策都有一条带"被否方案"的笔记 |
 | 采用工具意味着重构或引入新运行时 | 一条命令、零重构：`gov init` |
 
-看一个被治理的项目长什么样：[examples/demo-project](examples/demo-project)。
+看一个被治理的项目长什么样：[examples/demo-project](examples/demo-project)——
+演练每个功能的活标本（量规、拒绝用例、表面映射、决策表）。
+任务导向食谱：[docs/cookbook.md](docs/cookbook.zh.md)。
 
 ## 安装
 
