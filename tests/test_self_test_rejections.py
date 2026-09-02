@@ -76,3 +76,27 @@ def test_runaway_case_times_out_fast(tmp_path, monkeypatch, capsys):
     assert "FAIL .gov/rejections/case-hang.sh (timed out after 10s)" in out
     assert "PASS .gov/rejections/case-fine.sh" in out  # the run continues
     assert wall < 20, f"a runaway case must not hold the run ({wall:.1f}s)"
+
+
+def test_coverage_ledger_and_bad_shebang(tmp_path, monkeypatch, capsys):
+    """Wish 4: gate x case matrix; a shebang-less case is named, not fatal."""
+    import json as _json
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".gov").mkdir()
+    (tmp_path / "gates.json").write_text(_json.dumps(
+        {"modes": {"all": ["alpha", "beta"]},
+         "gates": [{"id": "alpha", "command": ["true"]},
+                   {"id": "beta", "command": ["true"]}]}))
+    rej = tmp_path / ".gov" / "rejections"
+    rej.mkdir()
+    good = rej / "case-alpha.sh"
+    good.write_text("#!/bin/sh\n# gate: alpha\nexit 0\n")
+    good.chmod(0o755)
+    bad = rej / "case-noshebang.sh"
+    bad.write_text("# gate: ghost\nexit 0\n")  # no shebang, unknown gate
+    bad.chmod(0o755)
+    assert st.main(["--scope", "project"]) == 1  # the bad case fails, named
+    out = capsys.readouterr().out
+    assert "missing shebang" in out
+    assert "alpha(1)" in out and "beta(NONE — rule 6)" in out
+    assert "case names unknown gate(s): ghost" in out

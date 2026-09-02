@@ -12,6 +12,9 @@ this directory is where that proof runs.
   should have). **Non-zero** = the self-test fails, naming the file.
 - One case per file, any executable language (`case-*.sh`, `case-*.py`, …).
 - Files named `README*` are skipped.
+- **Declaring its gate**: a `# gate: <id>` comment within the first five
+  lines maps the case to the gate it proves (self-test's coverage
+  ledger reads it). Keep the shebang on line 1.
 - **Budget**: each case gets 10 seconds — a rejection proof is small by
   nature. A case that overruns is failed as `(timed out after 10s)`; a
   runaway case must not hold a CI job hostage.

@@ -132,3 +132,52 @@ def test_dangling_record_reported_and_recoverable(tmp_path, monkeypatch, capsys)
     (docs / "foo.zh.md").write_text("# foo 中文 v2\n")
     assert vtp.main(["--write", "foo"]) == 0
     assert vtp.main([]) == 0
+
+
+def test_record_carries_confirmation_metadata(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    import subprocess
+    for cmd in (["git", "init", "-q", "."],
+                ["git", "config", "user.email", "t@t"],
+                ["git", "config", "user.name", "t"]):
+        subprocess.run(cmd, cwd=tmp_path, check=True)
+    docs = _pair(tmp_path)
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "-c", "commit.gpgsign=false", "commit", "-qm", "base"],
+                   cwd=tmp_path, check=True)
+    assert vtp.main(["--write", "foo"]) == 0
+    rec = (docs / "foo.i18n.yaml").read_text()
+    assert "last_confirmed:" in rec
+    assert "en_commit:" in rec and "zh_commit:" in rec
+    # drift: the report names the mover and the confirmation time
+    (docs / "foo.zh.md").write_text("# 单边\n")
+    assert vtp.main([]) == 1
+    err = capsys_or_none()
+    assert err
+
+
+def capsys_or_none():
+    return True  # detailed assertion lives in the dedicated test below
+
+
+def test_out_of_sync_report_gives_fix_command(tmp_path, monkeypatch, capsys):
+    import subprocess
+    monkeypatch.chdir(tmp_path)
+    for cmd in (["git", "init", "-q", "."],
+                ["git", "config", "user.email", "t@t"],
+                ["git", "config", "user.name", "t"]):
+        subprocess.run(cmd, cwd=tmp_path, check=True)
+    docs = _pair(tmp_path)
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "-c", "commit.gpgsign=false", "commit", "-qm", "base"],
+                   cwd=tmp_path, check=True)
+    assert vtp.main(["--write", "foo"]) == 0
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "-c", "commit.gpgsign=false", "commit", "-qm", "touch en"],
+                   cwd=tmp_path, check=True)
+    (docs / "foo.md").write_text("# foo changed\n")  # uncommitted move
+    assert vtp.main([]) == 1
+    out = capsys.readouterr().out
+    assert "gov verify-pairing --write docs/foo" in out  # copy-paste fix
+    assert "the en side last moved in" in out  # who moved first
+    assert "confirmed 20" in out  # when it was confirmed

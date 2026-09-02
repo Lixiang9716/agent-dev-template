@@ -223,14 +223,30 @@ def _resolve_source(arg: str, cfg: dict[str, list[str]]) -> Path:
     return alt if alt.exists() else p
 
 
+def _last_commit(path: Path) -> str:
+    """Short hash of the commit that last touched a path ('' if untracked)."""
+    proc = subprocess.run(
+        ["git", "log", "-1", "--format=%h", "--", str(path)],
+        capture_output=True, text=True,
+    )
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
 def _register(src: Path, zh: Path) -> Path:
-    """Write the record pinning both hashes and the counterpart's name."""
+    """Write the record pinning hashes, the counterpart's name, and when
+    (and on which commits) the pair was last confirmed — so drift later
+    shows who moved first (D30)."""
     record = _record_path(src)
+    from datetime import datetime, timezone
+
     record.write_text(
         "pair:\n"
         f"  en: {_blob_hash(src)}\n"
         f"  zh: {_blob_hash(zh)}\n"
-        f"counterpart: {zh.name}\n",
+        f"counterpart: {zh.name}\n"
+        f"last_confirmed: {datetime.now(timezone.utc).isoformat(timespec='seconds')}\n"
+        f"en_commit: {_last_commit(src)}\n"
+        f"zh_commit: {_last_commit(zh)}\n",
         encoding="utf-8",
     )
     return record
@@ -368,7 +384,13 @@ def main(argv: list[str] | None = None) -> int:
             if side not in recorded or not recorded[side]:
                 errors.append(f"{rec.name}: missing recorded hash for {side}")
             elif recorded[side] != current[side]:
-                errors.append(f"{expect}: out of sync — re-confirm with --write")
+                moved = _last_commit(expect) or "uncommitted"
+                errors.append(
+                    f"{expect}: out of sync — re-confirm: "
+                    f"gov verify-pairing --write {src} "
+                    f"(the {side} side last moved in {moved}, "
+                    f"confirmed {recorded.get('last_confirmed', 'unknown time')})"
+                )
     # Wish 14/D28: a record whose both sides are gone is garbage that
     # nothing ever reported — count it.
     for rec in sorted(_record_files(cfg)):

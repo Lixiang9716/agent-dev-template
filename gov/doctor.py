@@ -70,8 +70,16 @@ def _check_gates(problems: list[str]) -> None:
         return
     from . import gates as gates_mod
     try:
-        gates_mod.load_config("gates.json")
+        _, gs, _, _ = gates_mod.load_config("gates.json")
         print("ok: gates.json passes the strict schema")
+        for g in gs:
+            if g.command and not shutil.which(g.command[0]):
+                problems.append(
+                    f"gate '{g.id}': command '{g.command[0]}' not found on "
+                    "PATH — the run would report MISSING"
+                )
+            elif g.command:
+                print(f"ok: gate '{g.id}' command resolves ({g.command[0]})")
     except gates_mod.ConfigError as e:
         problems.append(f"gates.json: {e}")
 

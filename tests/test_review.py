@@ -50,3 +50,58 @@ def test_bad_ref_fails_loud(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _git_repo(tmp_path, {"a.txt": "x\n"})
     assert review.main(["--base", "no-such-ref"]) == 2
+
+
+def _rubric(root):
+    docs = root / "docs"
+    docs.mkdir(exist_ok=True)
+    (docs / "review-rubric.md").write_text(
+        "### R1 — a\n\n- **Checks:** c\n- **Evidence:** e\n"
+        "- **Anti-pattern:** a\n- **Gate candidate:** no\n\n"
+        "### R2 — b\n\n- **Checks:** c\n- **Evidence:** e\n"
+        "- **Anti-pattern:** a\n- **Gate candidate:** no\n")
+
+
+def test_grade_approve_and_request_changes(tmp_path, monkeypatch):
+    import subprocess as sp
+    import sys as _sys
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path, {"app.py": "v1\n"})
+    (tmp_path / "app.py").write_text("v2\n")
+    _rubric(tmp_path)
+    env = {"PYTHONPATH": "/home/lx/govrail,.", "PATH": "/usr/bin:/bin"}
+    import os
+    env = {**os.environ, "PYTHONPATH": "/home/lx/govrail"}
+    approve = sp.run([_sys.executable, "-m", "gov.cli", "review", "--grade",
+                      "--base", "HEAD"], cwd=tmp_path, env=env,
+                     input="p\np\n", capture_output=True, text=True)
+    assert approve.returncode == 0
+    assert "verdict: approve" in approve.stdout
+    changes = sp.run([_sys.executable, "-m", "gov.cli", "review", "--grade",
+                      "--base", "HEAD"], cwd=tmp_path, env=env,
+                     input="p\nf\napp.py:2 broken\ns\n", capture_output=True, text=True)
+    assert changes.returncode == 1
+    out = changes.stdout
+    assert "R2 — fail — app.py:2 broken" in out
+    assert "blockers:" in out and "R2: app.py:2 broken" in out
+    assert "verdict: request changes (1 blocker(s))" in out
+
+
+def test_grade_needs_rubric_and_quit(tmp_path, monkeypatch):
+    import subprocess as sp
+    import sys as _sys
+    import os
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path, {"app.py": "v1\n"})
+    (tmp_path / "app.py").write_text("v2\n")
+    env = {**os.environ, "PYTHONPATH": "/home/lx/govrail"}
+    norubric = sp.run([_sys.executable, "-m", "gov.cli", "review", "--grade",
+                       "--base", "HEAD"], cwd=tmp_path, env=env,
+                      input="", capture_output=True, text=True)
+    assert norubric.returncode == 2
+    _rubric(tmp_path)
+    quit_ = sp.run([_sys.executable, "-m", "gov.cli", "review", "--grade",
+                    "--base", "HEAD"], cwd=tmp_path, env=env,
+                   input="q\n", capture_output=True, text=True)
+    assert quit_.returncode == 1
+    assert "grade quit" in quit_.stdout

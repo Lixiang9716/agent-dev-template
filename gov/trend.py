@@ -44,6 +44,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--last", type=int, default=20,
                         help="how many recorded runs to consider (default: 20)")
+    parser.add_argument("--gate", default=None,
+                        help="show a single gate only")
+    parser.add_argument("--base", default=None,
+                        help="git ref: split early/late at its commit date "
+                             "(default: the window's halfway point)")
     args = parser.parse_args(argv)
 
     if not HISTORY.is_file():
@@ -75,9 +80,33 @@ def main(argv: list[str] | None = None) -> int:
             durations.setdefault(gid, []).append(int(rec.get("duration_ms", 0)))
             outcomes.setdefault(gid, []).append(rec.get("outcome", "?"))
 
-    half = len(runs) // 2
-    early_run_ids = range(0, half)
-    late_run_ids = range(half, len(runs))
+    if args.base:
+        import subprocess as _sp
+        proc = _sp.run(["git", "show", "-s", "--format=%cI", args.base],
+                       capture_output=True, text=True)
+        if proc.returncode != 0 or not proc.stdout.strip():
+            print(f"trend: cannot resolve {args.base!r}: {proc.stderr.strip()}",
+                  file=sys.stderr)
+            return 2
+        from datetime import datetime as _dt
+
+        split_at = _dt.fromisoformat(proc.stdout.strip())
+
+        def _ts(run):
+            try:
+                return _dt.fromisoformat(run.get("ts", ""))
+            except ValueError:
+                return None
+
+        early_run_ids = [i for i, r in enumerate(runs)
+                         if _ts(r) and _ts(r) <= split_at]
+        late_run_ids = [i for i, r in enumerate(runs)
+                        if _ts(r) and _ts(r) > split_at]
+        print(f"  split at {args.base} ({proc.stdout.strip()})")
+    else:
+        half = len(runs) // 2
+        early_run_ids = range(0, half)
+        late_run_ids = range(half, len(runs))
 
     def _window(gid: str, run_ids) -> list[int]:
         out = []
@@ -90,6 +119,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"trend: {len(runs)} run(s) in {HISTORY}")
     movers, stable = [], []
     for gid in sorted(durations):
+        if args.gate and gid != args.gate:
+            continue
         early, late = _window(gid, early_run_ids), _window(gid, late_run_ids)
         if not early or not late:
             continue

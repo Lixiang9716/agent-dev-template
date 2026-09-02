@@ -86,7 +86,8 @@ def _install_ci(project: Path, created: list[str]) -> None:
 
 
 def init(project: Path, hooks: bool = False, ci: bool = False,
-         upgrade: bool = False, adopt: list[str] | None = None) -> int:
+         upgrade: bool = False, adopt: list[str] | None = None,
+         report_json: bool = False) -> int:
     project = project.resolve()
     if not project.is_dir():
         print(f"init: {project} is not a directory", file=sys.stderr)
@@ -96,7 +97,7 @@ def init(project: Path, hooks: bool = False, ci: bool = False,
         if adopt is not None:
             return _adopt(project, manifest_path, adopt)  # wish: missing files land
         if upgrade:
-            return _upgrade_report(project, manifest_path)  # wish 8: see, never write
+            return _upgrade_report(project, manifest_path, json_mode=report_json)
         if not (hooks or ci):
             print(f"init: {project} is already initialized")
             return 0
@@ -260,7 +261,8 @@ def _adopt(project: Path, manifest_path: Path, targets: list[str]) -> int:
     return 0
 
 
-def _upgrade_report(project: Path, manifest_path: Path) -> int:
+def _upgrade_report(project: Path, manifest_path: Path,
+                    json_mode: bool = False) -> int:
     """Wish 8/D27: show how the shipped templates and this project drifted.
 
     Reads, never writes: per-file diff of every injected file against the
@@ -298,6 +300,30 @@ def _upgrade_report(project: Path, manifest_path: Path) -> int:
         except OSError:
             differing.append((rel, tpl))
 
+    if json_mode:
+        # Wish 6c/D30: machine-readable drift — an agent decides adoptions
+        # programmatically (stdout is exactly one JSON value).
+        opt_in = {".gov/hooks/pre-push"}
+        files_out = []
+        for rel, tpl in expected:
+            local = project / rel
+            if not local.exists():
+                status = "absent-add-on" if rel in opt_in else "missing"
+            elif local.read_bytes() == tpl.read_bytes():
+                status = "matches"
+            else:
+                status = "differs"
+            files_out.append({
+                "path": rel,
+                "status": status,
+                "adoptable": status == "missing",
+            })
+        print(json.dumps({
+            "initialized_with": init_version,
+            "package": __version__,
+            "files": files_out,
+        }, indent=2))
+        return 0
     print(f"init: upgrade report for {project} — nothing is changed by this report")
     print(f"  initialized with govrail {init_version} · this package {__version__}")
     for rel in current:
@@ -518,7 +544,7 @@ def _init_uninstall_args(
 ) -> tuple[Path, bool, bool, bool, bool] | None:
     """Parse --project (+ init's --hooks/--ci/--upgrade, uninstall's --force)."""
     project = "."
-    hooks = ci = force = upgrade = adopt = False
+    hooks = ci = force = upgrade = adopt = report_json = False
     adopt_targets: list[str] = []
     i = 0
     while i < len(args):
@@ -538,6 +564,9 @@ def _init_uninstall_args(
         elif what == "init" and a == "--upgrade":
             upgrade = True
             i += 1
+        elif what == "init" and a == "--json":
+            report_json = True
+            i += 1
         elif what == "init" and a == "--adopt":
             adopt = True
             i += 1
@@ -551,7 +580,8 @@ def _init_uninstall_args(
             print(f"gov {what}: unexpected argument '{a}'", file=sys.stderr)
             _usage()
             return None
-    return Path(project), hooks, ci, force, upgrade, (adopt_targets if adopt else None)
+    return (Path(project), hooks, ci, force, upgrade,
+            (adopt_targets if adopt else None), report_json)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -578,7 +608,8 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "init":
         parsed = _init_uninstall_args(rest, "init")
         return 2 if parsed is None else init(parsed[0], hooks=parsed[1], ci=parsed[2],
-                                            upgrade=parsed[4], adopt=parsed[5])
+                                            upgrade=parsed[4], adopt=parsed[5],
+                                            report_json=parsed[6])
     if cmd == "uninstall":
         parsed = _init_uninstall_args(rest, "uninstall")
         return 2 if parsed is None else uninstall(parsed[0], force=parsed[3])
