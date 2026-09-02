@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/Lixiang9716/govrail/compare/v0.10.0...v0.10.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* gov note new says when a D-ref is left unchecked (rule 5) ([#77](https://github.com/Lixiang9716/govrail/issues/77)) ([6eeef2d](https://github.com/Lixiang9716/govrail/commit/6eeef2d0c0c0d0987d7bd40eb95f60b38c305dd2))
+
 ## [0.10.0](https://github.com/Lixiang9716/govrail/compare/v0.9.0...v0.10.0) (2026-09-02)
 
 
