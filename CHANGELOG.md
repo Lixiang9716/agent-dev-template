@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/Lixiang9716/govrail/compare/v0.11.0...v0.12.0) (2026-09-02)
+
+
+### Features
+
+* the usability round — living specimen, cookbook, whatsnew, reports that point ahead (D31) ([#81](https://github.com/Lixiang9716/govrail/issues/81)) ([a291386](https://github.com/Lixiang9716/govrail/commit/a2913861fb3b22a5a48daedb469b420aa265eade))
+
 ## [0.11.0](https://github.com/Lixiang9716/govrail/compare/v0.10.1...v0.11.0) (2026-09-02)
 
 
