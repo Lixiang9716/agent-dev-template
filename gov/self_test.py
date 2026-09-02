@@ -709,6 +709,20 @@ def test_skills_text_command_drift_is_named() -> None:
         assert "--every-gat" in result.stdout, "the typo'd flag must be named"
 
 
+def test_gates_rejects_unknown_keys() -> None:
+    """D29: "enable": false is a typo'd park that silently parks nothing."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "gates.json").write_text(
+            json.dumps({"gates": [{"id": "a", "command": ["true"],
+                                   "enable": False}]}),
+            encoding="utf-8",
+        )
+        result = _run("gates.py", root)
+        assert result.returncode == 2, "an unknown gate key must abort loud"
+        assert "unknown key(s): enable" in result.stderr
+
+
 def test_passing_gate_output_stays_visible() -> None:
     """A pass that printed a warning must not be silenced (P1-2)."""
     with tempfile.TemporaryDirectory() as td:
@@ -762,6 +776,7 @@ CASES = [
     test_self_test_adopts_project_rejection_cases,
     test_verify_decisions_rejects_broken_table,
     test_skills_text_command_drift_is_named,
+    test_gates_rejects_unknown_keys,
 ]
 
 

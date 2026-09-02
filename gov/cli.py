@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from . import archive_notes, audit_notes, change_scope, gates, recall, review
-from . import self_test, trend
+from . import doctor, note, self_test, trend
 from . import verify_archive, verify_decisions, verify_note_presence
 from . import verify_notes, verify_rubric
 from . import verify_translation_pairing
@@ -86,13 +86,15 @@ def _install_ci(project: Path, created: list[str]) -> None:
 
 
 def init(project: Path, hooks: bool = False, ci: bool = False,
-         upgrade: bool = False) -> int:
+         upgrade: bool = False, adopt: list[str] | None = None) -> int:
     project = project.resolve()
     if not project.is_dir():
         print(f"init: {project} is not a directory", file=sys.stderr)
         return 2
     manifest_path = project / ".gov" / "manifest.json"
     if manifest_path.exists():
+        if adopt is not None:
+            return _adopt(project, manifest_path, adopt)  # wish: missing files land
         if upgrade:
             return _upgrade_report(project, manifest_path)  # wish 8: see, never write
         if not (hooks or ci):
@@ -193,6 +195,71 @@ def init(project: Path, hooks: bool = False, ci: bool = False,
     return 0
 
 
+def _inventory(created: set[str]) -> list[tuple[str, Any]]:
+    """Every template-injectable file: (rel path, shipped template)."""
+    expected: list[tuple[str, Any]] = [
+        (".gov/rules.md", TEMPLATES.joinpath("rules.md")),
+        (".agents/notes/README.md", TEMPLATES.joinpath("notes-README.md")),
+        (".gov/rejections/README.md", TEMPLATES.joinpath("rejections-README.md")),
+        (".gov/hooks/pre-push", TEMPLATES.joinpath("pre-push")),
+    ]
+    expected += [
+        (f".agents/skills/{name}/SKILL.md", TEMPLATES.joinpath("skills") / name / "SKILL.md")
+        for name in SKILLS
+    ]
+    if "gates.json" in created:
+        expected.append(("gates.json", TEMPLATES.joinpath("gates.json")))
+    if ".github/workflows/gov.yml" in created:
+        expected.append((".github/workflows/gov.yml", TEMPLATES.joinpath("gov.yml")))
+    return expected
+
+
+def _adopt(project: Path, manifest_path: Path, targets: list[str]) -> int:
+    """Wish 1/D29: apply template files that are locally MISSING — never
+    overwrite an existing file. New-file adoption is safe to automate;
+    modified-file adoption stays the D23 two-step."""
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"init: corrupt manifest {manifest_path}: {e}", file=sys.stderr)
+        return 2
+    created = list(data.get("created", []))
+    inventory = dict(_inventory(set(data.get("created", []))))
+    if targets and targets != ["all"]:
+        unknown = [t for t in targets if t not in inventory]
+        if unknown:
+            print(f"init: not a template file: {', '.join(unknown)} "
+                  f"(known: {', '.join(sorted(inventory))})", file=sys.stderr)
+            return 2
+        selected = targets
+    else:
+        selected = [rel for rel in inventory if not (project / rel).exists()]
+
+    applied = 0
+    for rel in selected:
+        dest = project / rel
+        if dest.exists():
+            print(f"init: {rel} already present — untouched (never overwritten)")
+            continue
+        tpl = inventory[rel]
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(tpl.read_bytes())
+        if rel not in created:
+            created.append(rel)
+        if rel.endswith("pre-push"):
+            dest.chmod(0o755)
+        print(f"init: adopted {rel}")
+        applied += 1
+    if not applied:
+        print("init: nothing to adopt (no missing template files)")
+    manifest_path.write_text(
+        json.dumps({"version": __version__, "created": created,
+                    "gitHooks": data.get("gitHooks", [])}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return 0
+
+
 def _upgrade_report(project: Path, manifest_path: Path) -> int:
     """Wish 8/D27: show how the shipped templates and this project drifted.
 
@@ -210,26 +277,17 @@ def _upgrade_report(project: Path, manifest_path: Path) -> int:
     created = set(data.get("created", []))
     init_version = data.get("version", "unknown")
 
-    expected: list[tuple[str, Any]] = [
-        (".gov/rules.md", TEMPLATES.joinpath("rules.md")),
-        (".agents/notes/README.md", TEMPLATES.joinpath("notes-README.md")),
-        (".gov/rejections/README.md", TEMPLATES.joinpath("rejections-README.md")),
-    ]
-    expected += [
-        (f".agents/skills/{name}/SKILL.md", TEMPLATES.joinpath("skills") / name / "SKILL.md")
-        for name in SKILLS
-    ]
-    if "gates.json" in created:
-        expected.append(("gates.json", TEMPLATES.joinpath("gates.json")))
-    if ".github/workflows/gov.yml" in created:
-        expected.append((".github/workflows/gov.yml", TEMPLATES.joinpath("gov.yml")))
+    expected = _inventory(created)
 
     current: list[str] = []
     missing: list[str] = []
     differing: list[tuple[str, Any]] = []
+    opt_in = {".gov/hooks/pre-push"}  # add-ons, not always-injected
     for rel, tpl in expected:
         local = project / rel
         if not local.exists():
+            if rel in opt_in:
+                continue  # absent add-on is not drift
             missing.append(rel)
             continue
         try:
@@ -245,7 +303,7 @@ def _upgrade_report(project: Path, manifest_path: Path) -> int:
     for rel in current:
         print(f"  {rel:<40} matches the shipped template")
     for rel in missing:
-        print(f"  {rel:<40} MISSING — added by newer templates; safe to add by hand")
+        print(f"  {rel:<40} MISSING — adoptable: gov init --adopt {rel}")
     for rel, tpl in differing:
         era = ("customized locally" if init_version == __version__
                else f"customized locally and/or template evolved since v{init_version}")
@@ -432,6 +490,8 @@ _COMMANDS = {
     "verify-decisions": "verify the decisions table (numbering, alternatives, orphans)",
     "review": "assemble the review dossier for a diff (scope, notes, recall, rubric)",
     "trend": "gate duration trends from .gov/history/ (p50 per window)",
+    "doctor": "environment self-check (PATH, python, hooks, gates schema)",
+    "note": "note scaffold and pre-commit check (new/check)",
     "recall": "retrieve notes, decisions, and postmortems (all terms, ranked)",
     "audit-notes": "report mechanical staleness signals in implemented notes",
     "change-scope": "report touched surfaces (e.g. --base <ref>)",
@@ -458,7 +518,8 @@ def _init_uninstall_args(
 ) -> tuple[Path, bool, bool, bool, bool] | None:
     """Parse --project (+ init's --hooks/--ci/--upgrade, uninstall's --force)."""
     project = "."
-    hooks = ci = force = upgrade = False
+    hooks = ci = force = upgrade = adopt = False
+    adopt_targets: list[str] = []
     i = 0
     while i < len(args):
         a = args[i]
@@ -477,6 +538,12 @@ def _init_uninstall_args(
         elif what == "init" and a == "--upgrade":
             upgrade = True
             i += 1
+        elif what == "init" and a == "--adopt":
+            adopt = True
+            i += 1
+            while i < len(args) and not args[i].startswith("--"):
+                adopt_targets.append(args[i])
+                i += 1
         elif what == "uninstall" and a == "--force":
             force = True
             i += 1
@@ -484,7 +551,7 @@ def _init_uninstall_args(
             print(f"gov {what}: unexpected argument '{a}'", file=sys.stderr)
             _usage()
             return None
-    return Path(project), hooks, ci, force, upgrade
+    return Path(project), hooks, ci, force, upgrade, (adopt_targets if adopt else None)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -511,7 +578,7 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "init":
         parsed = _init_uninstall_args(rest, "init")
         return 2 if parsed is None else init(parsed[0], hooks=parsed[1], ci=parsed[2],
-                                            upgrade=parsed[4])
+                                            upgrade=parsed[4], adopt=parsed[5])
     if cmd == "uninstall":
         parsed = _init_uninstall_args(rest, "uninstall")
         return 2 if parsed is None else uninstall(parsed[0], force=parsed[3])
@@ -535,6 +602,10 @@ def main(argv: list[str] | None = None) -> int:
         return review.main(rest)
     if cmd == "trend":
         return trend.main(rest)
+    if cmd == "doctor":
+        return doctor.main(rest)
+    if cmd == "note":
+        return note.main(rest)
     if cmd == "recall":
         return recall.main(rest)
     if cmd == "audit-notes":

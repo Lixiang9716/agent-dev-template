@@ -275,3 +275,28 @@ def test_upgrade_report_clean_project(tmp_path, capsys):
 def test_upgrade_on_uninitialized_fails_loud(tmp_path):
     assert cli.init(tmp_path, upgrade=True) == 0  # no manifest yet: normal init path
     assert (tmp_path / ".gov" / "manifest.json").exists()
+
+
+def test_adopt_lands_missing_never_overwrites(tmp_path, capsys):
+    """Wish: new template files land; existing files are untouchable."""
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    target = tmp_path / ".gov" / "rejections" / "README.md"
+    target.unlink()
+    assert cli.init(tmp_path, adopt=[".gov/rejections/README.md"]) == 0
+    assert target.exists()  # landed
+    own = b"my own convention\n"
+    target.write_bytes(own)
+    assert cli.init(tmp_path, adopt=[".gov/rejections/README.md"]) == 0
+    assert target.read_bytes() == own  # never overwritten
+    assert cli.init(tmp_path, adopt=["no/such/template"]) == 2  # fail loud
+    manifest = json.loads((tmp_path / ".gov" / "manifest.json").read_text())
+    assert ".gov/rejections/README.md" in manifest["created"]
+
+
+def test_upgrade_report_marks_adoptable(tmp_path, capsys):
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    (tmp_path / ".gov" / "rejections" / "README.md").unlink()
+    assert cli.init(tmp_path, upgrade=True) == 0
+    assert "adoptable: gov init --adopt .gov/rejections/README.md" in capsys.readouterr().out

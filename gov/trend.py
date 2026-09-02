@@ -47,7 +47,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if not HISTORY.is_file():
-        print(f"trend: no history — run `gov run --record` to start one")
+        print("trend: no history yet — never recorded; runs record by "
+              "default now, so this appears after your next gov run")
         return 0
     runs = []
     for line in HISTORY.read_text(encoding="utf-8").splitlines():
@@ -60,7 +61,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"trend: skipping a malformed history line", file=sys.stderr)
     runs = runs[-args.last:]
     if len(runs) < 2:
-        print(f"trend: {len(runs)} run(s) recorded — need at least 2 to compare")
+        print(f"trend: {len(runs)} run(s) recorded (history exists) — "
+              "need at least 2 to compare")
         return 0
 
     durations: dict[str, list[int]] = {}

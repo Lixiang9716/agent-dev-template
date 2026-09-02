@@ -36,6 +36,11 @@ except ImportError:  # direct script execution
 RUBRIC = Path("docs/review-rubric.md")
 
 
+def _rubric_bodies(text: str) -> dict[str, str]:
+    parts = re.compile(r"(?m)^### (R\d+)\b.*$").split(text)
+    return {parts[i]: parts[i + 1] for i in range(1, len(parts) - 1, 2)}
+
+
 def _keywords(files: list[str], limit: int = 5) -> list[str]:
     """Distinctive path tokens of the change — recall terms, not stopwords."""
     stop = {"main", "index", "init", "test", "tests", "src", "lib", "docs",
@@ -123,9 +128,40 @@ def main(argv: list[str] | None = None) -> int:
     if RUBRIC.is_file():
         print("## 4. rubric")
         text = RUBRIC.read_text(encoding="utf-8")
-        for heading in re.findall(r"(?m)^### (R\d+ — .+)$", text):
+        items = re.findall(r"(?m)^### (R\d+ — .+)$", text)
+        item_bodies = _rubric_bodies(text)
+        for heading in items:
             print(f"  {heading}")
+            rid = heading.split(" —", 1)[0]
+            body = item_bodies.get(rid, "")
+            m = re.search(r"\*\*Checks:\*\*\s*(.+)", body)
+            anchors = re.findall(r"`([^`]+)`", m.group(1)) if m else []
+            shown = 0
+            for anchor in anchors:
+                if shown >= 2:
+                    break
+                for f in files:
+                    local = Path(f)
+                    if not local.is_file():
+                        continue
+                    try:
+                        lines = local.read_text(encoding="utf-8",
+                                                errors="replace").splitlines()
+                    except OSError:
+                        continue
+                    for idx, line in enumerate(lines):
+                        if anchor in line:
+                            lo = max(0, idx - 4)
+                            hi = min(len(lines), idx + 6)
+                            print(f"    evidence candidate: {f}:{idx + 1}")
+                            for ln in lines[lo:hi]:
+                                print(f"      {ln[:100]}")
+                            shown += 1
+                            break
+                    if shown >= 2:
+                        break
         print("  grade only the items the diff touches, each with evidence")
+        print("  (evidence candidates are leads to verify, not verdicts)")
     else:
         print("  (no review rubric — reviewing without one)")
 

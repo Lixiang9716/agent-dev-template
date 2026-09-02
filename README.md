@@ -38,6 +38,9 @@ dependencies). It has one subcommand per action:
 ```sh
 gov init --project <path>     # inject the plane into an existing project
 gov init --project <path> --upgrade  # show template drift (diffs, never writes)
+gov init --project <path> --adopt all  # land missing template files (never overwrites)
+gov doctor                     # environment self-check (PATH, python, hooks, schema)
+gov note new --class process --ref D6 "Title"  # scaffold a note, pre-validated
 gov init --project <path> --hooks --ci  # also install a pre-push hook and CI
 gov uninstall --project <path>  # reverse it exactly
 gov run                        # run the default mode's gate DAG (defaultMode)

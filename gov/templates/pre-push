@@ -4,4 +4,11 @@
 # leaves your machine. note-presence reviews the work being pushed: its auto
 # base picks the commits ahead of upstream when the tree is clean. Bypass for
 # one push: `git push --no-verify`.
-exec gov run
+# Resolve gov robustly (D29): explicit override, then PATH, then module.
+if [ -n "$GOV_BIN" ]; then
+    exec $GOV_BIN run
+fi
+if command -v gov >/dev/null 2>&1; then
+    exec gov run
+fi
+exec python3 -m gov run
