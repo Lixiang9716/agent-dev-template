@@ -70,7 +70,12 @@ def _new(args: argparse.Namespace) -> int:
     related = ""
     if args.ref:
         known = _known_decisions()
-        if known is not None and args.ref not in known:
+        if known is None:
+            # Rule 5, same lesson audit-notes learned: "nothing to check
+            # against" is said out loud, never silently skipped.
+            print(f"note: no decisions table found — {args.ref} left unchecked "
+                  f"({DECISIONS})", file=sys.stderr)
+        elif args.ref not in known:
             print(f"note: {args.ref} is not in {DECISIONS} — fix the reference "
                   "or add the decision first", file=sys.stderr)
             return 2

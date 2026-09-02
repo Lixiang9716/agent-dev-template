@@ -29,3 +29,13 @@ def test_check_catches_dangling_ref(tmp_path, monkeypatch, capsys):
     (docs / "decisions.md").write_text("## D6 — x\n\n- **选项**：y\n")
     assert nt.main(["check"]) == 1
     assert "D42" in capsys.readouterr().out
+
+
+def test_new_without_decisions_table_announces_unchecked(tmp_path, monkeypatch, capsys):
+    """Rule 5: 'nothing to validate against' is said, never silently skipped."""
+    monkeypatch.chdir(tmp_path)
+    assert nt.main(["new", "--class", "process", "--ref", "D99", "T"]) == 0
+    captured = capsys.readouterr()
+    assert "no decisions table found — D99 left unchecked" in captured.err
+    p = tmp_path / ".agents" / "notes" / "implemented" / "process"
+    assert "Related: D99" in next(p.glob("*.md")).read_text()
