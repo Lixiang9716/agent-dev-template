@@ -33,7 +33,7 @@ def test_project_rejection_pass_and_scope(tmp_path, monkeypatch, capsys):
     assert st.main([]) == 0
     out = capsys.readouterr().out
     assert "PASS .gov/rejections/case-good.sh" in out
-    assert "tools 32 + project 1" in out
+    assert "tools 33 + project 1" in out
     # scope filters families
     assert st.main(["--scope", "project"]) == 0
     assert "tools 29" not in capsys.readouterr().out

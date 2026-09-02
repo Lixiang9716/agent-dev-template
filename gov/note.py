@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Note scaffolding and pre-commit checking (D29).
+
+The three-part format, the D-references, and the path validity were all
+checked only after commit — a typo'd path (evalkit/case.py for
+evalkit/evalkit/case.py) surfaced one audit too late. This command moves
+the check to both ends of the writing window:
+
+- ``gov note new --class process --ref D6 "Title"`` scaffolds the note at
+  its lawful path with the required sections, pre-validating the class
+  against the closed set and the D-reference against the decisions table
+  (fail loud before you have invested prose in a wrong anchor);
+- ``gov note check`` runs the format/placement gate and the D-reference
+  audit now — small enough for a pre-commit hook.
+"""
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+from datetime import date
+from pathlib import Path
+
+try:  # package context (`gov ...`)
+    from .root import anchor_to_git_root
+except ImportError:  # direct script execution
+    from root import anchor_to_git_root
+
+CLASSES = ("feature", "bug-fix", "simplification", "architecture", "process", "testing")
+NOTES_IMPLEMENTED = Path(".agents/notes/implemented")
+DECISIONS = Path("docs/decisions.md")
+
+SKELETON = """# Agent Note: {title}
+
+Status: implemented{related}
+
+## Problem
+
+(pain, stated to stand without the solution)
+
+## Decision
+
+(what shipped, present tense)
+
+## Alternatives considered
+
+(what it beat, and why each lost)
+"""
+
+
+def _known_decisions() -> set[str] | None:
+    if not DECISIONS.is_file():
+        return None
+    text = DECISIONS.read_text(encoding="utf-8")
+    found = set(re.findall(r"(?m)^## (D\d+) — ", text))
+    return found or None
+
+
+def _slugify(title: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+    return slug[:40] or "note"
+
+
+def _new(args: argparse.Namespace) -> int:
+    anchor_to_git_root("note")
+    if args.note_class not in CLASSES:
+        print(f"note: unknown class '{args.note_class}' "
+              f"(closed set: {', '.join(CLASSES)})", file=sys.stderr)
+        return 2
+    related = ""
+    if args.ref:
+        known = _known_decisions()
+        if known is not None and args.ref not in known:
+            print(f"note: {args.ref} is not in {DECISIONS} — fix the reference "
+                  "or add the decision first", file=sys.stderr)
+            return 2
+        related = f"\nRelated: {args.ref}"
+    dest = NOTES_IMPLEMENTED / args.note_class / (
+        f"{date.today().isoformat()}-{_slugify(args.title)}.md"
+    )
+    if dest.exists():
+        print(f"note: already exists: {dest}", file=sys.stderr)
+        return 2
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(SKELETON.format(title=args.title, related=related),
+                    encoding="utf-8")
+    print(f"note: wrote {dest}")
+    print("note: fill the three sections; gov note check before committing")
+    return 0
+
+
+def _check(_: argparse.Namespace) -> int:
+    anchor_to_git_root("note")
+    from . import audit_notes as an
+    from . import verify_notes as vn
+    rc = vn.main([])
+    if rc != 0:
+        return rc
+    # D-references of implemented notes against the decisions table
+    known = an._known_decisions()
+    if known is None:
+        return 0
+    violations = 0
+    for p in sorted(NOTES_IMPLEMENTED.rglob("*.md")):
+        for d in sorted(set(an.D_REF_RX.findall(p.read_text(encoding="utf-8"))), key=int):
+            if f"D{d}" not in known:
+                print(f"{p}: references D{d}, not in {DECISIONS}")
+                violations += 1
+    if violations:
+        print(f"note check: {violations} dangling D-reference(s)")
+        return 1
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="gov note", description="Note scaffold and pre-commit check."
+    )
+    sub = parser.add_subparsers(dest="subcommand", required=True)
+    p_new = sub.add_parser("new", help="scaffold a note (pre-validates class and D-ref)")
+    p_new.add_argument("--class", dest="note_class", required=True,
+                       help=f"one of: {', '.join(CLASSES)}")
+    p_new.add_argument("--ref", default=None, help="decision anchor, e.g. D6")
+    p_new.add_argument("title", help="the note's title")
+    p_new.set_defaults(func=_new)
+    p_check = sub.add_parser("check", help="format + placement + D-refs, now")
+    p_check.set_defaults(func=_check)
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -32,6 +32,9 @@ pip install govrail        # 或：uv tool install govrail / pipx install govrai
 ```sh
 gov init --project <path>      # 把平面注入现有项目
 gov init --project <path> --upgrade  # 查看模板漂移（只 diff，绝不写入）
+gov init --project <path> --adopt all  # 落地缺失的模板文件（绝不覆盖已有）
+gov doctor                     # 环境自检（PATH、python、钩子、schema）
+gov note new --class process --ref D6 "标题"  # 笔记脚手架（预校验）
 gov init --project <path> --hooks --ci  # 同时安装 pre-push 钩子与 CI
 gov uninstall --project <path> # 精确反转
 gov run                        # 跑默认模式（defaultMode）的门禁 DAG

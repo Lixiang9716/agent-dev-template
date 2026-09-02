@@ -132,6 +132,15 @@ def load_config(path: str) -> tuple[dict[str, list[str]], list[Gate], int, str |
         raise ConfigError(f"{path} is not valid JSON: {e}")
 
     raw = _require_object(raw, "the config root")
+    # D29: unknown keys abort loud — a typo like "enable": false silently
+    # parks nothing, which is exactly the quiet back door D24 closed.
+    allowed_top = {"modes", "defaultMode", "concurrency", "gates"}
+    unknown_top = sorted(set(raw) - allowed_top)
+    if unknown_top:
+        raise ConfigError(
+            f"unknown top-level key(s): {', '.join(unknown_top)} "
+            f"(known: {', '.join(sorted(allowed_top))})"
+        )
     gates_raw = raw.get("gates", [])
     if not isinstance(gates_raw, list):
         raise ConfigError("'gates' must be an array")
@@ -144,6 +153,15 @@ def load_config(path: str) -> tuple[dict[str, list[str]], list[Gate], int, str |
     ids: set[str] = set()
     for i, g in enumerate(gates_raw):
         g = _require_object(g, f"gates[{i}]")
+        allowed_gate = {"id", "command", "label", "needs", "timeoutMs",
+                        "allowFailure", "enabled", "paths"}
+        unknown = sorted(set(g) - allowed_gate)
+        if unknown:
+            known_id = g.get("id") or f"gates[{i}]"
+            raise ConfigError(
+                f"gate '{known_id}': unknown key(s): {', '.join(unknown)} "
+                f"(known: {', '.join(sorted(allowed_gate))})"
+            )
         gid = g.get("id")
         if not isinstance(gid, str) or not gid:
             raise ConfigError(f"gates[{i}] has an empty or non-string id")
@@ -472,8 +490,9 @@ def run_gates(
     if json_mode:
         print(json.dumps(records, indent=2))
     if record_path is not None:
-        # Wish 12/D28: append-only history — one line per run, the plane's
-        # own philosophy. Opt-in; runs stay stateless without --record.
+        # D28/D29: append-only history — one line per run, the plane's
+        # own philosophy. Recording is the default (the file is local
+        # and gitignored); --no-record opts out.
         record_path.parent.mkdir(parents=True, exist_ok=True)
         with record_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(
@@ -500,9 +519,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--every-gate", action="store_true",
                         help="run every enabled gate — the full matrix, ignoring "
                              "modes and defaultMode (CI owns this)")
-    parser.add_argument("--record", action="store_true",
-                        help="append this run to .gov/history/gates.jsonl "
-                             "(see gov trend)")
+    parser.add_argument("--no-record", action="store_true",
+                        help="do not append this run to .gov/history/gates.jsonl "
+                             "(recording is the default; see gov trend)")
     parser.add_argument("--json", action="store_true",
                         help="machine-readable: stdout is exactly one JSON array "
                              "of {gate, outcome, blocking, duration_ms, detail}; "
@@ -575,7 +594,8 @@ def main(argv: list[str] | None = None) -> int:
 
     return run_gates(gates, selection, concurrency, args.fail_fast,
                      json_mode=args.json,
-                     record_path=Path('.gov/history/gates.jsonl') if args.record else None)
+                     record_path=None if args.no_record
+                     else Path('.gov/history/gates.jsonl'))
 
 
 if __name__ == "__main__":

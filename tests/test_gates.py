@@ -393,3 +393,32 @@ def test_json_stdout_is_pure_for_every_selector(tmp_path, capsys, monkeypatch, s
     assert rc == 0
     records = _json.loads(capsys.readouterr().out)
     assert records
+
+
+def test_unknown_gate_key_rejects_loud(tmp_path, monkeypatch, capsys):
+    """D29: "enable": false is a typo'd park that silently parks nothing."""
+    monkeypatch.chdir(tmp_path)
+    _write(tmp_path, {"gates": [{"id": "a", "command": ["true"], "enable": False}]})
+    assert gates.main([]) == 2
+    assert "unknown key(s): enable" in capsys.readouterr().err
+
+
+def test_unknown_top_level_key_rejects_loud(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _write(tmp_path, {"concurrencyy": 4, "gates": [{"id": "a", "command": ["true"]}]})
+    assert gates.main([]) == 2
+    assert "unknown top-level key(s): concurrencyy" in capsys.readouterr().err
+
+
+def test_record_writes_history_by_default(tmp_path, monkeypatch):
+    """D29: recording is the default; --no-record opts out."""
+    import json as _json
+    monkeypatch.chdir(tmp_path)
+    _write(tmp_path, {"gates": [{"id": "a", "command": ["true"]}]})
+    assert gates.main([]) == 0
+    hist = tmp_path / ".gov" / "history" / "gates.jsonl"
+    lines = hist.read_text().strip().splitlines()
+    assert len(lines) == 1
+    assert _json.loads(lines[0])["gates"][0]["gate"] == "a"
+    assert gates.main(["--no-record"]) == 0
+    assert len(hist.read_text().strip().splitlines()) == 1  # unchanged
