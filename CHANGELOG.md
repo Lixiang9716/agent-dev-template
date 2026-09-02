@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/Lixiang9716/govrail/compare/v0.10.1...v0.11.0) (2026-09-02)
+
+
+### Features
+
+* wishes round IV — grade mode, pairing round-trip, decision half-life, coverage ledger, dry checks, per-gate trends (D30) ([#79](https://github.com/Lixiang9716/govrail/issues/79)) ([7b124da](https://github.com/Lixiang9716/govrail/commit/7b124daeb71633a9a2597db448c2d0c4a5c6ff26))
+
 ## [0.10.1](https://github.com/Lixiang9716/govrail/compare/v0.10.0...v0.10.1) (2026-09-02)
 
 
