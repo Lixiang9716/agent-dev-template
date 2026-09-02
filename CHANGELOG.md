@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/Lixiang9716/govrail/compare/v0.9.0...v0.10.0) (2026-09-02)
+
+
+### Features
+
+* wishes round III — adopt, doctor, note scaffolding, evidence prefetch, strict schema, default recording (D29) ([#75](https://github.com/Lixiang9716/govrail/issues/75)) ([f6b21fb](https://github.com/Lixiang9716/govrail/commit/f6b21fb1e6221b8b19a2e99b832fec7af79ddc09))
+
 ## [0.9.0](https://github.com/Lixiang9716/govrail/compare/v0.8.0...v0.9.0) (2026-09-01)
 
 
