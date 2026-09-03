@@ -3,6 +3,16 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.13.1 — alignment round
+
+- Bare `gov init --adopt --preview` names the drift inventory
+  (`adoptable: N missing, M drifted`) and cross-links `--upgrade` and
+  the single-file preview (issue #91).
+- HIGHLIGHTS headers are aligned with wheel versions, enforced by a
+  tag-coverage guard test; the index-propagation note (retry
+  `pip install -U` before suspecting the release) is in CONTRIBUTING
+  (issue #92).
+
 ## 0.13.0 — provenance and external references
 
 - `gov init --upgrade` distinguishes WHO moved: UPSTREAM MOVED (your
