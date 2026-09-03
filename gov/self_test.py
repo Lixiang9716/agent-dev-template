@@ -339,18 +339,46 @@ def test_pairing_explicit_registration_sticks() -> None:
         )
 
 
+def _fixture_env(root: Path) -> dict:
+    """A scratch fixture's git environment (#24/D33): three walls.
+
+    1. GIT_* scrubbed — an inherited GIT_DIR/GIT_INDEX_FILE resolves the
+       HOST repository instead of the scratch (two production incidents).
+    2. GIT_CEILING_DIRECTORIES pins discovery to the scratch parent —
+       even a surprising cwd cannot walk up into the host.
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env["GIT_CEILING_DIRECTORIES"] = str(root.parent)
+    return env
+
+
 def _git_repo(root: Path) -> None:
+    env = _fixture_env(root)
+    subprocess.run(["git", "init", "-q", "."], cwd=root, check=True, env=env)
+    # The toplevel guard: BEFORE any config/add/commit, the scratch must
+    # resolve to itself. If any path makes git resolve elsewhere, abort
+    # loud rather than touch that repository (#24).
+    top = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], cwd=root,
+        capture_output=True, text=True, env=env,
+    )
+    resolved = Path(top.stdout.strip()).resolve() if top.returncode == 0 else None
+    if resolved != root.resolve():
+        raise AssertionError(
+            f"self-test scratch fixture escaped: git in {root} resolves to "
+            f"{resolved or '<no repository>'} — refusing to configure or "
+            "commit into it (host-integrity guard, #24)"
+        )
     for cmd in (
-        ["git", "init", "-q", "."],
         ["git", "config", "user.email", "t@t"],
         ["git", "config", "user.name", "t"],
     ):
-        subprocess.run(cmd, cwd=root, check=True)
+        subprocess.run(cmd, cwd=root, check=True, env=env)
     (root / "seed.txt").write_text("seed\n", encoding="utf-8")
-    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True, env=env)
     subprocess.run(
         ["git", "-c", "commit.gpgsign=false", "commit", "-qm", "init"],
-        cwd=root, check=True,
+        cwd=root, check=True, env=env,
     )
 
 
@@ -903,6 +931,10 @@ def main(argv: list[str] | None = None) -> int:
     leaked = [k for k in os.environ if k.startswith("GIT_")]
     for k in leaked:
         del os.environ[k]  # benign ones too: cases are hermetic by contract
+    # Third wall (#24/D33): no git command issued by any case may walk up
+    # out of the temp area — case bodies call git directly with the
+    # process env, so the ceiling rides along with them.
+    os.environ["GIT_CEILING_DIRECTORIES"] = tempfile.gettempdir()
     dangerous = sorted(set(leaked) & REPO_RESOLVING)
     if dangerous:
         print(f"self-test: scrubbed repository-resolving variable(s) from the "

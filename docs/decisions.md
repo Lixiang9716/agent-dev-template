@@ -292,3 +292,10 @@
 - **状态**：已决
 - **决定**：① doctor 以 `git rev-parse --git-common-dir` 定钩子目录（worktree 与主仓一致）。② 裸 `--write` 只重基线**当前失步**的对（全绿时明示 no-op；强制绿对走点名形式）。③ **决策源可配置**：新共享加载器 `gov/decisions.py`（`.gov/decisions.json` {path, format: sections|table}；表格格式解析 `| Dn | … |` 行、表头备选列覆盖全行检查）；verify-decisions / audit-notes / recall 三消费方统一走它；**无源且有笔记引用 D → REFUSED exit 1**（不再 vacuous 绿）；无源且无引用 → 良性。④ 账本区分"未执行"（提示 write one）与"已执行未声明"（点名文件与缺失的 `# gate:` 行；永不提示写已跑过的用例）。⑤ doctor 比对 manifest 与包版本，漂移打 note 并指 upgrade/whatsnew。⑥ **self-test 进程入口剥除 GIT_***（工具按 cwd 解析仓库是 D21 的设计，继承环境只会误导；影响仓库解析的变量被清洗时大声声明）；钩子模板同样 unset 后再 exec。⑦ 路径门禁结局行附 `n in change scope`（0 时明示"nothing changed matches"，与扫描输出可分辨）。⑧ 钩子模板读 push stdin 取 remote sha 作 `--base`（docs-only push 只跑选中门并点名排除项；新分支无 remote → 全量）。⑨ history 写入 **git common dir 的父目录**（= 主 checkout 的 .gov/history；worktree 运行入主账本）。
 - **被否**：⑥ 逐 subprocess 补丁式清洗——入口一次剥离覆盖进程内用例与其全部子进程；⑧ 钩子跑全量+缓存——规则 1 说 CI 拥有全矩阵，钩子拥有最小充分集；③ 无源一律拒绝——破坏首跑不红（D13），引用存在才是危险信号。
+
+## D33 — 宿主完整性：scratch 夹具的三墙
+
+- **问题**：#24——self-test 的 scratch 夹具两次反噬宿主仓库：① 0.12.0 钩子语境并发运行，泄漏的 GIT_DIR/GIT_INDEX_FILE 使 scratch 的 git 命令解析到宿主仓库，三个 worktree 分支各留孤儿 "init" 提交并随 push 出货；② 0.12.1（环境清洗已生效）worktree 自测窗口内主仓库 .git/config 被改写为 core.bare=true + user t/t——机制未钉死，意味着单点修复不可信。
+- **状态**：已决
+- **决定**：纵深防御三墙（任何一墙独立成立即安全）：**墙 1（夹具环境）**——`_git_repo` 的每条 git 命令以剥离 GIT_* 且注入 `GIT_CEILING_DIRECTORIES=<scratch父>` 的环境运行，泄漏的解析变量进不了夹具；**墙 2（toplevel 守卫）**——init 后、任何 config/add/commit 前，断言 `git rev-parse --show-toplevel` 恰为 scratch 本身，不匹配即大声中止（"refusing to configure or commit into it"），宁可测试红也不碰别人的仓库；**墙 3（全局天花板）**——self-test 入口在清洗环境后统一设 `GIT_CEILING_DIRECTORIES=<tempdir>`，进程内用例直呼 git 也无法向上走出临时区。验收测试固化：从 linked worktree 内跑全量 self-test（含敌对 GIT_DIR/GIT_INDEX_FILE 泄漏变体），宿主 config/refs/status/HEAD 字节级不变；守卫负向用例钉住"逃逸即中止"。
+- **被否**：仅靠入口清洗（0.12.1 的事故证明它不够——机制未钉死时单墙不可信）；夹具改用 libgit2/纯 Python 实现——引入依赖且重写 33 个用例的收益不抵风险；禁用 worktree 场景——采用者的真实环境正是 worktree。
