@@ -69,7 +69,15 @@ def _new(args: argparse.Namespace) -> int:
         return 2
     related = ""
     if args.ref:
-        known = _known_decisions()
+        import re as _re
+        if _re.fullmatch(r"govrail:D\d+", args.ref):
+            # The one legal cross-project reference (D34): the tool's own
+            # decisions table — nothing local to validate against.
+            print(f"note: {args.ref} is an external reference (govrail's "
+                  "decisions table) — recorded, not validated locally")
+            known = None  # skip local validation
+        else:
+            known = _known_decisions()
         if known is None:
             # Rule 5, same lesson audit-notes learned: "nothing to check
             # against" is said out loud, never silently skipped.
@@ -107,7 +115,8 @@ def _check(_: argparse.Namespace) -> int:
         return 0
     violations = 0
     for p in sorted(NOTES_IMPLEMENTED.rglob("*.md")):
-        for d in sorted(set(an.D_REF_RX.findall(p.read_text(encoding="utf-8"))), key=int):
+        text = an.EXTERNAL_D_RX.sub("", p.read_text(encoding="utf-8"))
+        for d in sorted(set(an.D_REF_RX.findall(text)), key=int):
             if f"D{d}" not in known:
                 print(f"{p}: references D{d}, not in {DECISIONS}")
                 violations += 1

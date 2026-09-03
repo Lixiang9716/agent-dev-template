@@ -39,6 +39,7 @@ D_SECTION_RX = re.compile(r"(?m)^## (D\d+) — .*$")
 # say alternatives.
 ALT_RX = re.compile(r"被否|选项|[Aa]lternatives")
 D_REF_RX = re.compile(r"\bD(\d+)\b")
+EXTERNAL_D_RX = re.compile(r"govrail:D\d+")  # D34: the tool's own table
 
 
 def _sections(text: str) -> list[tuple[str, str]]:
@@ -55,7 +56,8 @@ def _note_refs() -> set[str]:
         if not root.is_dir():
             continue
         for p in root.rglob("*.md"):
-            refs.update(f"D{d}" for d in D_REF_RX.findall(p.read_text(encoding="utf-8")))
+            text = EXTERNAL_D_RX.sub("", p.read_text(encoding="utf-8"))
+            refs.update(f"D{d}" for d in D_REF_RX.findall(text))
     return refs
 
 

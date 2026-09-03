@@ -247,6 +247,7 @@ def test_upgrade_report_sees_drift_never_writes(tmp_path, capsys):
     rules.write_text(before + "\n## 8. Project rule (custom)\ncustom content\n")
     manifest = json.loads((tmp_path / ".gov" / "manifest.json").read_text())
     manifest["version"] = "0.6.5"
+    manifest.pop("templates", None)  # a 0.6.5-era manifest has no hashes
     (tmp_path / ".gov" / "manifest.json").write_text(json.dumps(manifest))
     # and a template addition the old init never created
     (tmp_path / ".gov" / "rejections" / "README.md").unlink()
@@ -254,7 +255,7 @@ def test_upgrade_report_sees_drift_never_writes(tmp_path, capsys):
     assert cli.init(tmp_path, upgrade=True) == 0
     out = capsys.readouterr().out
     assert "nothing is changed by this report" in out
-    assert "DIFFERS (customized locally and/or template evolved since v0.6.5)" in out
+    assert "DIFFERS (customized locally and/or template evolved since v0.6.5 (no adoption hash recorded))" in out
     assert "shipped-template/.gov/rules.md" in out
     assert "+## 8. Project rule (custom)" in out  # the diff shows the customization
     assert "rejections/README.md" in out and "MISSING" in out
@@ -300,3 +301,54 @@ def test_upgrade_report_marks_adoptable(tmp_path, capsys):
     (tmp_path / ".gov" / "rejections" / "README.md").unlink()
     assert cli.init(tmp_path, upgrade=True) == 0
     assert "adoptable: gov init --adopt .gov/rejections/README.md" in capsys.readouterr().out
+
+
+def test_upgrade_distinguishes_upstream_moved_from_both_moved(tmp_path, capsys):
+    """D34: provenance hashes answer 'did upstream move, should I re-adopt'."""
+    import hashlib
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    manifest_p = tmp_path / ".gov" / "manifest.json"
+    manifest = json.loads(manifest_p.read_text())
+    assert ".gov/rules.md" in manifest["templates"]  # hashes recorded at init
+
+    rules = tmp_path / ".gov" / "rules.md"
+    # (a) upstream moved: local differs from the CURRENT template but is
+    # byte-equal to what the (old, recorded) template shipped
+    rules.write_text(rules.read_text() + "\nOLD TEMPLATE TAIL\n")
+    manifest["templates"][".gov/rules.md"] = hashlib.sha256(
+        rules.read_bytes()).hexdigest()
+    manifest_p.write_text(json.dumps(manifest))
+    assert cli.init(tmp_path, upgrade=True) == 0
+    out = capsys.readouterr().out
+    assert "UPSTREAM MOVED — your copy is untouched" in out
+    # (b) safe re-adopt: --adopt replaces the uncustomized copy
+    assert cli.init(tmp_path, adopt=[".gov/rules.md"]) == 0
+    out = capsys.readouterr().out
+    assert "re-adopted .gov/rules.md (your copy was uncustomized;" in out
+    assert "manifest updated" in out  # side effects disclosed (#open-2)
+    m2 = json.loads(manifest_p.read_text())
+    assert m2["templates"][".gov/rules.md"] != "0" * 64  # hash refreshed
+    # (c) both moved: local customized AND recorded != current
+    rules.write_text(rules.read_text() + "\n# MY RULE\n")
+    manifest = json.loads(manifest_p.read_text())
+    manifest["templates"][".gov/rules.md"] = "0" * 64
+    manifest_p.write_text(json.dumps(manifest))
+    assert cli.init(tmp_path, upgrade=True) == 0
+    assert "BOTH MOVED" in capsys.readouterr().out
+
+
+def test_adopt_preview_writes_nothing(tmp_path, capsys):
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    target = tmp_path / ".gov" / "rejections" / "README.md"
+    target.unlink()
+    manifest_text_before = (tmp_path / ".gov" / "manifest.json").read_text()
+    assert cli.init(tmp_path, adopt=[".gov/rejections/README.md"],
+                    preview=True) == 0
+    out = capsys.readouterr().out
+    assert "would create .gov/rejections/README.md" in out
+    assert "preview only — nothing was written" in out
+    assert not target.exists()  # nothing landed
+    manifest = json.loads((tmp_path / ".gov" / "manifest.json").read_text())
+    assert manifest == json.loads(manifest_text_before)  # manifest untouched

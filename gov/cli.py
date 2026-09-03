@@ -87,7 +87,7 @@ def _install_ci(project: Path, created: list[str]) -> None:
 
 def init(project: Path, hooks: bool = False, ci: bool = False,
          upgrade: bool = False, adopt: list[str] | None = None,
-         report_json: bool = False) -> int:
+         report_json: bool = False, preview: bool = False) -> int:
     project = project.resolve()
     if not project.is_dir():
         print(f"init: {project} is not a directory", file=sys.stderr)
@@ -95,7 +95,7 @@ def init(project: Path, hooks: bool = False, ci: bool = False,
     manifest_path = project / ".gov" / "manifest.json"
     if manifest_path.exists():
         if adopt is not None:
-            return _adopt(project, manifest_path, adopt)  # wish: missing files land
+            return _adopt(project, manifest_path, adopt, preview=preview)
         if upgrade:
             return _upgrade_report(project, manifest_path, json_mode=report_json)
         if not (hooks or ci):
@@ -161,7 +161,8 @@ def init(project: Path, hooks: bool = False, ci: bool = False,
 
     (gov_dir / "manifest.json").write_text(
         json.dumps(
-            {"version": __version__, "created": created, "gitHooks": git_hooks},
+            {"version": __version__, "created": created, "gitHooks": git_hooks,
+             "templates": _template_hashes(project, created)},
             indent=2,
         )
         + "\n",
@@ -196,6 +197,24 @@ def init(project: Path, hooks: bool = False, ci: bool = False,
     return 0
 
 
+def _template_hashes(project: Path, created: list[str]) -> dict[str, str]:
+    """sha256 of each shipped template actually adopted (D34 provenance).
+
+    Files the project already owned (create-if-missing did not land) have
+    no entry: nothing was adopted, so there is nothing to re-adopt.
+    """
+    import hashlib
+    hashes: dict[str, str] = {}
+    inv = dict(_inventory(set(created)))
+    hashes[".gov/rules.md"] = hashlib.sha256(
+        TEMPLATES.joinpath("rules.md").read_bytes()).hexdigest()  # always written
+    for rel in created:
+        tpl = inv.get(rel)
+        if tpl is not None:
+            hashes[rel] = hashlib.sha256(tpl.read_bytes()).hexdigest()
+    return hashes
+
+
 def _inventory(created: set[str]) -> list[tuple[str, Any]]:
     """Every template-injectable file: (rel path, shipped template)."""
     expected: list[tuple[str, Any]] = [
@@ -215,10 +234,14 @@ def _inventory(created: set[str]) -> list[tuple[str, Any]]:
     return expected
 
 
-def _adopt(project: Path, manifest_path: Path, targets: list[str]) -> int:
-    """Wish 1/D29: apply template files that are locally MISSING — never
-    overwrite an existing file. New-file adoption is safe to automate;
-    modified-file adoption stays the D23 two-step."""
+def _adopt(project: Path, manifest_path: Path, targets: list[str],
+           preview: bool = False) -> int:
+    """Wish 1/D29 + D34: apply template files that are locally MISSING —
+    never overwrite a customized file. A copy that is byte-identical to
+    what was adopted (provenance hash) may be safely re-adopted when the
+    upstream template moved; ``--preview`` shows what would land and
+    writes nothing; the manifest update is disclosed, never silent.
+    """
     try:
         data = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as e:
@@ -236,28 +259,77 @@ def _adopt(project: Path, manifest_path: Path, targets: list[str]) -> int:
     else:
         selected = [rel for rel in inventory if not (project / rel).exists()]
 
-    applied = 0
+    import hashlib
+    recorded = dict(data.get("templates", {}))
+    if preview:
+        # D34: preview shows exactly what would land, writes nothing.
+        for rel in selected:
+            tpl_bytes = inventory[rel].read_bytes()
+            dest = project / rel
+            if not dest.exists():
+                print(f"--- would create {rel} ({len(tpl_bytes)} bytes) ---")
+                text = tpl_bytes.decode("utf-8", errors="replace").splitlines()
+                for line in text[:40]:
+                    print(f"  {line}")
+                if len(text) > 40:
+                    print(f"  …and {len(text) - 40} more line(s)")
+            else:
+                import difflib
+                diff = list(difflib.unified_diff(
+                    dest.read_text(encoding="utf-8", errors="replace").splitlines(),
+                    tpl_bytes.decode("utf-8", errors="replace").splitlines(),
+                    fromfile=f"local/{rel}", tofile=f"shipped-template/{rel}",
+                    lineterm=""))
+                print(f"--- {rel}: adoption would replace it with the shipped "
+                      "template (diff below) ---")
+                for line in diff[:40]:
+                    print(f"  {line}")
+                if len(diff) > 40:
+                    print(f"  …and {len(diff) - 40} more line(s)")
+        print("init: preview only — nothing was written")
+        return 0
+
+    applied = re_adopted = 0
     for rel in selected:
         dest = project / rel
+        tpl_bytes = inventory[rel].read_bytes()
+        tpl_h = hashlib.sha256(tpl_bytes).hexdigest()
         if dest.exists():
-            print(f"init: {rel} already present — untouched (never overwritten)")
+            local_h = hashlib.sha256(dest.read_bytes()).hexdigest()
+            adopted_h = recorded.get(rel)
+            if adopted_h == local_h and local_h != tpl_h:
+                # The copy is byte-identical to what was adopted and the
+                # template moved since — replacing it loses nothing (D34).
+                dest.write_bytes(tpl_bytes)
+                recorded[rel] = tpl_h
+                re_adopted += 1
+                print(f"init: re-adopted {rel} (your copy was uncustomized; "
+                      "the upstream template had moved)")
+                continue
+            print(f"init: {rel} already present — untouched (never overwritten; "
+                  "preview with --preview)")
             continue
-        tpl = inventory[rel]
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(tpl.read_bytes())
+        dest.write_bytes(tpl_bytes)
         if rel not in created:
             created.append(rel)
+        recorded[rel] = tpl_h
         if rel.endswith("pre-push"):
             dest.chmod(0o755)
         print(f"init: adopted {rel}")
         applied += 1
-    if not applied:
+    if not applied and not re_adopted:
         print("init: nothing to adopt (no missing template files)")
     manifest_path.write_text(
         json.dumps({"version": __version__, "created": created,
-                    "gitHooks": data.get("gitHooks", [])}, indent=2) + "\n",
+                    "gitHooks": data.get("gitHooks", []),
+                    "templates": recorded}, indent=2) + "\n",
         encoding="utf-8",
     )
+    if applied or re_adopted:
+        # D34: side effects are disclosed, never silent.
+        print(f"init: manifest updated — {applied} adopted, {re_adopted} "
+              "re-adopted; template hashes recorded")
     return 0
 
 
@@ -313,10 +385,22 @@ def _upgrade_report(project: Path, manifest_path: Path,
                 status = "matches"
             else:
                 status = "differs"
+            era = None
+            if status == "differs":
+                import hashlib
+                local_h = hashlib.sha256((project / rel).read_bytes()).hexdigest()
+                adopted_h = recorded.get(rel)
+                if adopted_h is None:
+                    era = "ambiguous"
+                elif local_h == adopted_h:
+                    era = "upstream-moved"
+                else:
+                    era = "both-moved"
             files_out.append({
                 "path": rel,
                 "status": status,
-                "adoptable": status == "missing",
+                "era": era,
+                "adoptable": status == "missing" or era == "upstream-moved",
             })
         print(json.dumps({
             "initialized_with": init_version,
@@ -333,9 +417,22 @@ def _upgrade_report(project: Path, manifest_path: Path,
         print(f"  {rel:<40} matches the shipped template")
     for rel in missing:
         print(f"  {rel:<40} MISSING — adoptable: gov init --adopt {rel}")
+    import hashlib
+    recorded = data.get("templates", {})
     for rel, tpl in differing:
-        era = ("customized locally" if init_version == __version__
-               else f"customized locally and/or template evolved since v{init_version}")
+        local_b = (project / rel).read_bytes()
+        local_h = hashlib.sha256(local_b).hexdigest()
+        adopted_h = recorded.get(rel)
+        if adopted_h is None:
+            era = ("customized locally" if init_version == __version__
+                   else "customized locally and/or template evolved "
+                        f"since v{init_version} (no adoption hash recorded)")
+        elif local_h == adopted_h:
+            era = ("UPSTREAM MOVED — your copy is untouched since adoption; "
+                   "`gov init --adopt " + rel + "` takes the new template safely")
+        else:
+            era = ("BOTH MOVED — your customization AND the upstream template "
+                   "evolved; merge by hand (two-step)")
         print(f"  {rel:<40} DIFFERS ({era}):")
         diff = list(
             difflib.unified_diff(
@@ -548,7 +645,7 @@ def _init_uninstall_args(
 ) -> tuple[Path, bool, bool, bool, bool] | None:
     """Parse --project (+ init's --hooks/--ci/--upgrade, uninstall's --force)."""
     project = "."
-    hooks = ci = force = upgrade = adopt = report_json = False
+    hooks = ci = force = upgrade = adopt = report_json = preview = False
     adopt_targets: list[str] = []
     i = 0
     while i < len(args):
@@ -571,6 +668,9 @@ def _init_uninstall_args(
         elif what == "init" and a == "--json":
             report_json = True
             i += 1
+        elif what == "init" and a == "--preview":
+            preview = True
+            i += 1
         elif what == "init" and a == "--adopt":
             adopt = True
             i += 1
@@ -585,7 +685,7 @@ def _init_uninstall_args(
             _usage()
             return None
     return (Path(project), hooks, ci, force, upgrade,
-            (adopt_targets if adopt else None), report_json)
+            (adopt_targets if adopt else None), report_json, preview)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -613,7 +713,8 @@ def main(argv: list[str] | None = None) -> int:
         parsed = _init_uninstall_args(rest, "init")
         return 2 if parsed is None else init(parsed[0], hooks=parsed[1], ci=parsed[2],
                                             upgrade=parsed[4], adopt=parsed[5],
-                                            report_json=parsed[6])
+                                            report_json=parsed[6],
+                                            preview=parsed[7])
     if cmd == "uninstall":
         parsed = _init_uninstall_args(rest, "uninstall")
         return 2 if parsed is None else uninstall(parsed[0], force=parsed[3])

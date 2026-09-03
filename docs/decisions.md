@@ -299,3 +299,10 @@
 - **状态**：已决
 - **决定**：纵深防御三墙（任何一墙独立成立即安全）：**墙 1（夹具环境）**——`_git_repo` 的每条 git 命令以剥离 GIT_* 且注入 `GIT_CEILING_DIRECTORIES=<scratch父>` 的环境运行，泄漏的解析变量进不了夹具；**墙 2（toplevel 守卫）**——init 后、任何 config/add/commit 前，断言 `git rev-parse --show-toplevel` 恰为 scratch 本身，不匹配即大声中止（"refusing to configure or commit into it"），宁可测试红也不碰别人的仓库；**墙 3（全局天花板）**——self-test 入口在清洗环境后统一设 `GIT_CEILING_DIRECTORIES=<tempdir>`，进程内用例直呼 git 也无法向上走出临时区。验收测试固化：从 linked worktree 内跑全量 self-test（含敌对 GIT_DIR/GIT_INDEX_FILE 泄漏变体），宿主 config/refs/status/HEAD 字节级不变；守卫负向用例钉住"逃逸即中止"。
 - **被否**：仅靠入口清洗（0.12.1 的事故证明它不够——机制未钉死时单墙不可信）；夹具改用 libgit2/纯 Python 实现——引入依赖且重写 33 个用例的收益不抵风险；禁用 worktree 场景——采用者的真实环境正是 worktree。
+
+## D34 — 溯源三向判定、采纳预览与申报、外部 D 引用
+
+- **问题**：① drift 报告把一切差异标成 "customized locally and/or template evolved"——采纳者真正要问的是"上游动没动、要不要重新采纳"，只好手工 diff shipped 模板与 origin/main。② `--adopt <file>` 无法单文件预览。③ adopt 顺手改 manifest 不吭声。④ 跨项目 D 命名空间缺失：radiant 引用 govrail:D24 被判本地悬空/孤儿，无合法外部引用语法。
+- **状态**：已决
+- **决定**：① **采纳溯源**：init/adopt 在 manifest 记录每个实际落地模板文件的 sha256（`templates` 字段；项目自有文件不记——没有采纳就没有重采纳）；`--upgrade` 对差异文件做三向判定：local==记录 → **UPSTREAM MOVED**（你的副本自采纳后未动，`--adopt <rel>` 可安全取新模板）/ local≠记录且≠当前 → **BOTH MOVED**（你的定制与上游演化并存，手工合并）/ 无记录（旧 manifest）→ 维持含糊措辞并注明"no adoption hash recorded"；`--upgrade --json` 输出 `era` + `adoptable`。**未定制副本的安全重采纳**：`--adopt` 对"存在但与采纳哈希逐字节相等"的文件允许替换（那不是项目的内容，是旧模板的残影——替换零丢失），定制文件仍永不覆盖。② `--adopt <file> --preview`：缺失文件展示将落地内容、已有文件展示替换 diff，零写入、manifest 不动。③ adopt 修改 manifest 时显式申报（"manifest updated — N adopted, M re-adopted; template hashes recorded"）。④ **`govrail:D<n>` 为唯一合法外部引用命名空间**：audit-notes 的悬空检查、verify-decisions 的孤儿计算、note check 的校验统一**剥离**外部引用后再提取本地 D（govrail:D24 ≠ 本地 D24，既不误报悬空、也不掩盖本地孤儿）；`note new --ref govrail:D24` 接受为外部引用（记录、不本地校验、明示）。
+- **被否**：任意前缀外部命名空间（`foo:D1`）——为拼写错误开静默后门，只认 govrail:（唯一已知的外部决策表）；升级时自动重采纳全部 UPSTREAM MOVED——批量替换跨多个文件时应有人看一眼 preview；manifest 记录模板全文哈希以外的内容（如时间戳）——判定只需字节身份。
