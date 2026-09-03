@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/Lixiang9716/govrail/compare/v0.14.0...v0.14.1) (2026-09-03)
+
+
+### Bug Fixes
+
+* audit-notes flag registry pinned to each command's real --help surface ([#102](https://github.com/Lixiang9716/govrail/issues/102)) ([d542e3f](https://github.com/Lixiang9716/govrail/commit/d542e3f278acd32c132a5fd9b830ae22cbe62a85)), closes [#101](https://github.com/Lixiang9716/govrail/issues/101)
+
 ## [0.14.0](https://github.com/Lixiang9716/govrail/compare/v0.13.2...v0.14.0) (2026-09-03)
 
 
