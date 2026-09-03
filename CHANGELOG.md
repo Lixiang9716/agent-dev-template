@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.2](https://github.com/Lixiang9716/govrail/compare/v0.12.1...v0.12.2) (2026-09-03)
+
+
+### Bug Fixes
+
+* host integrity — three walls around the self-test's scratch fixtures ([#86](https://github.com/Lixiang9716/govrail/issues/86)) ([9e7d45b](https://github.com/Lixiang9716/govrail/commit/9e7d45b2bc2e66f89fbebaf98dd1c75c06eec299))
+
 ## [0.12.1](https://github.com/Lixiang9716/govrail/compare/v0.12.0...v0.12.1) (2026-09-03)
 
 
