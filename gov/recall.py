@@ -70,19 +70,14 @@ def _entries() -> list[Entry]:
         for p in sorted(root.rglob("*.md")):
             text = p.read_text(encoding="utf-8")
             out.append(Entry(str(p), _title_of(text), _headings_of(text), text))
-    if DECISIONS.is_file():
+    from . import decisions as dec
+    src = dec.load()
+    if src is not None:
         sources += 1
-        text = DECISIONS.read_text(encoding="utf-8")
-        parts = D_SECTION_RX.split(text)
-        for i in range(1, len(parts) - 1, 2):
-            heading = parts[i]
+        for did, title, body in src.entries():
             out.append(
-                Entry(
-                    source=f"{DECISIONS}#{heading.split(' —')[0]}",
-                    title=heading,
-                    headings=[],
-                    body=parts[i + 1],
-                )
+                Entry(source=f"{src.path}#{did}", title=title,
+                      headings=[], body=body)
             )
     if POSTMORTEM.is_dir():
         sources += 1

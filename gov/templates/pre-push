@@ -1,14 +1,39 @@
 #!/bin/sh
 # govrail: pre-push hook installed by `gov init --hooks`; `gov uninstall` removes it.
-# Runs the project's gate DAG (the defaultMode from gates.json) before the push
-# leaves your machine. note-presence reviews the work being pushed: its auto
-# base picks the commits ahead of upstream when the tree is clean. Bypass for
-# one push: `git push --no-verify`.
+# Runs the smallest sufficient gate set for what is being pushed (rule 1):
+# the push range from stdin selects gates by their `paths`; CI owns the
+# full matrix. Bypass for one push: `git push --no-verify`.
+#
+# The hook unsets GIT_DIR & friends before running gov: they leak the
+# hook's repository into every subprocess, and gov's own tooling (and
+# self-test's scratch repositories) must resolve repositories by cwd,
+# not by inherited environment (#20).
+
 # Resolve gov robustly (D29): explicit override, then PATH, then module.
-if [ -n "$GOV_BIN" ]; then
-    exec $GOV_BIN run
+gov_cmd() {
+    if [ -n "$GOV_BIN" ]; then
+        exec $GOV_BIN "$@"
+    fi
+    if command -v gov >/dev/null 2>&1; then
+        exec gov "$@"
+    fi
+    exec python3 -m gov "$@"
+}
+
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_QUARANTINE_PATH \
+      GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+
+zero=0000000000000000000000000000000000000000
+base=""
+while read local_ref local_sha remote_ref remote_sha; do
+    if [ "$remote_sha" != "$zero" ] && [ -z "$base" ]; then
+        base="$remote_sha"  # first push range: gates select against it
+    fi
+done
+
+if [ -n "$base" ]; then
+    gov_cmd run --base "$base"
+else
+    # new branch (no remote sha): everything is the change — full mode
+    gov_cmd run
 fi
-if command -v gov >/dev/null 2>&1; then
-    exec gov run
-fi
-exec python3 -m gov run

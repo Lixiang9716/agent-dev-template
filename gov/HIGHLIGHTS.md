@@ -3,6 +3,23 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.13.0 — worktrees, hook context, blast radius
+
+- The pre-push hook now selects gates from the push range (docs-only
+  pushes skip the suite) and runs under a scrubbed environment — the
+  hook-context self-test failures are gone (#20/#22). UPDATE your
+  hook: it is a modified-file adoption (see gov init --upgrade).
+- Bare `gov verify-pairing --write` touches only out-of-sync pairs —
+  green sidecars keep the confirmation they earned (#16).
+- The decisions source is configurable (`.gov/decisions.json` —
+  sections or markdown-table format); with no source while notes
+  reference D-refs, verify-decisions answers REFUSED, not ok (#17).
+- `gov doctor` is worktree-aware and names manifest/package version
+  drift (#15/#19); run history records into the main checkout, not per
+  worktree (#23); path-scoped gates say `n in change scope` — zero is
+  visibly not a scan (#21); the coverage ledger names executed cases
+  that lack a `# gate:` declaration instead of nagging (#18).
+
 ## 0.12.0 — usability round: examples, cookbook, discovery
 
 - `gov whatsnew` — this command: what arrived since your init version

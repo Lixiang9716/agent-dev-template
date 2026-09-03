@@ -24,7 +24,8 @@ def test_healthy_environment(tmp_path, monkeypatch, capsys):
     assert doctor.main([]) in (0, 1)  # gov-on-PATH depends on the host
     out = capsys.readouterr().out
     assert "ok: gates.json passes the strict schema" in out
-    assert "ok: .git/hooks/pre-push is executable" in out
+    import re
+    assert re.search(r"ok: .*(/|\\)hooks(/|\\)pre-push is executable", out)
     assert "ok: python" in out
 
 

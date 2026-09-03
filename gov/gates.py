@@ -267,6 +267,23 @@ def load_config(path: str) -> tuple[dict[str, list[str]], list[Gate], int, str |
     return modes, gates, concurrency or 0, default_mode
 
 
+def _history_path() -> Path:
+    """#23/D32: history belongs to the repository, not the checkout —
+    linked worktrees record into the main checkout's .gov/history (the
+    git common dir's parent), so ledgers do not fragment per worktree."""
+    try:
+        proc = subprocess.run(["git", "rev-parse", "--git-common-dir"],
+                              capture_output=True, text=True)
+        if proc.returncode == 0:
+            common = Path(proc.stdout.strip()).resolve()
+            root = common.parent
+            if root != Path.cwd():
+                return root / ".gov" / "history" / "gates.jsonl"
+    except OSError:
+        pass
+    return Path(".gov/history/gates.jsonl")
+
+
 def _run_one(gate: Gate) -> tuple[Gate, str, str, bool]:
     """Run one gate; return (gate, outcome, detail, blocking_failed).
 
@@ -344,6 +361,7 @@ def run_gates(
     fail_fast: bool,
     json_mode: bool = False,
     record_path: Path | None = None,
+    changed: list[str] | None = None,
 ) -> int:
     """Run the selected gates (every enabled gate when selection is None).
 
@@ -427,7 +445,11 @@ def run_gates(
                 details[g.id] = detail
                 durations[g.id] = duration_ms
                 blocking[g.id] = is_blocking and not g.allow_failure
-                emit(_outcome_line(g, outcome))
+                scope_n = None
+                if changed is not None and g.paths:
+                    scope_n = sum(1 for f in changed
+                                  if any(_glob_regex(pt).match(f) for pt in g.paths))
+                emit(_outcome_line(g, outcome, scope_n))
                 if fail_fast and blocking[g.id]:
                     stop = True
                     for other in pending:
@@ -502,10 +524,15 @@ def run_gates(
     return 1 if failed else 0
 
 
-def _outcome_line(gate: Gate, outcome: str) -> str:
+def _outcome_line(gate: Gate, outcome: str, in_scope: int | None = None) -> str:
+    parts = []
     if gate.allow_failure and outcome in BLOCKING_OUTCOMES:
-        return f"{outcome} {gate.id} (advisory; allowFailure)"
-    return f"{outcome} {gate.id}"
+        parts.append("(advisory; allowFailure)")
+    if in_scope is not None:
+        # #21/D32: a scan over zero matched files must not read like a scan.
+        parts.append(f"{in_scope} in change scope" if in_scope
+                     else "0 in change scope — nothing changed matches")
+    return f"{outcome} {gate.id}" + (" " + " ".join(parts) if parts else "")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -592,10 +619,18 @@ def main(argv: list[str] | None = None) -> int:
         print("no gates configured", file=sys.stderr)
         return 0
 
+    changed = None
+    if any(g.paths for g in gates):
+        # #21/D32: annotate path-scoped gates with how many changed files
+        # they cover; best-effort (git missing -> no annotation).
+        probe = _changed_files(args.base) if args.base else _changed_files("HEAD")
+        if probe is not None:
+            changed = probe
+
     return run_gates(gates, selection, concurrency, args.fail_fast,
                      json_mode=args.json,
                      record_path=None if args.no_record
-                     else Path('.gov/history/gates.jsonl'))
+                     else _history_path(), changed=changed)
 
 
 if __name__ == "__main__":

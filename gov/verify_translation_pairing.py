@@ -252,6 +252,17 @@ def _register(src: Path, zh: Path) -> Path:
     return record
 
 
+def _pair_is_stale(src: Path, cfg: dict[str, list[str]]) -> bool:
+    """A pair needs re-baselining: unrecorded, drifted, or missing a side."""
+    zh = _counterpart(src, cfg)
+    rec = _record_path(src)
+    if zh is None or not zh.exists() or not rec.exists():
+        return True
+    recorded = _parse_record(rec)
+    return (recorded.get("en") != _blob_hash(src)
+            or recorded.get("zh") != _blob_hash(zh))
+
+
 def _convention_hint(cfg: dict[str, list[str]]) -> str:
     return ", ".join(cfg["counterparts"])
 
@@ -304,7 +315,15 @@ def _write(items: list[str], cfg: dict[str, list[str]]) -> int:
     if items:
         sources = sorted({_resolve_source(a, cfg) for a in items})
     else:
-        sources = _sources(cfg)
+        # #32/D32: the bare form baselines only what is currently OUT OF
+        # SYNC — green pairs keep the confirmation they earned; forcing a
+        # green pair is the named-path form's job.
+        sources = [src for src in _sources(cfg) if _pair_is_stale(src, cfg)]
+        if not sources:
+            print("verify_translation_pairing: nothing out of sync — bare "
+                  "--write touches nothing; use --write <path> to force a "
+                  "specific pair")
+            return 0
     wrote = 0
     unpairable = 0
     for src in sources:

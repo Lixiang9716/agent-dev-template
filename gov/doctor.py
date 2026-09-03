@@ -47,12 +47,26 @@ def _check_python(problems: list[str]) -> None:
         )
 
 
+def _git_dir() -> str | None:
+    """The git dir, worktree-aware (#15/D32): a linked worktree's .git is a
+    FILE; git rev-parse --git-common-dir resolves the shared dir (hooks
+    live there even from a linked worktree)."""
+    proc = subprocess.run(["git", "rev-parse", "--git-common-dir"],
+                          capture_output=True, text=True)
+    if proc.returncode != 0:
+        return None
+    import os
+    return os.path.abspath(proc.stdout.strip()) or None
+
+
 def _check_hook(problems: list[str]) -> None:
     import os
-    if not os.path.isdir(".git"):
+    git_dir = _git_dir()
+    if git_dir is None:
         print("note: not a git repository — hook checks skipped")
         return
-    for rel, what in ((".git/hooks/pre-push", "the wired git hook"),
+    hook = os.path.join(git_dir, "hooks", "pre-push")
+    for rel, what in ((hook, "the wired git hook"),
                       (".gov/hooks/pre-push", "the auditable copy")):
         if not os.path.exists(rel):
             print(f"note: {rel} absent ({what}) — gov init --hooks installs it")
@@ -61,6 +75,25 @@ def _check_hook(problems: list[str]) -> None:
             print(f"ok: {rel} is executable")
         else:
             problems.append(f"{rel} is not executable — chmod +x it")
+
+
+def _check_version_drift(problems: list[str]) -> None:
+    """#19/D32: the environment self-check must see manifest drift."""
+    import json
+    import os
+    manifest = ".gov/manifest.json"
+    if not os.path.exists(manifest):
+        return
+    try:
+        init_version = json.loads(
+            open(manifest, encoding="utf-8").read()).get("version")
+    except (OSError, ValueError):
+        return
+    if init_version and init_version != __version__:
+        print(f"note: manifest initialized with govrail {init_version}, "
+              f"this package is {__version__} — gov init --upgrade shows "
+              "template drift; gov whatsnew --since "
+              f"{init_version} shows what arrived")
 
 
 def _check_gates(problems: list[str]) -> None:
@@ -107,6 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"gov doctor — govrail {__version__}")
     _check_gov_on_path(problems)
     _check_python(problems)
+    _check_version_drift(problems)
     _check_hook(problems)
     _check_gates(problems)
     _check_decisions(problems)
