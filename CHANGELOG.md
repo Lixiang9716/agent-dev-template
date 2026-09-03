@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.2](https://github.com/Lixiang9716/govrail/compare/v0.13.1...v0.13.2) (2026-09-03)
+
+
+### Bug Fixes
+
+* gov whatsnew states the installed wheel and maps version lag ([#92](https://github.com/Lixiang9716/govrail/issues/92) residual) ([#95](https://github.com/Lixiang9716/govrail/issues/95)) ([a98fdc0](https://github.com/Lixiang9716/govrail/commit/a98fdc00b1feff352e05a83d6bcd92f69105240a))
+
 ## [0.13.1](https://github.com/Lixiang9716/govrail/compare/v0.13.0...v0.13.1) (2026-09-03)
 
 
