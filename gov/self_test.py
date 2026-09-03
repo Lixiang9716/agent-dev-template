@@ -37,12 +37,26 @@ CONCURRENCY = 4
 REJECTION_TIMEOUT_S = 10
 
 
+def _case_env() -> dict:
+    """A hermetic environment for case subprocesses (#20/D32).
+
+    A pre-push hook leaks GIT_DIR/GIT_WORK_TREE into everything it runs;
+    with them inherited, git commands inside scratch repositories resolve
+    the HOST repository instead of the scratch one — deterministic breakage
+    specific to the hook context. Case subprocesses get the environment
+    scrubbed of GIT_* so they resolve repositories by cwd, like the tools
+    do when run by hand.
+    """
+    return {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+
 def _run(script: str, cwd: Path) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(HERE / script)],
         cwd=cwd,
         capture_output=True,
         text=True,
+        env=_case_env(),
     )
 
 
@@ -798,7 +812,7 @@ def _run_project_case(p: Path) -> tuple[str, bool]:
     try:
         proc = subprocess.run(
             [str(p)], capture_output=True, text=True,
-            timeout=REJECTION_TIMEOUT_S, cwd=str(Path.cwd()),
+            timeout=REJECTION_TIMEOUT_S, cwd=str(Path.cwd()), env=_case_env(),
         )
     except subprocess.TimeoutExpired:
         return f"FAIL {p} (timed out after {REJECTION_TIMEOUT_S}s)", False
