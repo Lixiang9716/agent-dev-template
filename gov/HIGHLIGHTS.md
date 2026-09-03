@@ -3,7 +3,7 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
-## 0.13.0 — worktrees, hook context, blast radius
+## 0.12.1 — worktrees, hook context, blast radius
 
 - The pre-push hook now selects gates from the push range (docs-only
   pushes skip the suite) and runs under a scrubbed environment — the
