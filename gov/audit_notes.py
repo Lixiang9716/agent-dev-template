@@ -33,6 +33,10 @@ IMPLEMENTED = Path(".agents/notes/implemented")
 DECISIONS = Path("docs/decisions.md")
 GOV_CMD_RX = re.compile(r"`gov ([a-z][a-z0-9-]*)((?: [^`]*?)?)`")  # cmd + args
 D_REF_RX = re.compile(r"\bD(\d+)\b")
+# External decision references — the tool's own decisions table. The only
+# sanctioned cross-project namespace (D34): radiant citing govrail:D24 is
+# a reference INTO govrail's table, never into the local one.
+EXTERNAL_D_RX = re.compile(r"govrail:D\d+")
 PATH_RX = re.compile(r"`([A-Za-z0-9_.\-]+/[A-Za-z0-9_.\-/]*\.[A-Za-z0-9]+)`")
 PLACEHOLDER_PARTS = {"foo", "bar", "baz", "example", "examples", "xx", "x", "demo", "path"}
 SKILLS_DIR = Path(".agents/skills")
@@ -121,7 +125,8 @@ def _flags_note(text: str, commands: set[str] | None,
     if commands is not None:
         found.extend(_drift(text, commands))
     if decisions:  # non-empty: the set to check against
-        for d in sorted(set(D_REF_RX.findall(text)), key=int):
+        local_text = EXTERNAL_D_RX.sub("", text)  # govrail:D24 != local D24
+        for d in sorted(set(D_REF_RX.findall(local_text)), key=int):
             if f"D{d}" not in decisions:
                 found.append(f"references D{d}, not in the decisions source")
     for raw in sorted(set(PATH_RX.findall(text))):

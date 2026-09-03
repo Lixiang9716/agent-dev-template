@@ -3,6 +3,18 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.12.3 — provenance and external references
+
+- `gov init --upgrade` distinguishes WHO moved: UPSTREAM MOVED (your
+  copy is untouched since adoption — `--adopt <rel>` takes the new
+  template safely) vs BOTH MOVED (merge by hand) vs legacy ambiguity
+  (labeled). The manifest now records each adopted template's hash.
+- `gov init --adopt <file> --preview` shows what would land and writes
+  nothing; adopt discloses its manifest updates.
+- `govrail:D<n>` is the legal external decision reference: citing the
+  tool's decisions no longer reads as a dangling local D, and
+  `gov note new --ref govrail:D24` records it as external.
+
 ## 0.12.2 — host integrity
 
 - The self-test's scratch fixtures run behind three independent walls
