@@ -306,3 +306,10 @@
 - **状态**：已决
 - **决定**：① **采纳溯源**：init/adopt 在 manifest 记录每个实际落地模板文件的 sha256（`templates` 字段；项目自有文件不记——没有采纳就没有重采纳）；`--upgrade` 对差异文件做三向判定：local==记录 → **UPSTREAM MOVED**（你的副本自采纳后未动，`--adopt <rel>` 可安全取新模板）/ local≠记录且≠当前 → **BOTH MOVED**（你的定制与上游演化并存，手工合并）/ 无记录（旧 manifest）→ 维持含糊措辞并注明"no adoption hash recorded"；`--upgrade --json` 输出 `era` + `adoptable`。**未定制副本的安全重采纳**：`--adopt` 对"存在但与采纳哈希逐字节相等"的文件允许替换（那不是项目的内容，是旧模板的残影——替换零丢失），定制文件仍永不覆盖。② `--adopt <file> --preview`：缺失文件展示将落地内容、已有文件展示替换 diff，零写入、manifest 不动。③ adopt 修改 manifest 时显式申报（"manifest updated — N adopted, M re-adopted; template hashes recorded"）。④ **`govrail:D<n>` 为唯一合法外部引用命名空间**：audit-notes 的悬空检查、verify-decisions 的孤儿计算、note check 的校验统一**剥离**外部引用后再提取本地 D（govrail:D24 ≠ 本地 D24，既不误报悬空、也不掩盖本地孤儿）；`note new --ref govrail:D24` 接受为外部引用（记录、不本地校验、明示）。
 - **被否**：任意前缀外部命名空间（`foo:D1`）——为拼写错误开静默后门，只认 govrail:（唯一已知的外部决策表）；升级时自动重采纳全部 UPSTREAM MOVED——批量替换跨多个文件时应有人看一眼 preview；manifest 记录模板全文哈希以外的内容（如时间戳）——判定只需字节身份。
+
+## D35 — 小修轮：裸预览自解释、版本对齐防再犯、索引滞后记档
+
+- **问题**：① 裸 `--adopt --preview` 只打横幅——可采纳/已漂移的清单明明在 `--upgrade` 里，预览入口不自解释。② HIGHLIGHTS 段落标题预写 0.12.3、轮子实发 0.13.0（同类二犯：手预测版本 vs release-please 裁决），`whatsnew --since 0.12.2` 读起来像差一版；pip 首跑因索引未同步漏装 0.13.0（同因不同症）。
+- **状态**：已决
+- **决定**：① 裸预览打印漂移清单摘要（`adoptable: N missing, M drifted`）并跨引 `--upgrade`（逐文件 diff）与 `--adopt <file> --preview`（单文件）。② HIGHLIGHTS 标题对齐轮子版本；**tag 覆盖守卫测试**：每个 ≥0.12.0 的已发布 tag 必须有对应 HIGHLIGHTS 段落，版本错位即红——从"事后对齐"变"机械防再犯"。③ CONTRIBUTING 发布节记档 PyPI 索引滞后约一分钟、首跑可能漏装、重试再疑。
+- **被否**：whatsnew 运行时给错位段落加注——那是给错位打补丁而不是消灭错位；守卫测试覆盖 0.12.0 之前的 tag——HIGHLIGHTS 诞生于 0.12.0，之前的段落不存在是事实不是缺陷。

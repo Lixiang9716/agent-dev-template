@@ -3,7 +3,7 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
-## 0.12.3 — provenance and external references
+## 0.13.0 — provenance and external references
 
 - `gov init --upgrade` distinguishes WHO moved: UPSTREAM MOVED (your
   copy is untouched since adoption — `--adopt <rel>` takes the new
