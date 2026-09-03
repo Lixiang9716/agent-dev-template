@@ -73,16 +73,17 @@ def _known_commands() -> set[str] | None:
 
 
 def _known_decisions() -> set[str] | None:
-    """D-numbers in decisions.md.
+    """D-numbers in the decisions source (loader: config or default).
 
-    None = no decisions file; an EMPTY set = the file exists but parses to
-    zero sections (format mismatch) — two states the summary must not
-    confuse. Callers treat an empty set as "unchecked", same as None.
+    None = no source; an EMPTY set = a source exists but parses to zero
+    entries (format mismatch) — two states the summary must not confuse.
+    Callers treat an empty set as "unchecked", same as None.
     """
-    if not DECISIONS.is_file():
+    from . import decisions as dec
+    src = dec.load()
+    if src is None:
         return None
-    text = DECISIONS.read_text(encoding="utf-8")
-    found = set(re.findall(r"(?m)^## (D\d+) — ", text))
+    found = {d for d, _, _ in src.entries()}
     if not found:
         # A decisions file that parses to zero entries means a format
         # mismatch — treating it as "no decisions" would flag every D-ref
@@ -122,7 +123,7 @@ def _flags_note(text: str, commands: set[str] | None,
     if decisions:  # non-empty: the set to check against
         for d in sorted(set(D_REF_RX.findall(text)), key=int):
             if f"D{d}" not in decisions:
-                found.append(f"references D{d}, not in {DECISIONS}")
+                found.append(f"references D{d}, not in the decisions source")
     for raw in sorted(set(PATH_RX.findall(text))):
         if "*" in raw or "{" in raw:
             continue
@@ -172,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
                 findings += 1
     state = "clean" if not findings else f"{findings} signal(s)"
     if decisions is None:
-        extra = f" (no {DECISIONS}; D-refs unchecked)"
+        extra = " (no decisions source; D-refs unchecked)"
     elif not decisions:
         extra = f" ({DECISIONS} has no '## Dn — ' sections; D-refs unchecked)"
     else:

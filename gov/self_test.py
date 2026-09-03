@@ -844,17 +844,28 @@ def _coverage_report() -> None:
     except (OSError, _json.JSONDecodeError):
         return  # no gates.json here (e.g. the tools' own scratch repos)
     covered: dict[str, int] = {}
+    undeclared: list[str] = []
     for p in _project_cases():
-        for gid in GATE_RX.findall("\n".join(
-                p.read_text(encoding="utf-8", errors="replace").splitlines()[:5])):
+        declared = GATE_RX.findall("\n".join(
+            p.read_text(encoding="utf-8", errors="replace").splitlines()[:5]))
+        for gid in declared:
             covered[gid] = covered.get(gid, 0) + 1
+        if not declared:
+            undeclared.append(str(p))
     lines = []
     for gid in gate_ids:
         n = covered.get(gid, 0)
         lines.append(f"{gid}({n})" if n else f"{gid}(NONE — rule 6)")
     stray = [g for g in covered if g not in gate_ids]
     print(f"coverage (gate x project rejection cases): {' '.join(lines)}")
-    if any("(NONE" in l for l in lines):
+    if undeclared:
+        # #18/D32: a case that just RAN and PASSed but declares no gate —
+        # name it; never nag about writing a case that exists.
+        print("  executed case(s) without a '# gate: <id>' declaration "
+              "(first five lines):")
+        for p in undeclared:
+            print(f"    {p}")
+    if any("(NONE" in l for l in lines) and not undeclared:
         print("  write one: .gov/rejections/case-<gate-id>.sh, shebang on "
               "line 1, '# gate: <id>' within the first five lines")
     if stray:
@@ -880,6 +891,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--scope", choices=("all", "tools", "project"),
                         default="all", help="which family of cases to run")
     args = parser.parse_args(argv)
+
+    # #20/D32: a pre-push hook leaks GIT_DIR/GIT_WORK_TREE into this
+    # process; the tools resolve repositories by cwd (D21), so inherited
+    # GIT_* only ever misleads — root anchoring in scratch repos would
+    # resolve the HOST repository. Scrub once, at the process boundary,
+    # and say so when it happened.
+    REPO_RESOLVING = {"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE",
+                      "GIT_QUARANTINE_PATH", "GIT_OBJECT_DIRECTORY",
+                      "GIT_ALTERNATE_OBJECT_DIRECTORIES"}
+    leaked = [k for k in os.environ if k.startswith("GIT_")]
+    for k in leaked:
+        del os.environ[k]  # benign ones too: cases are hermetic by contract
+    dangerous = sorted(set(leaked) & REPO_RESOLVING)
+    if dangerous:
+        print(f"self-test: scrubbed repository-resolving variable(s) from the "
+              f"environment ({', '.join(dangerous)}) — cases must resolve "
+              "repositories by cwd (hook-context leak, #20)")
 
     tool_jobs = [] if args.scope == "project" else list(CASES)
     project_jobs = [] if args.scope == "tools" else _project_cases()

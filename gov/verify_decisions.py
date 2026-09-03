@@ -26,8 +26,10 @@ from datetime import date, datetime
 from pathlib import Path
 
 try:  # package context (`gov ...`)
+    from . import decisions as dec
     from .root import anchor_to_git_root
 except ImportError:  # direct script execution (self-test runs files by path)
+    import decisions as dec
     from root import anchor_to_git_root
 
 DEFAULT_PATH = Path("docs/decisions.md")
@@ -67,26 +69,30 @@ def main(argv: list[str] | None = None) -> int:
                         help=f"decisions table (default: {DEFAULT_PATH})")
     args = parser.parse_args(argv)
 
-    path = Path(args.path)
-    if not path.is_file():
-        if args.path == str(DEFAULT_PATH):
-            print("verify_decisions: no decisions table — nothing to verify")
-            return 0
-        print(f"verify_decisions: no such table: {path}", file=sys.stderr)
-        return 2
-    text = path.read_text(encoding="utf-8")
-
-    sections = _sections(text)
+    src = dec.load()
+    if src is None:
+        refs = _note_refs()
+        if refs:
+            shown = ", ".join(sorted(refs)[:5]) + ("…" if len(refs) > 5 else "")
+            print(f"verify_decisions: REFUSED — notes reference {shown} "
+                  "but no decisions source exists (docs/decisions.md missing; "
+                  "configure .gov/decisions.json with "
+                  '{"path": ..., "format": "sections"|"table"} '
+                  "if the table lives elsewhere)")
+            return 1
+        print("verify_decisions: no decisions table and no D-refs — nothing to verify")
+        return 0
+    path = src.path
+    text = src.text
+    sections = dec.Source.entries(src)  # (id, title, body)
     if not sections:
-        if args.path == str(DEFAULT_PATH):
-            print("verify_decisions: no decisions table entries — nothing to verify")
-            return 0
-        print(f"verify_decisions: {path} has no '## Dn — ' sections; check its format",
-              file=sys.stderr)
+        print(f"verify_decisions: {path} has no decision entries; check its "
+              "format (sections: '## Dn — ' headings; table: '| Dn | ...' rows; "
+              "or fix .gov/decisions.json)", file=sys.stderr)
         return 2
 
     violations: list[str] = []
-    ids = [d for d, _ in sections]
+    ids = [d for d, _, _ in sections]
     seen: set[str] = set()
     for d in ids:
         if d in seen:
@@ -99,7 +105,10 @@ def main(argv: list[str] | None = None) -> int:
         violations.append(
             f"numbering must be contiguous from D{numbers[0]} (missing: {', '.join(gaps)})"
         )
-    for d, body in sections:
+    header_alt = src.header_has_alternatives() and src.fmt == "table"
+    for d, _, body in sections:
+        if header_alt:
+            break  # a table-level alternatives column covers every row
         if not ALT_RX.search(body):
             violations.append(
                 f"{d}: records no options or rejected alternatives (被否/选项) — "
@@ -111,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
     # Wish 3/D30: decisions may declare a half-life ("review-by: 2026-09-01")
     # — a passed date is a prompt to re-read, reported like orphans.
     overdue: list[str] = []
-    for d, body in sections:
+    for d, _, body in sections:
         m = re.search(r"(?m)^-\s*\*\*review-by\*\*:?\s*(\S+)", body)
         if not m:
             continue

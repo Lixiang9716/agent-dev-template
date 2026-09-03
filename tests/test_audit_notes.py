@@ -107,7 +107,7 @@ def test_summary_missing_decisions_still_reported(tmp_path, monkeypatch, capsys)
           "## Problem\np\n\n## Alternatives considered\na\n")
     assert audit_notes.main([]) == 0
     out = capsys.readouterr()
-    assert "no docs/decisions.md; D-refs unchecked" in out.out
+    assert "no decisions source; D-refs unchecked" in out.out
 
 
 def test_skills_command_and_flag_drift(tmp_path, monkeypatch, capsys):
