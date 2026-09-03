@@ -3,6 +3,13 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.13.2 — explicit version mapping
+
+- `gov whatsnew` prints the installed wheel version and, when the wheel
+  carries no section for itself (a docs-only release, or a section added
+  after its release ships in the next wheel), says the mapping out loud
+  instead of reading one version short (issue #92's wheel-lag residual).
+
 ## 0.13.1 — alignment round
 
 - Bare `gov init --adopt --preview` names the drift inventory
