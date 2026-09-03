@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/Lixiang9716/govrail/compare/v0.12.0...v0.12.1) (2026-09-03)
+
+
+### Bug Fixes
+
+* worktrees, hook context, blast radius, and the vacuous-green family ([#15](https://github.com/Lixiang9716/govrail/issues/15)-[#23](https://github.com/Lixiang9716/govrail/issues/23)) ([#83](https://github.com/Lixiang9716/govrail/issues/83)) ([282a98c](https://github.com/Lixiang9716/govrail/commit/282a98cfb1214821cd0034a57d25194fb42978fb))
+
 ## [0.12.0](https://github.com/Lixiang9716/govrail/compare/v0.11.0...v0.12.0) (2026-09-02)
 
 
