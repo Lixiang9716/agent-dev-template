@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import gov.whatsnew as wn
