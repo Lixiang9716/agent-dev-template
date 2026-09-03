@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/Lixiang9716/govrail/compare/v0.13.0...v0.13.1) (2026-09-03)
+
+
+### Bug Fixes
+
+* bare adopt-preview cross-references the drift inventory; version-alignment guard (D35) ([#90](https://github.com/Lixiang9716/govrail/issues/90)) ([a37c03b](https://github.com/Lixiang9716/govrail/commit/a37c03b6ae94664c7adac0ba643a7c7731b8ec2a))
+
 ## [0.13.0](https://github.com/Lixiang9716/govrail/compare/v0.12.2...v0.13.0) (2026-09-03)
 
 
