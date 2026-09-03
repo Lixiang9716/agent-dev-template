@@ -60,3 +60,25 @@ def test_every_released_tag_has_a_highlights_section():
         f"released versions without a HIGHLIGHTS section: {', '.join(missing)} "
         "— align the section header with the wheel version"
     )
+
+
+from unittest import mock
+
+
+def test_mapping_note_when_wheel_lags(tmp_path, monkeypatch, capsys):
+    """#92 wheel-lag residual: an unsectioned wheel says the mapping."""
+    from unittest import mock
+    import gov.whatsnew as wn
+    with mock.patch("gov.whatsnew._pkg_version", "9.9.9"):
+        assert wn.main(["--since", "9.9.8"]) == 0
+    out = capsys.readouterr().out
+    assert "govrail 9.9.9 installed" in out
+    assert "wheel 9.9.9 has no dedicated highlights section" in out
+
+
+def test_installed_version_always_stated(capsys):
+    """The header names the wheel version — identity is explicit either way."""
+    import gov.whatsnew as wn
+    from gov import __version__ as v
+    assert wn.main(["--since", "9.9.8"]) == 0
+    assert f"govrail {v} installed" in capsys.readouterr().out

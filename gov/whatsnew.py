@@ -17,6 +17,8 @@ import re
 import sys
 from pathlib import Path
 
+from . import __version__ as _pkg_version
+
 try:  # package context (`gov ...`)
     from importlib.resources import files
     _HIGHLIGHTS = files("gov").joinpath("HIGHLIGHTS.md")
@@ -53,8 +55,11 @@ def main(argv: list[str] | None = None) -> int:
     sections = re.split(r"(?m)^## ", text)[1:]
     since = args.since or _manifest_version()
 
+    installed = _version_tuple(_pkg_version)
+    installed_str = _pkg_version
     if since:
-        print(f"gov whatsnew — highlights since {since}")
+        print(f"gov whatsnew — govrail {installed_str} installed; "
+              f"highlights since {since}")
         threshold = _version_tuple(since)
         printed = 0
         for section in sections:
@@ -65,12 +70,30 @@ def main(argv: list[str] | None = None) -> int:
                 printed += 1
         if not printed:
             print("  (nothing newer than " + since + ")")
+        _mapping_note(sections, installed, installed_str)
         return 0
 
-    print("gov whatsnew — newest section (no governed project here; "
-          "--since to range)")
+    print(f"gov whatsnew — govrail {installed_str} installed; newest section "
+          "(no governed project here; --since to range)")
     print("\n## " + sections[0].rstrip())
+    _mapping_note(sections, installed, installed_str)
     return 0
+
+
+def _mapping_note(sections, installed: tuple, installed_str: str) -> None:
+    """#92's wheel-lag residual, said out loud: a section added after its
+    release ships in the NEXT wheel (docs-only commits cut no wheel), so
+    the installed wheel can legitimately carry no section for itself."""
+    import re as _re
+    newest = None
+    for section in sections:
+        v = _version_tuple(section.split()[0])
+        if newest is None or v > newest:
+            newest = v
+    if newest is not None and newest < installed:
+        print(f"  note: wheel {installed_str} has no dedicated highlights "
+              f"section (docs-only release or section ships in the next "
+              "wheel); newest above is what this wheel carries")
 
 
 if __name__ == "__main__":

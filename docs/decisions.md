@@ -313,3 +313,10 @@
 - **状态**：已决
 - **决定**：① 裸预览打印漂移清单摘要（`adoptable: N missing, M drifted`）并跨引 `--upgrade`（逐文件 diff）与 `--adopt <file> --preview`（单文件）。② HIGHLIGHTS 标题对齐轮子版本；**tag 覆盖守卫测试**：每个 ≥0.12.0 的已发布 tag 必须有对应 HIGHLIGHTS 段落，版本错位即红——从"事后对齐"变"机械防再犯"。③ CONTRIBUTING 发布节记档 PyPI 索引滞后约一分钟、首跑可能漏装、重试再疑。
 - **被否**：whatsnew 运行时给错位段落加注——那是给错位打补丁而不是消灭错位；守卫测试覆盖 0.12.0 之前的 tag——HIGHLIGHTS 诞生于 0.12.0，之前的段落不存在是事实不是缺陷。
+
+## D36 — whatsnew 的显式版本映射（#92 的 wheel 滞后残余）
+
+- **问题**：#94 以 docs 提交补 0.13.1 HIGHLIGHTS 段，release-please 不为 docs 发轮——0.13.1 wheel 里最新段落仍是 0.13.0，`gov --version` 与 whatsnew 头在 **wheel 层**依旧错位（现场开场检查抓到）。结构性根因：段落在发布后补写，只能随下一个轮子出货；"每个轮子与最新段落一致"要求 docs-only 轮子或强制造段，或接受错位。
+- **状态**：已决
+- **决定**：采纳 #92 验收的第二分支为默认行为——whatsnew 头部恒显式打印安装的轮子版本；当轮子没有自己的段落（docs-only 发布，或段落滞后一拍）时打印映射注记（"wheel X has no dedicated highlights section … newest above is what this wheel carries"）。仓库层守卫（tag↔段落一致）不变：段落迟早补齐，轮子层的身份由运行时明示。
+- **被否**：为 docs-only 变更强制发轮子——空轮子换一致性；每个发布强制造段——噪音段落稀释 whatsnew 信噪比。
