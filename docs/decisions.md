@@ -320,3 +320,10 @@
 - **状态**：已决
 - **决定**：采纳 #92 验收的第二分支为默认行为——whatsnew 头部恒显式打印安装的轮子版本；当轮子没有自己的段落（docs-only 发布，或段落滞后一拍）时打印映射注记（"wheel X has no dedicated highlights section … newest above is what this wheel carries"）。仓库层守卫（tag↔段落一致）不变：段落迟早补齐，轮子层的身份由运行时明示。
 - **被否**：为 docs-only 变更强制发轮子——空轮子换一致性；每个发布强制造段——噪音段落稀释 whatsnew 信噪比。
+
+## D37 — CHANGELOG ↔ HIGHLIGHTS 配对：版本跟随的机械守卫
+
+- **问题**：HIGHLIGHTS 版本号三轮错位的根因是手工猜测 release-please 的裁决。用户指出：双语配对的核心逻辑（"一侧更新→另一侧必须跟上→gate 强制"）可以直接应用于 CHANGELOG ↔ HIGHLIGHTS——CHANGELOG 由 release-please 自动更新，HIGHLIGHTS 必须跟着更新且版本号从 CHANGELOG 里读（永不猜测）。
+- **状态**：已决
+- **决定**：新增 **`gov verify-doc-sync`** 门禁：解析 CHANGELOG 的 `## [X.Y.Z]` 版本段与 HIGHLIGHTS 的 `## X.Y.Z` 段，≥0.12.0 的每个版本必须配对；CHANGELOG 有 HIGHLIGHTS 无 → "copy the version FROM CHANGELOG"；HIGHLIGHTS 有 CHANGELOG 无（提前猜测）→ "shipped before its release"。进本仓库 gates.json（paths 限定两文件）。工作流：release-please 更新 CHANGELOG → gate 红 → 在 release PR 里补 HIGHLIGHTS（版本号照抄 CHANGELOG）→ 合并出货——同双语配对的"一侧变了另一侧必须重确认"。tag 覆盖守卫测试保留（belt and suspenders：gate 在 release PR 拦截，test 在后续 push 兜底）。
+- **被否**：删 HIGHLIGHTS 读 CHANGELOG——CHANGELOG 条目是 commit 一行摘要，不是用法说明；cookbook 覆盖用法但不按版本组织，"这次更新了什么怎么用"需要按版本的段落；自动同步标题——内容仍需人写，只同步标题不解决内容缺失。

@@ -7,7 +7,8 @@
       "note-presence",
       "rubric",
       "archive",
-      "decisions"
+      "decisions",
+      "doc-sync"
     ],
     "quick": [
       "notes",
@@ -95,6 +96,18 @@
       ],
       "paths": [
         "docs/decisions.md"
+      ]
+    },
+    {
+      "id": "doc-sync",
+      "label": "CHANGELOG \u2194 HIGHLIGHTS pairing",
+      "command": [
+        "gov",
+        "verify-doc-sync"
+      ],
+      "paths": [
+        "CHANGELOG.md",
+        "gov/HIGHLIGHTS.md"
       ]
     }
   ]
