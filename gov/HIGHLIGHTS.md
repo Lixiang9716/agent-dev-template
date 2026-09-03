@@ -3,6 +3,15 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.12.2 — host integrity
+
+- The self-test's scratch fixtures run behind three independent walls
+  (env scrub + GIT_CEILING_DIRECTORIES + a toplevel guard that aborts
+  loud on any escape): a fixture can no longer configure, stage, or
+  commit into any repository but its own — verified byte-identical
+  hosts from linked-worktree runs, including under hostile GIT_*
+  leaks (#24).
+
 ## 0.12.1 — worktrees, hook context, blast radius
 
 - The pre-push hook now selects gates from the push range (docs-only
