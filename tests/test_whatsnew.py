@@ -29,3 +29,30 @@ def test_whatsnew_explicit_since(capsys):
     assert wn.main(["--since", "0.11.0"]) == 0
     out = capsys.readouterr().out
     assert re.search(r"## 0\.1[2-9]", out) and "## 0.11.0" not in out
+
+
+def test_every_released_tag_has_a_highlights_section():
+    """Version alignment guard: a HIGHLIGHTS header written with a guessed
+    number that release-please then versioned differently goes red here
+    (the 0.12.3/0.13.0 mismatch, caught twice in the field)."""
+    import re as _re
+    import subprocess as _sp
+    from gov import whatsnew as _wn
+    tags = _sp.run(["git", "tag", "--list", "v*"], capture_output=True,
+                   text=True).stdout.split()
+    released = sorted(
+        tuple(int(x) for x in t[1:].split("."))
+        for t in tags if t.startswith("v")
+    )
+    floor = (0, 12, 0)  # highlights coverage begins here
+    text = _wn._HIGHLIGHTS.read_text(encoding="utf-8")
+    sections = {
+        tuple(int(x) for x in v.split("."))
+        for v in _re.findall(r"(?m)^## (\d+\.\d+\.\d+) ", text)
+    }
+    missing = [f"0.{v[0]}.{v[1]}.{v[2]}" if v[0] == 0 else str(v)
+               for v in released if v >= floor and v not in sections]
+    assert not missing, (
+        f"released versions without a HIGHLIGHTS section: {', '.join(missing)} "
+        "— align the section header with the wheel version"
+    )

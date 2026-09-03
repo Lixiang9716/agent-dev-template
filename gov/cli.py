@@ -263,6 +263,20 @@ def _adopt(project: Path, manifest_path: Path, targets: list[str],
     recorded = dict(data.get("templates", {}))
     if preview:
         # D34: preview shows exactly what would land, writes nothing.
+        # A bare preview cross-references the drift inventory — the entry
+        # must be self-explaining, not a bare banner (round feedback).
+        if not targets or targets == ["all"]:
+            missing_n = sum(1 for rel, _ in inventory.items()
+                            if not (project / rel).exists())
+            drifted_n = sum(
+                1 for rel, tpl in inventory.items()
+                if (project / rel).exists()
+                and (project / rel).read_bytes() != tpl.read_bytes()
+            )
+            print(f"adoptable: {missing_n} missing, {drifted_n} drifted "
+                  f"(vs shipped templates)")
+            print("  gov init --upgrade lists them with per-file diffs;")
+            print("  gov init --adopt <file> --preview diffs one file")
         for rel in selected:
             tpl_bytes = inventory[rel].read_bytes()
             dest = project / rel

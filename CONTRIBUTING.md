@@ -44,7 +44,9 @@ gov run                   # the full gate DAG (notes + pairing + note-presence +
 1. Releases are cut by release-please from conventional commits; the version
    lives in `gov/version.py` (single source).
 2. Publishing to PyPI is automated on the release tag — the workflow checks
-   the tag matches the package version.
+   the tag matches the package version. The PyPI index can lag the publish
+   by ~a minute; a first `pip install -U` right after may miss the fresh
+   wheel — retry before suspecting the release.
 
 ### The release PR may need one click
 
