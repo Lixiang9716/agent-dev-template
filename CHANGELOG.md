@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/Lixiang9716/govrail/compare/v0.13.2...v0.14.0) (2026-09-03)
+
+
+### Features
+
+* CHANGELOG ↔ HIGHLIGHTS pairing — version-following made mechanical (D37) ([#97](https://github.com/Lixiang9716/govrail/issues/97)) ([240d39b](https://github.com/Lixiang9716/govrail/commit/240d39b019d84a65fb7642c992a9ff3e88d2b458))
+
 ## [0.13.2](https://github.com/Lixiang9716/govrail/compare/v0.13.1...v0.13.2) (2026-09-03)
 
 

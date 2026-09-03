@@ -3,6 +3,13 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.14.0 — CHANGELOG ↔ HIGHLIGHTS pairing
+
+- `gov verify-doc-sync` gate: every released version in CHANGELOG must
+  have a matching HIGHLIGHTS section (version read FROM CHANGELOG, never
+  guessed); ahead-of-release sections caught too. This very gate went
+  red on the release PR that shipped it — the first dogfood bite.
+
 ## 0.13.2 — explicit version mapping
 
 - `gov whatsnew` prints the installed wheel version and, when the wheel
