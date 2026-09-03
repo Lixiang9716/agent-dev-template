@@ -11,8 +11,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           # note-presence's auto base walks back from HEAD; shallow clones
-          # would cascade to "everything is the change".
+          # would cascade to "everything is the change". Tags feed the
+          # HIGHLIGHTS version-alignment guard (issue #92).
           fetch-depth: 0
+          fetch-tags: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'

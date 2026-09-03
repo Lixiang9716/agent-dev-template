@@ -40,6 +40,10 @@ def test_every_released_tag_has_a_highlights_section():
     from gov import whatsnew as _wn
     tags = _sp.run(["git", "tag", "--list", "v*"], capture_output=True,
                    text=True).stdout.split()
+    if not tags:
+        import pytest as _pytest
+        _pytest.skip("no tags available to check (CI fetch-tags race or a "
+                     "fresh clone) — said, never silently passed")
     released = sorted(
         tuple(int(x) for x in t[1:].split("."))
         for t in tags if t.startswith("v")
