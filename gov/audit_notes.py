@@ -5,7 +5,10 @@ The note contract says implemented notes are kept current with the shipped
 facts; drift is silent. This audit reports mechanical signals only —
 references the world no longer satisfies:
 
-- backticked ``gov <subcommand>`` mentions that this CLI does not know;
+- backticked ``gov <subcommand>`` mentions that this CLI does not know,
+  and flags those mentions carry that the subcommand does not accept
+  (against a registry pinned to each command's ``--help`` options —
+  tests/test_flag_registry.py);
 - ``Dn`` references with no ``## Dn —`` entry in ``docs/decisions.md``
   (checked only when that file exists);
 - backticked repo paths (directory separator plus extension, no globs,
@@ -45,26 +48,36 @@ UNIVERSAL_FLAGS = {"-h", "--help", "-v", "--version"}
 
 # Flag registry for the skills-drift check (wish 11/D28). The command set
 # is cli._COMMANDS (single source); flags are declared here because the
-# argparse parsers are built inside main() at run time. When a flag moves,
-# move it here — the self-test case pins the round trip.
+# argparse parsers are built inside main() at run time. D28 rejected
+# deriving this table from argparse at run time — the deal was "static
+# table, pinned by tests". The pin is tests/test_flag_registry.py: for
+# every command, `gov <cmd> --help` must list exactly these flags. When a
+# flag moves, move it here and in the command's help (issue #101: init
+# gained --adopt/--preview/--json and the registry silently lagged, so
+# notes documenting working runs read as dead commands).
 FLAGS: dict[str, set[str]] = {
+    "init": {"--project", "--hooks", "--ci", "--upgrade", "--json",
+             "--adopt", "--preview"},
+    "uninstall": {"--project", "--force"},
     "run": {"--config", "--mode", "--base", "--gate", "--every-gate",
-            "--record", "--json", "--fail-fast", "--verbose"},
+            "--no-record", "--json", "--fail-fast", "--verbose"},
     "self-test": {"--scope"},
+    "verify-notes": set(),
     "verify-pairing": {"--write"},
     "verify-note-presence": {"--base", "--strict", "--staged"},
     "verify-rubric": {"--path"},
-    "verify-decisions": {"--path"},
     "verify-archive": set(),
-    "verify-notes": set(),
+    "verify-decisions": {"--path"},
+    "verify-doc-sync": set(),
+    "review": {"--base", "--hits", "--grade"},
+    "trend": {"--last", "--gate", "--base"},
+    "doctor": set(),
+    "note": {"--class", "--ref"},  # on the `new` subcommand
+    "whatsnew": {"--since"},
     "recall": set(),
     "audit-notes": set(),
     "change-scope": {"--base"},
-    "review": {"--base", "--hits"},
-    "trend": {"--last"},
     "archive-notes": {"--rebaseline"},
-    "init": {"--project", "--hooks", "--ci", "--upgrade"},
-    "uninstall": {"--project", "--force"},
 }
 
 
@@ -108,9 +121,9 @@ def _drift(text: str, commands: set[str]) -> list[str]:
         if cmd not in commands:
             found.append(f"unknown command `gov {cmd}`")
             continue
-        known_flags = FLAGS.get(cmd)
-        if known_flags is None:
-            continue  # no flag registry for this command — command check only
+        # Registry coverage is enforced in main() (commands == set(FLAGS)),
+        # so every known command has an entry — possibly empty.
+        known_flags = FLAGS[cmd]
         for flag in sorted(set(re.findall(r"(?<!\w)(?:--[a-z][a-z0-9-]*|-h|-v)", rest))):
             if flag in UNIVERSAL_FLAGS:
                 continue  # every command answers these (cli handles them)
@@ -152,6 +165,19 @@ def main(argv: list[str] | None = None) -> int:
     commands = _known_commands()
     if commands is None:
         print("audit_notes: needs package mode — run as `gov audit-notes`", file=sys.stderr)
+        return 2
+    # Rule 5: a registry that lags cli._COMMANDS would silently skip flag
+    # checks for the missing command (or flag-check a phantom one). That is
+    # a defect in this tool, not a finding in the tree — name it and abort.
+    missing = commands - set(FLAGS)
+    phantom = set(FLAGS) - commands
+    if missing or phantom:
+        for name in sorted(missing):
+            print(f"audit_notes: flag registry is missing '{name}' "
+                  "(registry lagged cli._COMMANDS — file a govrail bug)", file=sys.stderr)
+        for name in sorted(phantom):
+            print(f"audit_notes: flag registry knows '{name}' but the CLI does not",
+                  file=sys.stderr)
         return 2
     if not IMPLEMENTED.is_dir():
         print(f"audit_notes: {IMPLEMENTED} not found — is this a project root?", file=sys.stderr)
