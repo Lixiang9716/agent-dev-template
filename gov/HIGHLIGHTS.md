@@ -3,6 +3,20 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.14.1 — flag registry pinned to each command's --help
+
+- `gov audit-notes` no longer reports real flags as dead commands: notes
+  documenting working runs of `gov init --adopt <file>` (also `--preview`,
+  `--json`), `gov run --no-record`, `gov review --grade` read as working;
+  a genuinely unknown flag (`gov init --nonexistent`) is still named
+  (issue #101).
+- `gov init --help`, `gov uninstall --help`, `gov verify-notes --help`
+  list their real options — the terse one-line command summary is a
+  description, never the machine-checked surface.
+- The registry is pinned mechanically now: every command's `--help`
+  options must equal `audit_notes.FLAGS`, and a registry that lags the
+  CLI fails audit-notes itself (exit 2) instead of silently skipping.
+
 ## 0.14.0 — CHANGELOG ↔ HIGHLIGHTS pairing
 
 - `gov verify-doc-sync` gate: every released version in CHANGELOG must
