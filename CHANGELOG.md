@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/Lixiang9716/govrail/compare/v0.12.2...v0.13.0) (2026-09-03)
+
+
+### Features
+
+* adoption provenance, adopt preview and disclosure, external D-references (D34) ([#88](https://github.com/Lixiang9716/govrail/issues/88)) ([d3fbf26](https://github.com/Lixiang9716/govrail/commit/d3fbf263897ce494f9f8172e8dc15312e8763a2d))
+
 ## [0.12.2](https://github.com/Lixiang9716/govrail/compare/v0.12.1...v0.12.2) (2026-09-03)
 
 
