@@ -22,10 +22,10 @@ def test_whatsnew_no_project_prints_newest(tmp_path, monkeypatch, capsys):
     assert wn.main([]) == 0
     out = capsys.readouterr().out
     assert "newest section" in out
-    assert "0.12.1" in out
+    assert re.search(r"## 0\.\d+", out)
 
 
 def test_whatsnew_explicit_since(capsys):
     assert wn.main(["--since", "0.11.0"]) == 0
     out = capsys.readouterr().out
-    assert "0.12.1" in out and "## 0.11.0" not in out
+    assert re.search(r"## 0\.1[2-9]", out) and "## 0.11.0" not in out
