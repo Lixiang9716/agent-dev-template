@@ -766,6 +766,26 @@ def test_gates_rejects_unknown_keys() -> None:
         assert "unknown key(s): enable" in result.stderr
 
 
+def test_doc_sync_rejects_changelog_without_highlights() -> None:
+    """D37: CHANGELOG gains a version, HIGHLIGHTS hasn't followed — red."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "CHANGELOG.md").write_text(
+            "# Changelog\n\n## [0.14.0] (2026-09-04)\n\n### Features\n\n* x\n",
+            encoding="utf-8",
+        )
+        gov = root / "gov"
+        gov.mkdir()
+        (gov / "HIGHLIGHTS.md").write_text(
+            "## 0.13.0 — old\n\n- y\n", encoding="utf-8")
+        _case(
+            "verify_doc_sync.py",
+            root,
+            1,
+            "a CHANGELOG version without a HIGHLIGHTS section must fail",
+        )
+
+
 def test_passing_gate_output_stays_visible() -> None:
     """A pass that printed a warning must not be silenced (P1-2)."""
     with tempfile.TemporaryDirectory() as td:
@@ -820,6 +840,7 @@ CASES = [
     test_verify_decisions_rejects_broken_table,
     test_skills_text_command_drift_is_named,
     test_gates_rejects_unknown_keys,
+    test_doc_sync_rejects_changelog_without_highlights,
 ]
 
 
