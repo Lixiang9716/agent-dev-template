@@ -127,3 +127,42 @@ def test_skills_command_and_flag_drift(tmp_path, monkeypatch, capsys):
     assert "unknown command `gov verife-pairing`" in out
     assert "--rebaseline" not in out  # legal refs: zero false positives
     assert "--every-gate`" not in out.replace("--every-gat`", "")
+
+
+def test_real_flags_are_not_drift_dead_flags_are(tmp_path, monkeypatch, capsys):
+    """Issue #101: a note documenting WORKING commands must not read as a
+    dead command. --adopt/--preview/--json are real init flags (D29/D34);
+    a genuinely unknown flag is still named."""
+    monkeypatch.chdir(tmp_path)
+    _note(tmp_path, "2026-01-01-init.md",
+          "# Agent Note: init\n\nStatus: implemented\n\n"
+          "## Decision\n`gov init --adopt .gov/hooks/pre-push` then "
+          "`gov init --adopt .gov/hooks/pre-push --preview`; drift report via "
+          "`gov init --upgrade --json`; scheduling with `gov run --no-record`, "
+          "`gov review --grade`, `gov trend --gate x --base y`, "
+          "`gov note new --class feature`, `gov whatsnew --since 0.12.2`; "
+          "dead: `gov init --nonexistent`.\n\n"
+          "## Problem\np\n\n## Alternatives considered\na\n")
+    assert audit_notes.main([]) == 0  # advisory report
+    out = capsys.readouterr().out
+    assert "unknown flag `--nonexistent` on `gov init`" in out
+    for real in ("--adopt", "--preview", "--json", "--no-record",
+                 "--grade", "--class", "--since"):
+        assert real not in out, f"{real} is a real flag — false signal"
+
+
+def test_registry_covers_exactly_the_command_set():
+    """Every CLI command must carry a flag entry (possibly empty): a
+    missing entry would silently skip flag checks for it (rule 5)."""
+    from gov import cli
+    assert set(audit_notes.FLAGS) == set(cli._COMMANDS)
+
+
+def test_registry_mismatch_fails_loud(tmp_path, monkeypatch, capsys):
+    """A registry that lags cli._COMMANDS is a tool defect, not a tree
+    finding — named on stderr, exit 2 (rule 5)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delitem(audit_notes.FLAGS, "doctor")
+    assert audit_notes.main([]) == 2
+    err = capsys.readouterr().err
+    assert "missing 'doctor'" in err

@@ -752,6 +752,34 @@ def test_skills_text_command_drift_is_named() -> None:
         assert "--every-gat" in result.stdout, "the typo'd flag must be named"
 
 
+def test_registry_real_flags_are_not_drift() -> None:
+    """Issue #101: --adopt/--preview/--json are real init flags. A note
+    documenting WORKING commands must not be reported as dead ones — the
+    exact inversion of what audit-notes exists to catch — while a genuinely
+    unknown flag is still named."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        notes = root / ".agents" / "notes" / "implemented" / "process"
+        notes.mkdir(parents=True)
+        (notes / "x.md").write_text(
+            "# Agent Note: x\n\nStatus: implemented\n\n"
+            "## Decision\n`gov init --adopt .gov/hooks/pre-push` and "
+            "`gov init --adopt all --preview` ran clean; `gov init --nonexistent` "
+            "never did.\n\n## Problem\np\n\n## Alternatives considered\na\n",
+            encoding="utf-8")
+        env = dict(os.environ)
+        env["PYTHONPATH"] = str(HERE.parent) + os.pathsep + env.get("PYTHONPATH", "")
+        result = subprocess.run(
+            [sys.executable, "-m", "gov", "audit-notes"],
+            cwd=root, env=env, capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr  # advisory
+        assert "unknown flag `--nonexistent` on `gov init`" in result.stdout
+        assert "--adopt" not in result.stdout, (
+            "real init flags must not be flagged: " + result.stdout)
+        assert "--preview" not in result.stdout, result.stdout
+
+
 def test_gates_rejects_unknown_keys() -> None:
     """D29: "enable": false is a typo'd park that silently parks nothing."""
     with tempfile.TemporaryDirectory() as td:
@@ -839,6 +867,7 @@ CASES = [
     test_self_test_adopts_project_rejection_cases,
     test_verify_decisions_rejects_broken_table,
     test_skills_text_command_drift_is_named,
+    test_registry_real_flags_are_not_drift,
     test_gates_rejects_unknown_keys,
     test_doc_sync_rejects_changelog_without_highlights,
 ]

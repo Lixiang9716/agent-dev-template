@@ -655,6 +655,44 @@ _VERSION_FLAGS = ("-v", "--version", "version")
 # intercept help/version themselves so a trailing flag never runs the action.
 _NO_FORWARD = ("init", "uninstall", "verify-notes")
 
+# The hand-parsed commands have no argparse to print their options, so the
+# surface is declared here as data: `gov <cmd> --help` shows it, and
+# audit-notes' flag registry is pinned to it (tests/test_flag_registry.py,
+# issue #101 — the terse one-line summary above is a description, never
+# the machine-checked surface).
+COMMAND_FLAGS: dict[str, tuple[tuple[str, str], ...]] = {
+    "init": (
+        ("--project DIR", "target project root (default: current directory)"),
+        ("--hooks", "add the git hooks runner (needs a git repository)"),
+        ("--ci", "add the CI runner (.github/workflows/gov.yml)"),
+        ("--upgrade", "report template drift; reads, never writes"),
+        ("--json", "with --upgrade: exactly one machine-readable report"),
+        ("--adopt [FILE...]", "land MISSING template files, never overwrite "
+                              "a customized one ('all' = every missing file)"),
+        ("--preview", "with --adopt: show what would land, write nothing"),
+    ),
+    "uninstall": (
+        ("--project DIR", "target project root (default: current directory)"),
+        ("--force", "also delete customized files that differ from the "
+                    "shipped template (without it, nothing is deleted)"),
+    ),
+    "verify-notes": (),
+}
+
+
+def _command_help(cmd: str) -> None:
+    """Per-command help for the hand-parsed trio (same shape as argparse's)."""
+    flags = COMMAND_FLAGS[cmd]
+    print(f"usage: gov {cmd} [options]")
+    print(_COMMANDS[cmd])
+    print()
+    print("options:")
+    names = [name for name, _ in flags] + ["-h, --help"]
+    width = max(len(n) for n in names)
+    for name, desc in flags:
+        print(f"  {name:<{width}}  {desc}")
+    print(f"  {'-h, --help':<{width}}  show this help and exit")
+
 
 def _init_uninstall_args(
     args: list[str], what: str
@@ -720,7 +758,7 @@ def main(argv: list[str] | None = None) -> int:
     # Subcommand-level help/version: never execute the action as a side effect.
     if cmd in _NO_FORWARD:
         if any(a in _HELP_FLAGS for a in rest):
-            _usage()
+            _command_help(cmd)  # the real surface, not the terse global usage
             return 0
         if any(a in _VERSION_FLAGS for a in rest):
             print(f"gov {__version__}")
