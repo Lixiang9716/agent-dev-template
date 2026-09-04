@@ -62,7 +62,7 @@ FLAGS: dict[str, set[str]] = {
     "run": {"--config", "--mode", "--base", "--gate", "--every-gate",
             "--tag", "--no-record", "--receipt", "--json", "--fail-fast",
             "--verbose", "--cost"},
-    "self-test": {"--scope"},
+    "self-test": {"--scope", "--case"},
     "receipt": {"--record", "--commit"},
     "verify-notes": set(),
     "verify-pairing": {"--write", "--staged"},
