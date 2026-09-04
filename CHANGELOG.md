@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.0](https://github.com/Lixiang9716/govrail/compare/v0.21.1...v0.22.0) (2026-09-04)
+
+
+### Features
+
+* verifiable run receipts — gov run --receipt + gov receipt verify ([#124](https://github.com/Lixiang9716/govrail/issues/124)) ([6fb8d1a](https://github.com/Lixiang9716/govrail/commit/6fb8d1aa1e8ad6443e1faae9e08e2bcc07629e65))
+
 ## [0.21.1](https://github.com/Lixiang9716/govrail/compare/v0.21.0...v0.21.1) (2026-09-04)
 
 
