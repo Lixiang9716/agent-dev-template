@@ -11,6 +11,7 @@ GitHub Actions workflow — both recorded in the manifest and reversed by
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
 from importlib.resources import files
@@ -89,13 +90,19 @@ def _install_ci(project: Path, created: list[str]) -> None:
 
 def init(project: Path, hooks: bool = False, ci: bool = False,
          upgrade: bool = False, adopt: list[str] | None = None,
-         report_json: bool = False, preview: bool = False) -> int:
+         report_json: bool = False, preview: bool = False,
+         adopt_new: str | None = None) -> int:
     project = project.resolve()
     if not project.is_dir():
         print(f"init: {project} is not a directory", file=sys.stderr)
         return 2
     manifest_path = project / ".gov" / "manifest.json"
+    if adopt_new is not None and not manifest_path.exists():
+        print("init: --adopt-new needs an initialized project", file=sys.stderr)
+        return 2
     if manifest_path.exists():
+        if adopt_new is not None:
+            return _adopt_new(project, manifest_path, adopt_new)
         if adopt is not None:
             return _adopt(project, manifest_path, adopt, preview=preview)
         if upgrade:
@@ -346,6 +353,126 @@ def _adopt(project: Path, manifest_path: Path, targets: list[str],
         # D34: side effects are disclosed, never silent.
         print(f"init: manifest updated — {applied} adopted, {re_adopted} "
               "re-adopted; template hashes recorded")
+    return 0
+
+
+def _adopt_new(project: Path, manifest_path: Path, target: str) -> int:
+    """Issue #108/D39: additive adoption of NEW shipped entries into a
+    customized gates.json. Gate id is identity: shipped gates whose id is
+    absent locally are appended; every local gate is preserved untouched;
+    shared ids whose content differs are non-additive drift — refused
+    loud (rule 5), nothing written.
+    """
+    if target != "gates.json":
+        print(f"init: --adopt-new supports 'gates.json' only, not '{target}' "
+              "(other customized files keep the hand-merge path, D27/D34)",
+              file=sys.stderr)
+        return 2
+    local_path = project / "gates.json"
+    if not manifest_path.exists():
+        print("init: --adopt-new needs an initialized project", file=sys.stderr)
+        return 2
+    if not local_path.exists():
+        print(f"init: {local_path} does not exist — a fresh `gov init "
+              "--adopt gates.json` lands the whole template instead",
+              file=sys.stderr)
+        return 2
+    try:
+        local = json.loads(local_path.read_text(encoding="utf-8"))
+        tpl = json.loads(TEMPLATES.joinpath("gates.json").read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"init: cannot read gates.json for --adopt-new: {e}", file=sys.stderr)
+        return 2
+
+    def _gates(doc: Any, what: str) -> list[dict] | None:
+        if not isinstance(doc, dict) or not isinstance(doc.get("gates"), list) \
+                or any(not isinstance(g, dict) or not isinstance(g.get("id"), str)
+                       or not g["id"] for g in doc["gates"]):
+            print(f"init: {what} gates.json is structurally invalid for "
+                  "--adopt-new (needs an object with a 'gates' array of "
+                  "objects carrying string ids)", file=sys.stderr)
+            return None
+        return doc["gates"]
+
+    local_gates = _gates(local, "local")
+    if local_gates is None:
+        return 2
+    tpl_gates = _gates(tpl, "shipped template")
+    if tpl_gates is None:
+        return 2
+    local_by_id = {g["id"]: g for g in local_gates}
+    tpl_by_id = {g["id"]: g for g in tpl_gates}
+
+    conflicting = sorted(
+        gid for gid, g in local_by_id.items()
+        if gid in tpl_by_id and g != tpl_by_id[gid]
+    )
+    if conflicting:
+        print("init: --adopt-new refused — non-additive drift: shipped "
+              f"gate(s) differ from your local version: {', '.join(conflicting)}"
+              "; merge those by hand (see `gov init --upgrade` for the diff)",
+              file=sys.stderr)
+        return 2
+
+    added = [g for g in tpl_gates if g["id"] not in local_by_id]
+    if not added:
+        print("init: adopt-new gates.json — nothing to add (every shipped "
+              "gate id is already present locally)")
+        return 0
+
+    added_ids = {g["id"] for g in added}
+    merged = {k: v for k, v in local.items()}
+    merged["gates"] = local_gates + added
+    modes_note: list[str] = []
+    tpl_modes = tpl.get("modes") or {}
+    local_modes = dict(merged.get("modes") or {})
+    for mode, ids in tpl_modes.items():
+        if not isinstance(ids, list) or not all(isinstance(x, str) for x in ids):
+            continue  # malformed template mode; schema validation will judge
+        if mode in local_modes:
+            existing = list(local_modes[mode])
+            appended = [g for g in ids if g in added_ids and g not in existing]
+            local_modes[mode] = existing + appended
+        elif all(g in added_ids for g in ids):
+            local_modes[mode] = list(ids)  # purely additive new mode
+            modes_note.append(f"mode '{mode}' created from the template")
+        else:
+            modes_note.append(
+                f"mode '{mode}' NOT adopted — it references gates outside "
+                "this additive merge; add it by hand")
+    if local_modes or "modes" in local:
+        merged["modes"] = local_modes
+    if tpl.get("defaultMode") != merged.get("defaultMode"):
+        modes_note.append(
+            f"template defaultMode is '{tpl.get('defaultMode')}' (yours stays "
+            f"'{merged.get('defaultMode')}')")
+
+    text = json.dumps(merged, indent=2) + "\n"
+    # Rule 6 in spirit: validate before landing — never write a gates.json
+    # the runner itself would reject.
+    import tempfile
+    fd, tmp = tempfile.mkstemp(dir=project, suffix=".gates.json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        gates.load_config(tmp)
+    except Exception as e:  # noqa: BLE001 — any validation failure is fatal
+        os.unlink(tmp)
+        print(f"init: --adopt-new refused — merged gates.json fails schema "
+              f"validation: {e}", file=sys.stderr)
+        return 2
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+    local_path.write_text(text, encoding="utf-8")
+
+    print(f"init: adopt-new gates.json — added {len(added)} shipped gate(s): "
+          + ", ".join(g["id"] for g in added))
+    print(f"  all {len(local_gates)} local gate(s) preserved untouched")
+    for note in modes_note:
+        print(f"  {note}")
+    print("  merged gates.json passes schema validation; manifest untouched "
+          "(your gates.json stays customized)")
     return 0
 
 
@@ -620,7 +747,7 @@ def uninstall(project: Path, force: bool = False) -> int:
 
 
 _COMMANDS = {
-    "init": "inject the plane into a project (--hooks/--ci add runners; --upgrade shows template drift)",
+    "init": "inject the plane into a project (--hooks/--ci add runners; --upgrade shows template drift; --adopt-new merges new shipped gates)",
     "uninstall": "reverse init",
     "run": "run the project's gate DAG (args forwarded to gates.py)",
     "self-test": "run governance rejection cases",
@@ -671,6 +798,9 @@ COMMAND_FLAGS: dict[str, tuple[tuple[str, str], ...]] = {
         ("--json", "with --upgrade: exactly one machine-readable report"),
         ("--adopt [FILE...]", "land MISSING template files, never overwrite "
                               "a customized one ('all' = every missing file)"),
+        ("--adopt-new FILE", "merge only the NEW shipped entries of a "
+                             "customized gates.json into yours (additive by "
+                             "gate id; non-additive drift is refused)"),
         ("--preview", "with --adopt: show what would land, write nothing"),
     ),
     "uninstall": (
@@ -703,6 +833,7 @@ def _init_uninstall_args(
     project = "."
     hooks = ci = force = upgrade = adopt = report_json = preview = False
     adopt_targets: list[str] = []
+    adopt_new: str | None = None
     i = 0
     while i < len(args):
         a = args[i]
@@ -733,6 +864,13 @@ def _init_uninstall_args(
             while i < len(args) and not args[i].startswith("--"):
                 adopt_targets.append(args[i])
                 i += 1
+        elif what == "init" and a == "--adopt-new":
+            if i + 1 >= len(args) or args[i + 1].startswith("--"):
+                print("gov init: --adopt-new requires a file "
+                      "(currently: gates.json)", file=sys.stderr)
+                return None
+            adopt_new = args[i + 1]
+            i += 2
         elif what == "uninstall" and a == "--force":
             force = True
             i += 1
@@ -741,7 +879,7 @@ def _init_uninstall_args(
             _usage()
             return None
     return (Path(project), hooks, ci, force, upgrade,
-            (adopt_targets if adopt else None), report_json, preview)
+            (adopt_targets if adopt else None), report_json, preview, adopt_new)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -770,7 +908,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2 if parsed is None else init(parsed[0], hooks=parsed[1], ci=parsed[2],
                                             upgrade=parsed[4], adopt=parsed[5],
                                             report_json=parsed[6],
-                                            preview=parsed[7])
+                                            preview=parsed[7],
+                                            adopt_new=parsed[8])
     if cmd == "uninstall":
         parsed = _init_uninstall_args(rest, "uninstall")
         return 2 if parsed is None else uninstall(parsed[0], force=parsed[3])

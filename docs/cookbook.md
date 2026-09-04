@@ -131,12 +131,15 @@ review-due note.
 ```sh
 gov init --upgrade            # per-file diffs; never writes
 gov init --adopt all          # lands MISSING template files only
+gov init --adopt-new gates.json  # merges NEW shipped gates into a
+                                 # customized gates.json (by gate id)
 gov whatsnew                  # what arrived since your init version
 ```
 
 Modified files stay yours to merge (the two-step); pure additions land
-with one command; `--upgrade --json` lets an agent decide
-programmatically.
+with one command; a customized gates.json can absorb newly shipped gates
+additively — local gates untouched, conflicting ids refused loudly
+(D39); `--upgrade --json` lets an agent decide programmatically.
 
 ## Reading a trend mover
 

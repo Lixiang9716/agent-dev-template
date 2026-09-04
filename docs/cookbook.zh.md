@@ -122,11 +122,14 @@ D 引用明示"未核对"——绝不静默跳过。
 ```sh
 gov init --upgrade            # 逐文件 diff；绝不写入
 gov init --adopt all          # 只落地缺失的模板文件
+gov init --adopt-new gates.json  # 把新 shipped 门增量合入定制版
+                                 # gates.json（按 gate id）
 gov whatsnew                  # 自你的 init 版本以来新增了什么
 ```
 
-修改类文件仍归你手工合并（两步哲学）；纯新增一条命令落地；
-`--upgrade --json` 让 agent 程序化决策。
+修改类文件仍归你手工合并（两步哲学）；纯新增一条命令落地；定制版
+gates.json 可增量吸收新 shipped 门——本地门原样保留，同名冲突大声
+拒绝（D39）；`--upgrade --json` 让 agent 程序化决策。
 
 ## 读 trend 的 mover
 

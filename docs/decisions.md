@@ -334,3 +334,10 @@
 - **状态**：已决
 - **决定**：新增 **`gov verify-conflict-markers`** 内容门并进模板 gates.json 的 all 模式（无 paths——标记可能落在任何文件类型）：对基线（auto 级联，同 note-presence 的 F1/D21）变更文件集读工作区内容逐行扫描；行首 `<<<<<<<`、`>>>>>>>`、`|||||||`（diff3 base）为主证据直接报错；裸 `=======` 仅同文件存在主证据时报（Markdown setext 下划线安全，#104 的"sibling marker"规则）；命中输出 `file:line` 并点名逃生门；行内含 `gov:ignore-marker` 令牌即豁免（字符串字面量的文档化逃生门）；二进制（NUL 字节）与已删除路径跳过；git 失败 exit 2。自带 tools 族拒绝用例 + `.gov/rejections/` 项目用例 + demo 标本真实用例。
 - **被否**：只扫 diff 新增行——内容级扫描对"触碰过的文件"严格更强（早前提交带入的标记也在现内容里）且实现更廉；容忍字符串字面量（按语言解析）——grep 级承诺不接受按语言分叉的解析器，逃生令牌一行解决；交给各语言 linter——语言绑定，治理平面语言无关，且 docs-only diff 无 linter 可跑；裸 `=======` 无兄弟证据也报——Markdown H1 下划线立刻假阳性，一门禁的第一次误报就是它的信誉破产。
+
+## D39 — gates.json 的增量采纳：新 shipped 门按 id 落地，非增量漂移大声拒绝（issue #108）
+
+- **问题**：`gov init --upgrade` 对定制 gates.json 只能给 DIFFERS + 手工 diff——radiant 采纳 0.15.0 的 conflict-markers 门时只能开 site-packages 模板手抄、手改 modes/gates、肉眼校验，没有任何机制证明本地定制未被破坏、新块与 shipped 语义一致。D34 的 `--adopt` 帮不上：定制文件永不覆盖（by design）。
+- **状态**：已决
+- **决定**：**`gov init --adopt-new gates.json`**（增量采纳，笔记 [2026-09-04-adopt-new-gates-merge.md](../.agents/notes/implemented/feature/2026-09-04-adopt-new-gates-merge.md)）：以 gate id 为身份——shipped 有而本地无的门按模板顺序追加并逐一点名；本地每个 gate 对象原样保留；已有 mode 只追加新采纳的 id（纯新增的模板 mode 可整体创建；引用合并外门的 mode 打 notice 不采纳）；`defaultMode` 保持本地并在模板不一致时提示。落地前用真实 schema 加载器（`gates.load_config`）验证合并结果——runner 会拒的合并不落地。非增量漂移（同名门内容不同 / 结构损坏 / 目标不是 gates.json）exit 2 大声拒绝、零写入，维持 D27/D34 的手工路径。manifest 刻意不动：gates.json 仍是定制文件，记录哈希等于伪造"这就是模板字节"的溯源。
+- **被否**：泛化到任意模板文件的自动合并——rules.md/README 是散文，没有可合并的条目身份，只有 gates.json 有机械 id 键（其他目标直接拒绝）；并入 `--adopt`——其契约是字节级（整文件、哈希证明），混入条目级 JSON 语义会让一个旗标承载两种证明故事；合并后记录溯源哈希——哈希将不再表示"模板字节"，破坏 D34 三向判定的前提；本地 disabled 的同名 shipped 门静默跳过或静默重启用——都不点名等于沉默改行为，按非增量漂移拒绝并由操作者裁决。
