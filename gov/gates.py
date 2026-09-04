@@ -44,6 +44,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any
 
+# #124: receipts are a sibling module; gates.py also runs as a plain
+# script (self-test scratch dirs), where the package context is absent.
+try:
+    from . import receipt as receipt_mod
+except ImportError:  # direct-script execution (python gov/gates.py)
+    import receipt as receipt_mod
+
 BLOCKING_OUTCOMES = ("FAIL", "TIMEOUT", "MISSING")
 OUTCOME_ORDER = ("FAIL", "TIMEOUT", "MISSING", "SKIP", "PASS")
 
@@ -363,6 +370,8 @@ def run_gates(
     selected_by: str = "all-enabled",
     scoped_out: list[str] | None = None,
     caller: str | None = None,
+    receipt: dict | None = None,
+    receipt_path: Path | None = None,
 ) -> int:
     """Run the selected gates (every enabled gate when selection is None).
 
@@ -374,6 +383,11 @@ def run_gates(
     not pick appear as ``NOT_SELECTED``, and gates excluded by ``--base``
     path scoping as ``SCOPED_OUT`` — one invocation answers the whole
     gate-set question, not just what ran.
+
+    ``receipt`` (from ``--receipt``, issue #124/D44) appends a
+    hash-chained receipt of this run — per-gate outcomes bound to the
+    tree's commit and tree sha, tagged with the run's caller (#120) — to
+    ``receipts.jsonl`` next to the gates history.
     """
 
     def emit(text: str) -> None:
@@ -543,6 +557,14 @@ def run_gates(
             )
     if json_mode:
         print(json.dumps(records, indent=2))
+    rec = None
+    if receipt is not None:
+        # #124/D44: the receipt records what actually happened — failures
+        # included; only verification decides what counts as evidence.
+        # Tree state is measured BEFORE any ledger write: a tracked
+        # .gov/history must not dirty the very receipt that describes it.
+        rec = receipt_mod.build_receipt(records, receipt.get("tag", ""),
+                                        receipt.get("selection", {}))
     if record_path is not None:
         # D28/D29: append-only history — one line per run, the plane's
         # own philosophy. Recording is the default (the file is local
@@ -559,6 +581,17 @@ def run_gates(
             run_record["caller"] = caller
         with record_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(run_record, separators=(",", ":")) + "\n")
+    if rec is not None:
+        target = receipt_path if receipt_path is not None \
+            else receipt_mod._receipt_path()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, separators=(",", ":"),
+                               ensure_ascii=False) + "\n")
+        commit = rec.get("commit") or "?"
+        state = " (dirty tree — will not verify as this commit)" if rec.get("dirty") else ""
+        emit(f"receipt: {rec['id']} recorded against {commit}{state} "
+             f"(cite it: gov receipt verify <commit>)")
     return 1 if failed else 0
 
 
@@ -592,6 +625,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-record", action="store_true",
                         help="do not append this run to .gov/history/gates.jsonl "
                              "(recording is the default; see gov trend)")
+    parser.add_argument("--receipt", action="store_true",
+                        help="append a tamper-evident receipt of this run to "
+                             ".gov/history/receipts.jsonl, bound to the tree's "
+                             "commit and tree sha (issue #124/D44); the caller "
+                             "tag rides along from --tag/$GOV_CALLER (#120); "
+                             "cite it with 'gov receipt verify <commit>'")
     parser.add_argument("--json", action="store_true",
                         help="machine-readable: stdout is exactly one JSON array "
                              "of {gate, outcome, blocking, duration_ms, detail, "
@@ -684,12 +723,32 @@ def main(argv: list[str] | None = None) -> int:
     caller = (args.tag if args.tag is not None
               else os.environ.get("GOV_CALLER"))
     caller = caller.strip() if caller else ""
+
+    receipt_info = None
+    if args.receipt:
+        # What "full" means on a receipt (#124/D44): the selection covered
+        # every enabled gate — an explicit mode counts when it names them
+        # all; a narrowed run records how it was narrowed (selected_by,
+        # #119's vocabulary — no second naming scheme) and never verifies
+        # as full evidence. The tag is the run's caller (#120), not a
+        # second tagging flag.
+        enabled_ids = {g.id for g in gates if g.enabled}
+        ran_ids = {gid for gid in (selection or [])} if selection is not None \
+            else enabled_ids
+        if ran_ids == enabled_ids:
+            sel = {"kind": "all", "value": selected_by}
+        else:
+            sel = {"kind": selected_by, "value": None}
+        receipt_info = {"tag": caller or "", "selection": sel}
+
     return run_gates(gates, selection, concurrency, args.fail_fast,
                      json_mode=args.json,
                      record_path=None if args.no_record
                      else _history_path(), changed=changed,
                      selected_by=selected_by, scoped_out=scoped_out_ids,
-                     caller=caller or None)
+                     caller=caller or None,
+                     receipt=receipt_info,
+                     receipt_path=receipt_mod._receipt_path())
 
 
 if __name__ == "__main__":

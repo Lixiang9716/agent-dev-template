@@ -1030,6 +1030,55 @@ def _task_project(root: Path) -> Path:
     return root
 
 
+def _receipt_repo(root: Path, two_gates: bool = False) -> str:
+    """A committed scratch repo with passing gate(s); returns HEAD sha."""
+    _git_repo(root)
+    gate_ids = ["ok", "two"] if two_gates else ["ok"]
+    config = {"gates": [{"id": gid, "command": ["true"]} for gid in gate_ids]}
+    (root / "gates.json").write_text(json.dumps(config), encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True,
+                   capture_output=True)
+    subprocess.run(["git", "commit", "-qm", "gates"], cwd=root, check=True,
+                   capture_output=True)
+    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
+                          check=True, capture_output=True, text=True).stdout.strip()
+
+
+def test_receipt_rejects_forged_record() -> None:
+    """#124/D44: editing a receipt's content without re-signing must fail
+    verification loudly — the evidence cannot be quietly rewritten."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        commit = _receipt_repo(root)
+        result = _run("gates.py", root,
+                      extra=["--every-gate", "--no-record", "--receipt"])
+        assert result.returncode == 0, result.stderr
+        ledger = root / ".gov" / "history" / "receipts.jsonl"
+        record = json.loads(ledger.read_text(encoding="utf-8").splitlines()[0])
+        assert record["commit"] == commit
+        # The forgery: claim a gate failed, keep the original signature.
+        record["gates"][0]["outcome"] = "FAIL"
+        ledger.write_text(
+            json.dumps(record, separators=(",", ":")) + "\n", encoding="utf-8")
+        res = _run("receipt.py", root, extra=["verify", commit])
+        assert res.returncode == 2 and "hash mismatch" in res.stderr, (
+            "a forged receipt must break verification loudly")
+
+
+def test_receipt_rejects_partial_run_as_full_evidence() -> None:
+    """#124/D44: a single-gate run's receipt must not verify as 'a full
+    green run on this tree' — partial evidence is named, never accepted."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        commit = _receipt_repo(root, two_gates=True)
+        result = _run("gates.py", root,
+                      extra=["--gate", "ok", "--no-record", "--receipt"])
+        assert result.returncode == 0, result.stderr
+        res = _run("receipt.py", root, extra=["verify", commit])
+        assert res.returncode == 1 and "partial run" in res.stderr, (
+            "a partial run must never pass as a full green run")
+
+
 CASES = [
     test_verify_notes_rejects_missing_section,
     test_gates_rejects_duplicate_id,
@@ -1071,6 +1120,8 @@ CASES = [
     test_conflict_markers_bare_separator_needs_sibling,
     test_task_check_rejects_stale_rules_pin,
     test_task_check_rejects_tampered_receipt,
+    test_receipt_rejects_forged_record,
+    test_receipt_rejects_partial_run_as_full_evidence,
 ]
 
 

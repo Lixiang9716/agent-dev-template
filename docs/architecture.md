@@ -46,6 +46,23 @@ something to say is never silenced (D20). Exit code 0 = all green,
 1 = a blocking failure, which ends with a summary block naming each failed
 gate, its first output line, and how to rerun it alone.
 
+A run can leave verifiable evidence, not just a ledger line:
+`gov run --receipt` appends a hash-chained receipt of the run —
+per-gate outcomes bound to the tree's commit **and** tree sha, tagged
+with the run's caller (`--tag`/`$GOV_CALLER`, D42), chained to the
+previous receipt — to `.gov/history/receipts.jsonl` (issue #124/D44).
+Editing, deleting, or reordering history breaks every later link:
+`gov receipt verify <commit>` re-walks the chain and answers, with exit
+0 or a named failure, whether a **full** (every enabled gate), **clean**
+(no tracked file differed from the commit), **green** (every gate PASS)
+run was recorded against exactly that tree — including across a squash
+merge, which moves the commit sha but not the tree. A single receipt
+cited in a PR body self-verifies via `gov receipt verify <commit>
+--record '<json>'`, so prose like "reviewer re-ran the gates" can be
+replaced by an id a machine can check. The chain is deliberately
+keyless — it proves consistency and binding, not authorship; real
+signatures are future work.
+
 ## Knowledge planes
 
 - **Agent Notes** carry decisions (`implemented/` then a frozen `archived/`).

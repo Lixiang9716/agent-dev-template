@@ -59,6 +59,7 @@ gov decision add --from FILE      # 原子追加决策行（写前校验）
 gov verify-conflict-markers    # 变更文件携带 git 冲突标记时失败
 gov review --base <ref> --grade  # 评审档案 + 交互式量规打分
 gov trend                      # --record 历史的门禁耗时趋势
+gov receipt verify <commit>    # 这棵树上录过完整全绿运行吗？（#124）
 gov recall <terms>             # 检索笔记、决策、postmortem
 gov audit-notes                # implemented 笔记的新鲜度信号
 gov audit-notes --json          # 机器可读：{findings: [{file, signal}], ...}
