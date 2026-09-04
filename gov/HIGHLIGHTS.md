@@ -3,6 +3,27 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.22.0 — run receipts: "an agent verified this" becomes checkable
+
+- `gov run --receipt` writes a tamper-evident receipt of the run to
+  `.gov/history/receipts.jsonl`: per-gate outcomes bound to the tree's
+  commit and tree sha, each record hashing the previous one — edit,
+  delete, or reorder history and every later link breaks loudly
+  (issue #124, D44).
+- `gov receipt verify <commit>` answers, with an exit code: was a FULL
+  (every enabled gate), CLEAN (no tracked file differed from the
+  commit), GREEN (every gate PASS) run recorded on exactly this tree?
+  It matches across a squash merge too — the commit sha moves, the
+  tree does not.
+- Cite the receipt instead of prose: paste the JSON line into a PR body
+  and machine-check it with `gov receipt verify <commit> --record
+  '<json>'`. The receipt's tag is the run's caller (`--tag`/
+  `$GOV_CALLER`, D42); narrowed runs are recorded with `selected_by`
+  (#119) and refused as full evidence.
+- Runs without `--receipt` behave exactly as today. The chain is
+  deliberately keyless — it proves consistency and binding, not
+  authorship; real signatures are future work.
+
 ## 0.21.1 — `decision add` draft shape: help and validator agree
 
 - In a `table`-format repo, `gov decision add --help` now describes the
