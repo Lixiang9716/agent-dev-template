@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/Lixiang9716/govrail/compare/v0.19.0...v0.20.0) (2026-09-04)
+
+
+### Features
+
+* caller tagging in .gov/history — gov run --tag / GOV_CALLER, gov trend --by-tag (D42, [#120](https://github.com/Lixiang9716/govrail/issues/120)) ([#127](https://github.com/Lixiang9716/govrail/issues/127)) ([862bcaf](https://github.com/Lixiang9716/govrail/commit/862bcaf327a759e313e552864e55941f0daa91b1))
+
 ## [0.19.0](https://github.com/Lixiang9716/govrail/compare/v0.18.0...v0.19.0) (2026-09-04)
 
 
