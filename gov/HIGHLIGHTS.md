@@ -3,6 +3,21 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.16.0 — additive gate adoption for customized installs
+
+- `gov init --adopt-new gates.json` merges newly shipped gates into a
+  customized gates.json by gate id: the added ids are named in the
+  output, every local gate is preserved untouched, and the merged file
+  is schema-validated before anything lands (issue #108, D39). This is
+  the one-command answer to drift that used to mean hand-copying blocks
+  out of `site-packages` templates.
+- Non-additive drift — a shared gate id whose content differs locally —
+  is refused loudly with the id named; those keep the two-step manual
+  path. Unsupported targets fail loud too: only gates.json has an entry
+  identity to merge on.
+- See the drift first as always: `gov init --upgrade` lists per-file
+  diffs, `--json` for agents.
+
 ## 0.15.1 — failure-first gate output
 
 - `gov run` prints failed evidence in full and never clips it, and the
