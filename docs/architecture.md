@@ -76,7 +76,11 @@ signatures are future work.
   always see clean trees, review the pushed work instead of an empty diff.
   The read side of this memory:
   `gov recall <terms>` retrieves across notes, decisions, and postmortems
-  (ranked by where the terms hit), and `gov audit-notes` reports mechanical
+  (ranked by where the terms hit). Every run states the corpus it searched
+  on stderr (per-class counts), a miss prints per-term hit counts so "one
+  term failed the AND" is distinguishable from "the corpus lacks it"
+  (#148), and `--any` ranks partial matches instead of refusing — the
+  strict AND stays the default. `gov audit-notes` reports mechanical
   staleness signals — references the world no longer satisfies — as
   evidence for the archive skill's judgment.
 - **Bilingual pairs** carry the external-presentation docs: a source `foo.md`,

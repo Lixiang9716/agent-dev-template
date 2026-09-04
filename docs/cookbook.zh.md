@@ -122,6 +122,28 @@ gov review --base origin/main --grade
 （`p`/`f`/`s`/`q`；`f` 追问证据），然后裁决块——逐条行、blockers、
 `verdict: approve` 或 `request changes`。人裁决；机器誊写。
 
+## recall 一无所获——是哪个词失败了？
+
+`gov recall` 要求所有词命中同一条目，多词 miss 曾只能盲猜。现在 miss 自带诊断，且每次运行都在 stderr 陈述搜过的语料（stdout 的排序命中仍居首）：
+
+```sh
+gov recall 效用 utility 归因
+```
+
+```
+recall: no match for '效用 utility 归因'
+  per-term hits: 效用: 0 / utility: 2 / 归因: 0
+  (strict AND — every term in one entry; retry with --any to rank partial matches)
+```
+
+`utility: 2` 说明语料认识这个词——是 AND 拖垮的；`效用: 0` 说明语料里根本没有它。照提示重试：
+
+```sh
+gov recall --any 效用 utility 归因    # 部分命中，按命中词数排序
+```
+
+严格 AND 仍是默认；`--any` 空结果依旧 exit 1。
+
 ## 写一篇笔记
 
 ```sh

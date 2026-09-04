@@ -65,7 +65,7 @@ gov verify-conflict-markers   # fail when changed files carry git conflict marke
 gov review --base <ref> --grade  # dossier + interactive rubric grading
 gov trend                     # gate duration trends from --record history
 gov receipt verify <commit>   # was a full green run recorded on this tree? (#124)
-gov recall <terms>            # retrieve notes, decisions, postmortems
+gov recall <terms>            # retrieve notes, decisions, postmortems (--any relaxes the AND)
 gov audit-notes               # staleness signals in implemented notes
 gov audit-notes --json         # machine-readable: {findings: [{file, signal}], ...}
 gov change-scope --base <ref> # smallest sufficient set (.gov/surfaces.json maps paths)

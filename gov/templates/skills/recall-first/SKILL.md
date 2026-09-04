@@ -22,8 +22,14 @@ rationale, query the memory planes.
    ```
 
    All terms must appear; hits rank title > section heading > body, so
-   the top lines are usually the answer. Exit 1 means no match, not "no
-   memory" — try the other term before concluding absence.
+   the top lines are usually the answer. Every run states the corpus it
+   searched on stderr (per-class counts: notes, decisions,
+   postmortems), so "no match" names its boundary; a miss also prints
+   per-term hit counts — `term: 0` means the corpus lacks that term,
+   while a nonzero count beside a miss means the AND failed and `gov
+   recall --any ...` will rank the partial matches. Exit 1 means no
+   match, not "no memory" — try the other term before concluding
+   absence.
 3. Read the top hits **before writing anything**: a note's
    `## Alternatives considered` and a decision entry's rejected options
    are the counterarguments you must either honor or explicitly supersede.
