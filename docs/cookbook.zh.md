@@ -190,6 +190,18 @@ gov -C ../wt-x doctor
 gov trend --gate tests --base v1.2.0   # 该版本前后对比
 ```
 
+## 多 agent 一个仓库——这些运行是谁的？
+
+给运行打 `--tag`（或导出 `GOV_CALLER`；旗标优先），标签以调用方
+自由文本落入 `.gov/history/gates.jsonl`。`gov trend --by-tag` 按
+caller 切分窗口——每个标签的 mover 与稳定门各自报告，未打标的
+运行归入 `(untagged)`，不打标则记录形状与从前完全一致（#120）：
+
+```sh
+gov run --tag subagent-3        # 或：GOV_CALLER=subagent-3 gov run
+gov trend --by-tag              # 按 caller 的前后半窗口 p50 对比
+```
+
 ## 长会话被未跟踪文件警告淹没
 
 ```sh

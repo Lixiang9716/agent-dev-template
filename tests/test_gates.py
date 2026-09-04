@@ -453,3 +453,26 @@ def test_record_writes_history_by_default(tmp_path, monkeypatch):
     assert _json.loads(lines[0])["gates"][0]["gate"] == "a"
     assert gates.main(["--no-record"]) == 0
     assert len(hist.read_text().strip().splitlines()) == 1  # unchanged
+
+
+def test_caller_tag_recorded_when_given(tmp_path, monkeypatch):
+    """#120/D42: --tag / GOV_CALLER land as caller in gates.jsonl; absent
+    keeps the record byte-shaped exactly as before (no caller key)."""
+    import json as _json
+    monkeypatch.chdir(tmp_path)
+    _write(tmp_path, {"gates": [{"id": "a", "command": ["true"]}]})
+    assert gates.main([]) == 0
+    assert gates.main(["--tag", "subagent-3"]) == 0
+    monkeypatch.setenv("GOV_CALLER", "supervisor")
+    assert gates.main([]) == 0
+    assert gates.main(["--tag", "flag-wins"]) == 0
+    monkeypatch.setenv("GOV_CALLER", "   ")  # whitespace-only = absent
+    assert gates.main([]) == 0
+    hist = tmp_path / ".gov" / "history" / "gates.jsonl"
+    recs = [_json.loads(l) for l in hist.read_text().splitlines()]
+    assert len(recs) == 5
+    assert "caller" not in recs[0]            # untagged: anonymous, as before
+    assert recs[1]["caller"] == "subagent-3"  # --tag
+    assert recs[2]["caller"] == "supervisor"  # GOV_CALLER fallback
+    assert recs[3]["caller"] == "flag-wins"   # --tag wins over env
+    assert "caller" not in recs[4]            # whitespace env = absent

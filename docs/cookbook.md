@@ -206,6 +206,19 @@ investigate, not a verdict:
 gov trend --gate tests --base v1.2.0   # before/after that release
 ```
 
+## Multiple agents, one repo — whose runs are these?
+
+Tag a run with `--tag` (or export `GOV_CALLER`; the flag wins) and the
+tag lands in `.gov/history/gates.jsonl` as caller-supplied free text.
+`gov trend --by-tag` splits the window per caller — each tag's movers
+and stable gates report separately, untagged runs group under
+`(untagged)`, and an absent tag keeps records exactly as before (#120):
+
+```sh
+gov run --tag subagent-3        # or: GOV_CALLER=subagent-3 gov run
+gov trend --by-tag              # per-caller early/late p50 comparison
+```
+
 ## Long session, drowning in untracked-file warnings
 
 ```sh
