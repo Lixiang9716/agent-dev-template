@@ -3,6 +3,11 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.24.1 — (draft: copied from CHANGELOG, rewrite for usage)
+
+- **cli:** hand-roll required subcommands; keep case env off stdlib shadows ([5f2ed54](https://github.com/Lixiang9716/govrail/commit/5f2ed54293303e60f367763704720781863a6501)), closes [#138](https://github.com/Lixiang9716/govrail/issues/138)
+- **cli:** hand-roll required subcommands; keep case env off stdlib shadows
+
 ## 0.24.0 — (draft: copied from CHANGELOG, rewrite for usage)
 
 - release flow drafts HIGHLIGHTS sections — verify-doc-sync --write (D45)
