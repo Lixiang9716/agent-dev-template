@@ -3,12 +3,31 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
-## 0.19.0 — gov -C <path>
+## 0.20.0 — caller tagging in gate history
 
-- `gov -C <path> <command>` or `gov --path <path> <command>` targets
-  another worktree without `cd` — the chdir lands before the
-  subcommand, resolves the work-tree root, and announces it (issue
-  #121). Chainable: `gov -C ../a -C ../b recall x` lands in b.
+- `gov run --tag <name>` (or `$GOV_CALLER`) records the caller's own
+  free-text label on every history record in `.gov/history/gates.jsonl`
+  — multi-agent repos can finally attribute runs: which caller's runs
+  keep failing pairing, whether subagent runs are systematically slower
+  (issue #120, D42). Absent label = no `caller` key: records keep their
+  pre-0.20.0 shape.
+- `gov trend --by-tag` groups runs by that label (first-seen order,
+  untagged as `(untagged)`) and compares p50 halves inside each group;
+  `--base` cuts every group at the same commit date. Privacy-light by
+  design — the label is only what the caller typed.
+
+## 0.19.0 — target another worktree without cd
+
+- `gov -C <path> <command>` (or `--path`, before the command) chdirs by
+  value before dispatch — a supervisor orchestrating several worktrees
+  steers `gov run --base Y`, `gov doctor`, the verify-* gates, etc. at
+  another tree with no cd bookkeeping (issue #121). Flags chain like
+  git's `-C`, each path resolving against the previous one.
+- The output header names the resolved work-tree root
+  (`gov: targeting <root> (via -C …)`), so a wrong-tree invocation is
+  visible, not just valid; a nonexistent path fails loud with exit 2.
+- Subcommands with their own `--path` (verify-decisions,
+  verify-rubric — a file argument after the command) are unaffected.
 
 ## 0.18.0 — optional pre-commit hook
 

@@ -77,7 +77,7 @@ gate, its first output line, and how to rerun it alone.
   to a mode — parking is `"enabled": false`, the one loud mechanism
   (a `DISABLED` line); `gov run --every-gate` is the explicit full
   matrix.
-- **Task cards** carry the subagent hand-off (`gov task`, #125/D42):
+- **Task cards** carry the subagent hand-off (`gov task`, #125/D43):
   `gov task new "Title" --check "criterion"` writes `.gov/tasks/T-0001-*.json`
   pinning the current rule set (`.gov/rules.md` + `gates.json`) by content
   hash, so a brief carries the one-line pin `obey rules@<hash>` instead of

@@ -355,7 +355,13 @@
 - **决定**:`gov init --hooks --pre-commit` 额外安装**可选** pre-commit 钩子(单用 `--pre-commit` fail loud;外来 pre-commit 绝不覆盖,同 pre-push 规则;已初始化项目可事后补装),只跑暂存区上的廉价内容门:**`gov verify-pairing --staged`**(新)——仅检查 git index 触及的对(源侧、对侧、`.i18n.yaml` sidecar 任一被暂存即算触及),失步报错内联点名 `gov verify-pairing --write <pair>`;以及 `gov verify-conflict-markers --staged`(0.15.0 已有)。无对文件暂存时静默通过;完整门禁 DAG 仍归 pre-push(规则 1:push 拥有最小充分集,commit 必须快)。未加 flag 的仓库提交阶段行为零变化;doctor 视 pre-commit 为可选(缺席是选择不是问题,在场则查双副本可执行);两钩子都记入 manifest `gitHooks`,`uninstall` 精确反转;钩子模板连跑两门故不 `exec`,同样剥除 GIT_* 环境(#20/D32⑥)。拒绝证明:tools 族 self-test 用例 + `.gov/rejections/case-pre-commit-hook.sh`(`# gate: pairing`) + demo 标本用例。
 - **被否**:默认安装——issue 明确 opt-in,觉得 commit 钩子侵入的仓库留在 pre-push 模型;pre-commit 跑完整 DAG——commit 必须快,全矩阵归 push/CI;新起子命令而非 `--staged` 模式——与 conflict-markers 的既有 `--staged` 形态一致,避免第二套 CLI 词汇。
 
-## D42 — 任务卡：子代理简报用 rules@hash 钉住规则集，不再逐字复述(issue #125)
+## D42 — 历史记录的 caller 标签：多 agent 归因（issue #120）
+
+- **问题**：多 agent 仓库（radiant 的 M2/M3：6+ 个 subagent 会话加一个 supervisor，全在并行 worktree 跑门）共用同一份 `.gov/history/gates.jsonl`，而其中每条记录都是匿名的——`gov trend` 能回答"tests 变慢了吗"，回答不了"哪个 caller 的运行总在 pairing 上翻车？""subagent 运行的时长是否系统性不同？"。归因问题在平面已收集的数据里无解。
+- **状态**：已决
+- **决定**：门运行接受**可选 caller 标签**：`gov run --tag <name>`，`$GOV_CALLER` 兜底（旗标优先；纯空白视为缺席）。标签以调用方自由文本记入 gates.jsonl 的 `caller` 键——privacy-light by design：不取 git 身份、不取主机名，只有 caller 自己敲的字。缺席 = 无 `caller` 键：记录形状与 #120 之前逐字节一致，未打标运行与既有读者行为不变。**`gov trend --by-tag`** 按标签分组（首现顺序；未打标归 `(untagged)`）并在**每组内部**做前后半 p50 对比——对半切分按组计算，时间上集中的标签仍可对比；`--base` 让所有组切在同一提交日期。旗标注册表（audit_notes）同步移动，由 test_flag_registry.py 钉住（#101 的教训）。
+- **被否**：从 git config 推导 caller——worktree 共享一个身份，所有 subagent 会话同标签，归因无用且错得沉默；自动记录主机名/PID——未经同意的归因，issue 明确要 caller 自供文本；按 caller 拆多个历史文件——碎裂 D28/D29 选定的单一 append-only 台账，跨 caller 的 `--last` 窗口失义；强制打标——改变所有既有用户今天的体验，验收标准就是"缺席 = 今天"。
+## D43 — 任务卡：子代理简报用 rules@hash 钉住规则集，不再逐字复述(issue #125)
 
 - **问题**：orchestrator 给子代理的任务简报手工复述仓库治理纪律(显式路径暂存、禁 `git add -A`、门禁清单、决策行格式、双语对规则)，每份 ~15 行样板：重复、漂移(一次治理采纳后旧模板静默过时——0.15.0 新增的 conflict-markers 门、决策行工具落地，同会话前后简报已不一致)、不可验证(orchestrator 用散文断言"规则被遵守")。
 - **状态**：已决
