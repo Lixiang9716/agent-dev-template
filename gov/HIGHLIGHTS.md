@@ -3,6 +3,10 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.24.0 — (draft: copied from CHANGELOG, rewrite for usage)
+
+- release flow drafts HIGHLIGHTS sections — verify-doc-sync --write (D45)
+
 ## 0.23.0 — LLM cost ledger: the run line learns `cost`
 
 - `gov run --cost tokens=1200,calls=4` (or `GOV_COST="…"`; the flag wins)
