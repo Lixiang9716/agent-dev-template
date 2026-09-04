@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/Lixiang9716/govrail/compare/v0.14.1...v0.15.0) (2026-09-04)
+
+
+### Features
+
+* conflict-marker gate — git's blind spot becomes a content gate (D38) ([#105](https://github.com/Lixiang9716/govrail/issues/105)) ([699bb2f](https://github.com/Lixiang9716/govrail/commit/699bb2f2af2bd136bab08939da9ba52255026dd0))
+
 ## [0.14.1](https://github.com/Lixiang9716/govrail/compare/v0.14.0...v0.14.1) (2026-09-03)
 
 
