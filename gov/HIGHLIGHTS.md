@@ -3,6 +3,10 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.25.0 — (draft: copied from CHANGELOG, rewrite for usage)
+
+- self-test classifies FAILs via clean-env replay
+
 ## 0.24.1 — subcommand CLIs survive a shadowed argparse
 
 - `gov task`, `gov note`, `gov decision`, and `gov receipt` no longer lean

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.0](https://github.com/Lixiang9716/govrail/compare/v0.24.1...v0.25.0) (2026-09-04)
+
+
+### Features
+
+* self-test classifies FAILs via clean-env replay ([#139](https://github.com/Lixiang9716/govrail/issues/139)) ([e1a561a](https://github.com/Lixiang9716/govrail/commit/e1a561a3b141917435a629cc03971b1eb236d087))
+
 ## [0.24.1](https://github.com/Lixiang9716/govrail/compare/v0.24.0...v0.24.1) (2026-09-04)
 
 
