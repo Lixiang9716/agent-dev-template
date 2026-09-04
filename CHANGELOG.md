@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.0](https://github.com/Lixiang9716/govrail/compare/v0.23.0...v0.24.0) (2026-09-04)
+
+
+### Features
+
+* release flow drafts HIGHLIGHTS sections — verify-doc-sync --write (D45) ([d5ec91a](https://github.com/Lixiang9716/govrail/commit/d5ec91a55970e10de49cbe85c9b9e6e7d4358de0))
+
 ## [0.23.0](https://github.com/Lixiang9716/govrail/compare/v0.22.0...v0.23.0) (2026-09-04)
 
 
