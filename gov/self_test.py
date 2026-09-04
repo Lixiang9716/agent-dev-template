@@ -211,6 +211,50 @@ def test_pairing_write_resolves_bare_stem_and_zh_side() -> None:
         assert (docs / "foo.i18n.yaml").exists(), "--write must create the record"
 
 
+def test_pairing_staged_rejects_stale_sidecar() -> None:
+    """--staged (the optional pre-commit gate's check, #110) must reject a
+    staged pair whose sidecar is stale — naming the scoped fix command —
+    and stay quiet on an index with no paired files staged."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _git_repo(root)
+        docs = root / "docs"
+        docs.mkdir()
+        (docs / "a.md").write_text("hello\n", encoding="utf-8")
+        (docs / "a.zh.md").write_text("nihao\n", encoding="utf-8")
+        script = str(HERE / "verify_translation_pairing.py")
+        env = _fixture_env(root)
+        wrote = subprocess.run(
+            [sys.executable, script, "--write", "docs/a.md"], cwd=root,
+            capture_output=True, text=True, env=env,
+        )
+        assert wrote.returncode == 0, wrote.stderr
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True, env=env)
+        subprocess.run(
+            ["git", "-c", "commit.gpgsign=false", "commit", "-qm", "baseline"],
+            cwd=root, check=True, env=env,
+        )
+        # An index with nothing paired staged: quiet pass (cheap gate).
+        (root / "code.py").write_text("x = 1\n", encoding="utf-8")
+        subprocess.run(["git", "add", "code.py"], cwd=root, check=True, env=env)
+        quiet = subprocess.run(
+            [sys.executable, script, "--staged"], cwd=root,
+            capture_output=True, text=True, env=env,
+        )
+        assert quiet.returncode == 0, quiet.stdout + quiet.stderr
+        assert "no staged file belongs to a pair" in quiet.stdout
+        # The issue's evidence: edit one side, stage it — drift must go red
+        # with the scoped fix command inline.
+        (docs / "a.zh.md").write_text("nihao v2\n", encoding="utf-8")
+        subprocess.run(["git", "add", "docs/a.zh.md"], cwd=root, check=True, env=env)
+        bad = subprocess.run(
+            [sys.executable, script, "--staged"], cwd=root,
+            capture_output=True, text=True, env=env,
+        )
+        assert bad.returncode == 1, "a stale sidecar passed --staged"
+        assert "gov verify-pairing --write docs/a.md" in bad.stdout, bad.stdout
+
+
 def test_gates_default_mode_scopes_run() -> None:
     """defaultMode must scope the no-flag run; gates outside it never run."""
     with tempfile.TemporaryDirectory() as td:

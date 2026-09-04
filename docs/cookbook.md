@@ -34,6 +34,29 @@ docs/foo.md: out of sync — re-confirm: gov verify-pairing --write docs/foo
 says which side moved, in which commit, after which confirmation —
 check the translation before re-confirming, not after.
 
+## Catch the drift at commit, not at push
+
+The pre-push block works, but on a busy branch every pair edit costs a
+blocked push first (issue #110's evidence). Install the optional
+pre-commit hook — cheap content gates on the staged files only:
+
+```sh
+gov init --hooks --pre-commit   # add-on; --hooks alone stays push-stage
+```
+
+Now the same edit fails one stage earlier, at `git commit`, with the
+same scoped fix inline — run it, re-stage, and the commit lands without
+the push round-trip:
+
+```
+docs/foo.md: out of sync — re-confirm: gov verify-pairing --write docs/foo
+verify_translation_pairing: 1 violation(s) in 1 staged pair(s)
+```
+
+Nothing paired staged? The hook is quiet. Repos that find commit hooks
+intrusive simply do not pass `--pre-commit` — zero change at the commit
+stage, the pre-push model untouched.
+
 ## Add a gate, end to end
 
 1. Define it in `gates.json` (unknown keys abort loud — typos cannot

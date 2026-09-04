@@ -56,14 +56,14 @@ UNIVERSAL_FLAGS = {"-h", "--help", "-v", "--version"}
 # gained --adopt/--preview/--json and the registry silently lagged, so
 # notes documenting working runs read as dead commands).
 FLAGS: dict[str, set[str]] = {
-    "init": {"--project", "--hooks", "--ci", "--upgrade", "--json",
-             "--adopt", "--adopt-new", "--preview"},
+    "init": {"--project", "--hooks", "--pre-commit", "--ci", "--upgrade",
+             "--json", "--adopt", "--adopt-new", "--preview"},
     "uninstall": {"--project", "--force"},
     "run": {"--config", "--mode", "--base", "--gate", "--every-gate",
             "--no-record", "--json", "--fail-fast", "--verbose"},
     "self-test": {"--scope"},
     "verify-notes": set(),
-    "verify-pairing": {"--write"},
+    "verify-pairing": {"--write", "--staged"},
     "verify-note-presence": {"--base", "--strict", "--staged"},
     "verify-rubric": {"--path"},
     "verify-archive": set(),

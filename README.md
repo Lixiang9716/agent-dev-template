@@ -72,7 +72,11 @@ pre-push-checks, code-review, archive-agent-notes) only when missing,
 appends one reference line to AGENTS.md, and never overwrites the
 project's own files — including its own skills. `--hooks`/`--ci` can be
 retrofitted later (`gov init --hooks` on an initialized project installs
-just the add-on; customizations stay untouched). `uninstall` reverses
+just the add-on; customizations stay untouched); `--hooks --pre-commit`
+additionally installs the optional pre-commit hook — the cheap content
+gates (pairing sidecar freshness, conflict markers) on the staged files,
+so pair drift surfaces at `git commit` with the scoped fix command
+inline instead of one stage later at push (#110). `uninstall` reverses
 everything exactly; when a file drifted from its template it names the
 file and requires `--force` to proceed (a genuine two-step). A fresh
 install never goes red on its first run: the pairing gate ships advisory,

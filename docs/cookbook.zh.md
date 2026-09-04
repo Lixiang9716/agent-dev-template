@@ -32,6 +32,27 @@ docs/foo.md: out of sync — re-confirm: gov verify-pairing --write docs/foo
 `--write <stem>` 只重基线指名的对。括号里说明哪侧在哪个提交动的、
 何时确认的——先核对翻译再确认，别反过来。
 
+## 漂移在提交时抓到，而不是推送时
+
+pre-push 拦截有效，但忙碌分支上每次对编辑都先付一次被阻塞的 push
+（issue #110 的实证）。装上可选的 pre-commit 钩子——只对暂存文件跑
+廉价内容门：
+
+```sh
+gov init --hooks --pre-commit   # 加装项；单用 --hooks 仍是 push 阶段
+```
+
+同样的编辑现在早一个阶段、在 `git commit` 时失败，内联同款点名修
+复——照跑、重新暂存，提交直接落地，不经 push 往返：
+
+```
+docs/foo.md: out of sync — re-confirm: gov verify-pairing --write docs/foo
+verify_translation_pairing: 1 violation(s) in 1 staged pair(s)
+```
+
+暂存里没有配对文件？钩子保持安静。觉得 commit 钩子侵入的仓库不传
+`--pre-commit` 即可——提交阶段零变化，pre-push 模型原样。
+
 ## 加一个门禁的完整闭环
 
 1. 在 `gates.json` 定义（未知键即报错——笔误无法静默停靠）：

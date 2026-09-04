@@ -101,6 +101,18 @@ before anything is mutated), and `gov init --ci` generates a
 `.github/workflows/gov.yml` that runs `gov run`, only when that file does not
 exist. Both are recorded in the manifest and reversed by `uninstall`.
 
+The optional pre-commit hook (`gov init --hooks --pre-commit`, #110) runs
+only the cheap content gates on the staged files — `verify-pairing --staged`
+(sidecar freshness for the staged `.md`/`.zh.md` pairs; staging the source,
+the counterpart, or the record counts as touching the pair) and
+`verify-conflict-markers --staged` — so pairing drift surfaces at
+`git commit` with the scoped fix command inline, one stage earlier than the
+pre-push block. Repos that find commit hooks intrusive stay on the pre-push
+model (no flag, zero change at the commit stage); the full gate DAG never
+runs at commit time — a commit must stay fast, and rule 1 gives the push
+the smallest sufficient set. A lone `--pre-commit` fails loud (it rides
+with `--hooks`); a foreign pre-commit is never overwritten.
+
 A fresh install never goes red on its first run: the pairing gate ships
 advisory (`allowFailure: true`), reporting what needs baselining; after
 `gov verify-pairing --write` records the existing pairs, removing
