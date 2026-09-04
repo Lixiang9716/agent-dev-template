@@ -3,10 +3,21 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
-## 0.24.1 — (draft: copied from CHANGELOG, rewrite for usage)
+## 0.24.1 — subcommand CLIs survive a shadowed argparse
 
-- **cli:** hand-roll required subcommands; keep case env off stdlib shadows ([5f2ed54](https://github.com/Lixiang9716/govrail/commit/5f2ed54293303e60f367763704720781863a6501)), closes [#138](https://github.com/Lixiang9716/govrail/issues/138)
-- **cli:** hand-roll required subcommands; keep case env off stdlib shadows
+- `gov task`, `gov note`, `gov decision`, and `gov receipt` no longer lean
+  on argparse's `required=True` — legal stdlib argparse since Python 3.7,
+  but a fossil `argparse==1.4.0` backport installed beside gov rejects it
+  the moment PYTHONPATH promotes that dir, and 0.21–0.24's `gov task` died
+  in an unreadable TypeError on such machines (issue #138). A bare
+  `gov task` still fails loud: exit 2, usage plus the named choices.
+- `gov doctor` names the shadow instead of leaving the crash: when
+  `argparse` resolves outside the stdlib it exits 1 with the file and the
+  remedy — `pip uninstall argparse`.
+- CI keeps the reporter's exact environment alive: the `backport-shadow`
+  job installs the wheel plus `argparse==1.4.0`, promotes site-packages
+  onto PYTHONPATH, and requires the task happy paths, `gov self-test`,
+  and the doctor flag to hold anyway.
 
 ## 0.24.0 — (draft: copied from CHANGELOG, rewrite for usage)
 
