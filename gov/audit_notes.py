@@ -65,7 +65,7 @@ FLAGS: dict[str, set[str]] = {
     "self-test": {"--scope", "--case"},
     "receipt": {"--record", "--commit"},
     "verify-notes": set(),
-    "verify-pairing": {"--write", "--staged"},
+    "verify-pairing": {"--write", "--staged", "--explain"},
     "verify-note-presence": {"--base", "--strict", "--staged"},
     "verify-rubric": {"--path"},
     "verify-archive": set(),

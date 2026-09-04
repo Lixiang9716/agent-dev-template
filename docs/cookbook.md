@@ -34,6 +34,31 @@ docs/foo.md: out of sync — re-confirm: gov verify-pairing --write docs/foo
 says which side moved, in which commit, after which confirmation —
 check the translation before re-confirming, not after.
 
+## What do the sidecar fields actually mean?
+
+The record's semantics used to live only in code — an agent re-stamping
+a sidecar by hand was told "use HEAD" and fought the gate until an
+amend + force-push later (#150). The fields are not HEAD:
+
+```
+pair:
+  en: 6f0f…    # git blob hash (`git hash-object`) of the source — NOT file sha256
+  zh: 5c81…    # same for the counterpart side
+counterpart: foo.zh.md
+last_confirmed: 2026-09-04T19:24:25+00:00  # UTC ISO-8601 instant of the confirmation
+en_commit: 113b230  # last commit that TOUCHED each side at that moment —
+zh_commit: 113b230  # not HEAD, not the confirmation commit; context only
+```
+
+Never hand-edit the record: `--write` regenerates it, says so in comment
+lines inside the record itself, and now names every field value it
+wrote. The generated record plus the full schema and this project's
+conventions are one read-only command away:
+
+```sh
+gov verify-pairing --explain
+```
+
 ## Catch the drift at commit, not at push
 
 The pre-push block works, but on a busy branch every pair edit costs a
