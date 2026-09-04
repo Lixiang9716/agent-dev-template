@@ -795,7 +795,8 @@ _COMMANDS = {
     "verify-archive": "verify the archived-notes seal (pinned sha256 per file)",
     "verify-decisions": "verify the decisions table (numbering, alternatives, orphans; --base checks branch collisions)",
     "decision": "decision-row tooling (next free D-number; atomic validated add)",
-    "verify-doc-sync": "CHANGELOG ↔ HIGHLIGHTS pairing (every version has a section)",
+    "verify-doc-sync": "CHANGELOG ↔ HIGHLIGHTS pairing (every version has a "
+                "section; --write drafts the missing ones from CHANGELOG)",
     "verify-conflict-markers": "fail when changed files carry git conflict markers (e.g. --base <ref>, --staged)",
     "review": "assemble the review dossier for a diff (scope, notes, recall, rubric)",
     "trend": "gate duration trends from .gov/history/ (p50 per window)",

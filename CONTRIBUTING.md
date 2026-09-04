@@ -47,6 +47,14 @@ gov run                   # the full gate DAG (notes + pairing + note-presence +
    the tag matches the package version. The PyPI index can lag the publish
    by ~a minute; a first `pip install -U` right after may miss the fresh
    wheel — retry before suspecting the release.
+3. While the release PR is open, the workflow drafts its missing HIGHLIGHTS
+   sections onto the PR branch (`gov verify-doc-sync --write`: bullets
+   copied verbatim from CHANGELOG, each heading self-declared as a draft,
+   D45) — so the release merge lands CHANGELOG + version + HIGHLIGHTS
+   together and the doc-sync gate never goes red on master. The draft
+   satisfies pairing, not prose: rewrite the section's bullets for usage
+   (what HIGHLIGHTS actually carries) before or after the merge; until
+   then the heading says "draft" out loud.
 
 ### The release PR may need one click
 
