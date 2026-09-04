@@ -277,7 +277,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="gov task", description="task cards for subagent briefs "
         "(rules pin + checklist + completion receipt)")
-    sub = parser.add_subparsers(dest="subcommand", required=True)
+    # #138: `required=True` died with a TypeError under a shadowed pre-3.7
+    # argparse backport; the subcommand-required rule is enforced by hand.
+    sub = parser.add_subparsers(dest="subcommand")
 
     p_new = sub.add_parser("new", help="create a card pinning the current "
                             "rule set; prints the one-line brief pin")
@@ -307,6 +309,8 @@ def main(argv: list[str] | None = None) -> int:
     p_list.set_defaults(func=cmd_list)
 
     args = parser.parse_args(argv)
+    if getattr(args, "func", None) is None:
+        parser.error("a subcommand is required (new|check|close|list)")
     return args.func(args)
 
 

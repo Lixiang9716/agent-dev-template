@@ -55,6 +55,32 @@ def _check_python(checks: list[dict]) -> None:
                                  f"required {MIN_PYTHON[0]}.{MIN_PYTHON[1]}"})
 
 
+def _check_argparse_shadow(checks: list[dict]) -> None:
+    """#138: a py2-era ``argparse`` backport (PyPI argparse 1.4.0) installed
+    next to gov shadows the stdlib whenever PYTHONPATH promotes that dir —
+    subcommand CLIs died in an unreadable ``TypeError`` about ``required``.
+    The environment must say so (rule 5: fail loud) instead of leaving the
+    crash to be rediscovered per command."""
+    import os
+    import sysconfig
+    real = getattr(argparse, "__file__", None)
+    if real is None:
+        checks.append({"name": "argparse-shadow", "state": "note",
+                       "detail": "argparse reports no source file — "
+                                 "cannot verify it resolves to the stdlib"})
+        return
+    stdlib = sysconfig.get_paths()["stdlib"]
+    if os.path.dirname(os.path.realpath(real)) == os.path.realpath(stdlib):
+        checks.append({"name": "argparse-shadow", "state": "ok",
+                       "detail": "argparse resolves to the stdlib"})
+    else:
+        checks.append({
+            "name": "argparse-shadow", "state": "problem",
+            "detail": f"argparse resolves to {real}, not the stdlib — an "
+                      "installed argparse backport is shadowing it and "
+                      "breaks CLI parsing; pip uninstall argparse"})
+
+
 def _git_dir() -> str | None:
     """The git dir, worktree-aware (#15/D32): a linked worktree's .git is a
     FILE; git rev-parse --git-common-dir resolves the shared dir (hooks
@@ -180,6 +206,7 @@ def main(argv: list[str] | None = None) -> int:
     checks: list[dict] = []
     _check_gov_on_path(checks)
     _check_python(checks)
+    _check_argparse_shadow(checks)
     _check_version_drift(checks)
     _check_hook(checks)
     _check_gates(checks)

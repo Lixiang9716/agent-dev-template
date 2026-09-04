@@ -284,7 +284,9 @@ def main(argv: list[str] | None = None) -> int:
         prog="gov receipt",
         description="Verifiable run receipts: bind a green gov run to the "
                     "exact tree it verified (issue #124/D42).")
-    sub = parser.add_subparsers(dest="cmd", required=True)
+    # #138: no `required=True` — a shadowed pre-3.7 argparse backport
+    # rejects the kwarg; the rule is enforced by hand below instead.
+    sub = parser.add_subparsers(dest="cmd")
 
     p_verify = sub.add_parser(
         "verify", help="was a full green run recorded against this tree?")
@@ -300,6 +302,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="only receipts bound to this commit")
 
     args = parser.parse_args(argv)
+    if args.cmd is None:
+        parser.error("a subcommand is required (verify|show)")
 
     if args.cmd == "verify":
         try:
