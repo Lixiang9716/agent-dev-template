@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.24.0](https://github.com/Lixiang9716/govrail/compare/v0.23.0...v0.24.0) (2026-09-04)
+
+
+### Features
+
+* release flow drafts HIGHLIGHTS sections — verify-doc-sync --write (D45) ([d5ec91a](https://github.com/Lixiang9716/govrail/commit/d5ec91a55970e10de49cbe85c9b9e6e7d4358de0))
+
+## [0.23.0](https://github.com/Lixiang9716/govrail/compare/v0.22.0...v0.23.0) (2026-09-04)
+
+
+### Features
+
+* caller-reported cost ledger in .gov/history — gov run --cost/GOV_COST, gov trend --cost (D44, [#126](https://github.com/Lixiang9716/govrail/issues/126)) ([b3e8696](https://github.com/Lixiang9716/govrail/commit/b3e869627919e5d95ee3cfb877541bdffaa03bbf))
+* caller-reported cost ledger in .gov/history — gov run --cost/GOV_COST, gov trend --cost (D45, [#126](https://github.com/Lixiang9716/govrail/issues/126)) ([f71aabd](https://github.com/Lixiang9716/govrail/commit/f71aabd7977e2d8c6eabd36e3b95dc86f6b8434c))
+
 ## [0.22.0](https://github.com/Lixiang9716/govrail/compare/v0.21.1...v0.22.0) (2026-09-04)
 
 

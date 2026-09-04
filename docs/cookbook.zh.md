@@ -202,6 +202,22 @@ gov run --tag subagent-3        # 或：GOV_CALLER=subagent-3 gov run
 gov trend --by-tag              # 按 caller 的前后半窗口 p50 对比
 ```
 
+## 这个里程碑的 LLM 花费是多少？
+
+govrail 自己不计量任何东西——但驱动 agent 的工具通常已在数
+token/调用次数。用同一个标准形状把数字交给同一行运行记录
+（#126/D45），再按 caller 滚动合计：
+
+```sh
+GOV_CALLER=bridge-agent GOV_COST="tokens=1200,calls=4" gov run
+gov run --tag adjudicator --cost tokens=300.5,calls=1   # 旗标优先于 env
+gov trend --cost   # 按 caller：各单位的总量与早→晚窗拆分
+```
+
+未打标但上报了成本的运行归入 `(untagged)`；未带
+`--cost`/`$GOV_COST` 的运行行为与从前完全一致；畸形值大声失败并
+点名片段。
+
 ## 长会话被未跟踪文件警告淹没
 
 ```sh

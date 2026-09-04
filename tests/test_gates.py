@@ -515,3 +515,38 @@ def test_caller_tag_recorded_when_given(tmp_path, monkeypatch):
     assert recs[2]["caller"] == "supervisor"  # GOV_CALLER fallback
     assert recs[3]["caller"] == "flag-wins"   # --tag wins over env
     assert "caller" not in recs[4]            # whitespace env = absent
+
+
+def test_cost_recorded_alongside_caller(tmp_path, monkeypatch):
+    """#126/D43: --cost / $GOV_COST land as a cost object on the run line,
+    coexisting with D42's caller key; absent = record shape unchanged."""
+    import json as _json
+    monkeypatch.chdir(tmp_path)
+    _write(tmp_path, {"gates": [{"id": "a", "command": ["true"]}]})
+    assert gates.main(["--tag", "bridge", "--cost", "tokens=1200,calls=4"]) == 0
+    monkeypatch.setenv("GOV_COST", "tokens=10.5")
+    assert gates.main([]) == 0  # env fallback, no flag
+    monkeypatch.delenv("GOV_COST")
+    assert gates.main([]) == 0
+    recs = [_json.loads(l)
+            for l in (tmp_path / ".gov/history/gates.jsonl").read_text().splitlines()]
+    assert recs[0]["cost"] == {"tokens": 1200, "calls": 4}
+    assert recs[0]["caller"] == "bridge"  # one line carries both dimensions
+    assert recs[1]["cost"] == {"tokens": 10.5}
+    assert "cost" not in recs[2]  # unreported runs: pre-#126 shape
+
+
+def test_cost_malformed_fails_loud_before_any_gate(tmp_path, monkeypatch, capsys):
+    """#126/D43: bad cost input exits 2 naming the fragment — and a run
+    that would otherwise be green must not run, so nothing lands uncosted."""
+    monkeypatch.chdir(tmp_path)
+    _write(tmp_path, {"gates": [{"id": "a", "command": ["true"]}]})
+    monkeypatch.setenv("GOV_COST", "tokens=lots")
+    assert gates.main([]) == 2
+    assert "tokens=lots" in capsys.readouterr().err
+    monkeypatch.delenv("GOV_COST")
+    assert gates.main(["--cost", "calls"]) == 2
+    assert "unit=value" in capsys.readouterr().err
+    assert gates.main(["--cost", "tokens=-1"]) == 2
+    hist = tmp_path / ".gov/history/gates.jsonl"
+    assert not hist.exists(), "a rejected run recorded nothing"
