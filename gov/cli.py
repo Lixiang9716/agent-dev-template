@@ -24,7 +24,7 @@ from typing import Any
 
 from . import archive_notes, audit_notes, change_scope, gates, recall, review
 from . import doctor, note, self_test, trend, whatsnew
-from . import decision, verify_archive, verify_decisions, verify_doc_sync
+from . import decision, task, verify_archive, verify_decisions, verify_doc_sync
 from . import verify_conflict_markers
 from . import verify_note_presence
 from . import verify_notes, verify_rubric
@@ -803,6 +803,8 @@ _COMMANDS = {
     "audit-notes": "report mechanical staleness signals in implemented notes",
     "change-scope": "report touched surfaces (e.g. --base <ref>)",
     "archive-notes": "seal the archived-notes manifest",
+    "task": "task cards for subagent briefs (new/check/close/list; "
+            "rules@hash pin + checklist + green-run receipt)",
 }
 
 
@@ -1052,6 +1054,8 @@ def main(argv: list[str] | None = None) -> int:
         return change_scope.main(rest)
     if cmd == "archive-notes":
         return archive_notes.main(rest)
+    if cmd == "task":
+        return task.main(rest)
     print(f"gov: unknown command '{cmd}'", file=sys.stderr)
     _usage()
     return 2

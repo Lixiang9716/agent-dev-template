@@ -80,6 +80,7 @@ FLAGS: dict[str, set[str]] = {
     "audit-notes": {"--json"},
     "change-scope": {"--base"},
     "archive-notes": {"--rebaseline"},
+    "task": {"--check", "--rules", "--mode", "--timeout"},  # across subcommands
 }
 
 

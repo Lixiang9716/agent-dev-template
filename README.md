@@ -68,6 +68,9 @@ gov recall <terms>            # retrieve notes, decisions, postmortems
 gov audit-notes               # staleness signals in implemented notes
 gov audit-notes --json         # machine-readable: {findings: [{file, signal}], ...}
 gov change-scope --base <ref> # smallest sufficient set (.gov/surfaces.json maps paths)
+gov task new "Title" --check "criterion"  # task card: one-line rules@<hash> pin for a subagent brief
+gov task check                 # after a rules adoption: name the stale cards
+gov task close T-0001          # run the gates; the green run becomes the completion receipt
 ```
 
 `init` is non-invasive and idempotent: it creates `.gov/rules.md`, adds

@@ -361,3 +361,9 @@
 - **状态**：已决
 - **决定**：门运行接受**可选 caller 标签**：`gov run --tag <name>`，`$GOV_CALLER` 兜底（旗标优先；纯空白视为缺席）。标签以调用方自由文本记入 gates.jsonl 的 `caller` 键——privacy-light by design：不取 git 身份、不取主机名，只有 caller 自己敲的字。缺席 = 无 `caller` 键：记录形状与 #120 之前逐字节一致，未打标运行与既有读者行为不变。**`gov trend --by-tag`** 按标签分组（首现顺序；未打标归 `(untagged)`）并在**每组内部**做前后半 p50 对比——对半切分按组计算，时间上集中的标签仍可对比；`--base` 让所有组切在同一提交日期。旗标注册表（audit_notes）同步移动，由 test_flag_registry.py 钉住（#101 的教训）。
 - **被否**：从 git config 推导 caller——worktree 共享一个身份，所有 subagent 会话同标签，归因无用且错得沉默；自动记录主机名/PID——未经同意的归因，issue 明确要 caller 自供文本；按 caller 拆多个历史文件——碎裂 D28/D29 选定的单一 append-only 台账，跨 caller 的 `--last` 窗口失义；强制打标——改变所有既有用户今天的体验，验收标准就是"缺席 = 今天"。
+## D43 — 任务卡：子代理简报用 rules@hash 钉住规则集，不再逐字复述(issue #125)
+
+- **问题**：orchestrator 给子代理的任务简报手工复述仓库治理纪律(显式路径暂存、禁 `git add -A`、门禁清单、决策行格式、双语对规则)，每份 ~15 行样板：重复、漂移(一次治理采纳后旧模板静默过时——0.15.0 新增的 conflict-markers 门、决策行工具落地，同会话前后简报已不一致)、不可验证(orchestrator 用散文断言"规则被遵守")。
+- **状态**：已决
+- **决定**：新增 `gov task` 任务卡子命令(new/check/close/list)。`gov task new "标题" --check 验收项` 写 `.gov/tasks/T-<4位>-<slug>.json`：以内容哈希钉住当前规则集(`.gov/rules.md` + `gates.json`，note 约定内嵌于 rules.md)，哈希 = 排序的 `路径:sha256` 串再 sha256，展示 12 位前缀；简报只带一行 `obey rules@<hash>`；`--rules <前缀>` 要求当前哈希匹配否则 fail loud(防 orchestrator 拿着旧 pin)。`gov task check` 重算哈希：开卡过期(STALE)即点名退出 1——作为门禁进 gates.json，paths 限定 `.gov/tasks/**`(规则 1 的最小充分集：卡片不变则门不出场)；done 卡复核回执(全 PASS 且与卡片 pin 同哈希)。`gov task close T-0001` 现场跑门禁 DAG(`gov run --json`)，全绿才写回执(ts/mode/rules/gates 结局)并置 done；红跑拒绝、卡片不动(运行已进 `.gov/history/gates.jsonl`)；对过期 pin 的卡片拒绝 close(须先按采纳后规则重新简报)。拒绝证明：tools 族两用例(采纳后 STALE 变红、回执非全绿变红)。
+- **被否**：规则集哈希纳入 note 约定的独立文件——本仓库约定就住在 rules.md 里，第二事实源必然漂移；check 进默认 all 模式但不带 paths——无卡片的项目每次全跑一个必然空转的检查，违背最小充分集；红跑也置 done 留红回执——"done 却红"说谎，卡片只在全绿时闭合，红跑证据由 history 承载；回执链接 history 行而不内嵌结局——history 本地且可裁剪，回执必须自带可复核证据(check 重验结局本身，不信任散文)。

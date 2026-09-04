@@ -21,6 +21,7 @@
 - **Agent Notes** 承载决策（`implemented/` 然后冻结的 `archived/`）。`gov verify-notes` 强制三段必填：`## Problem`、`## Decision`、`## Alternatives considered`（`## Consequences` 可选）。`gov verify-note-presence` 检查规则 2 可观察的那一半——diff 触及行为面而无 note 变更时警告（带规则出处）；`--strict` 升级为拦截。其 base 是 auto：脏树审查工作树，干净树审查领先 upstream 的提交（无 upstream 则最后一个提交）——push 钩子与 CI 永远看到干净树，因此审查的是被推送的工作而非空 diff。记忆的读侧：`gov recall <terms>` 跨笔记、决策、postmortem 检索（按命中位置排序）；`gov audit-notes` 报机械新鲜度信号——世界已不再满足的引用——作为归档技能判断的证据。
 - **双语配对** 承载对外展示文档：源 `foo.md` + 译文侧 + `foo.i18n.yaml` 记录，用 git blob 哈希钉死两侧（并钉住译文侧文件名）。命名约定是 `.gov/pairing.json` 里的配置（`include`、`counterparts`、`exclude`）；不符合任何约定的配对用 `gov verify-pairing --write en:<path> zh:<path>` 显式登记。单边编辑失败。
 - **`gov self-test`** 为每个治理门禁跑一个拒绝用例——证明每个门禁都能拦住所声称的违规，所以没有空转脚本。它是工具自身的回归，进模板默认运行（`governance` 模式保留为单跑自检的快捷方式）：模板 CI 装的是未钉版本的 govrail，工具自身的冒烟测试因此在采用者侧运行。每个已启用门禁必须属于某个 mode——停靠只有 `"enabled": false` 这一条响的机制（DISABLED 行）；`gov run --every-gate` 是显式全矩阵。
+- **任务卡** 承载子代理交接（`gov task`，#125/D43）：`gov task new "标题" --check "验收项"` 写出 `.gov/tasks/T-0001-*.json`，以内容哈希钉住当前规则集（`.gov/rules.md` + `gates.json`），任务简报只需一行 `obey rules@<hash>` 而不复述纪律。`gov task check`（门禁，paths 限定 `.gov/tasks/**`）在治理采纳后点名过期卡片，并复核已完成卡片的回执；`gov task close T-0001` 跑门禁 DAG，把全绿运行记为卡片的完成回执。
 - **评审量规** 承载门禁查不了的判断标准：[review-rubric.md](review-rubric.zh.md) 对 PR 逐条带证据判定；每条的 `Gate candidate` 字段写明承诺可机械化后是否毕业成门禁。`gov verify-rubric` 检查量规自身的结构——永不检查判断本身。
 
 ## 采用：gov init / uninstall

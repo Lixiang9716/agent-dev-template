@@ -3,6 +3,19 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.20.0 — caller tagging in gate history
+
+- `gov run --tag <name>` (or `$GOV_CALLER`) records the caller's own
+  free-text label on every history record in `.gov/history/gates.jsonl`
+  — multi-agent repos can finally attribute runs: which caller's runs
+  keep failing pairing, whether subagent runs are systematically slower
+  (issue #120, D42). Absent label = no `caller` key: records keep their
+  pre-0.20.0 shape.
+- `gov trend --by-tag` groups runs by that label (first-seen order,
+  untagged as `(untagged)`) and compares p50 halves inside each group;
+  `--base` cuts every group at the same commit date. Privacy-light by
+  design — the label is only what the caller typed.
+
 ## 0.19.0 — target another worktree without cd
 
 - `gov -C <path> <command>` (or `--path`, before the command) chdirs by
