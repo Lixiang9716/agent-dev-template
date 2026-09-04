@@ -277,7 +277,38 @@ def test_failure_summary_names_gate_and_rerun(capsys):
     out = capsys.readouterr().out
     assert "--- summary: 1 blocking failure(s) ---" in out
     assert "boom: boom" in out
-    assert "rerun a single gate: gov run --gate <id>" in out
+    # #109: the failure line itself carries the per-gate rerun command.
+    assert "boom: boom (rerun: gov run --gate boom)" in out
+
+
+def test_failed_gate_output_is_failure_first_uncapped(capsys):
+    """#109: a failing gate's evidence is never truncated at capture time.
+
+    A gate late in the stream that fails with more output than the old
+    2000-char tail must still have its full block emitted; passing gates
+    with output keep the display-side tail-3 budget (D20).
+    """
+    long_text = "\n".join(f"evidence line {i}" for i in range(300))
+    gs = [
+        # earlier-stream passing gate with output → stays capped
+        gates.Gate(id="chatty-ok", command=[
+            "sh", "-c", "echo w1; echo w2; echo w3; echo w4; echo tail; exit 0"
+        ]),
+        # late-stream failing gate with output far beyond any tail budget
+        gates.Gate(id="late-boom", command=[
+            "sh", "-c", f"echo '{long_text}'; exit 1"
+        ]),
+    ]
+    assert gates.run_gates(gs, None, 1, False) == 1
+    out = capsys.readouterr().out
+    # full failed-gate evidence: head and tail both present, no clip marker
+    assert "evidence line 0" in out
+    assert "evidence line 299" in out
+    assert "truncated" not in out
+    # passing gate still subject to the normal budget
+    assert "earlier line(s) not shown" in out
+    assert "w1" not in out
+    assert "tail" in out
 
 
 def test_usage_prog_names_the_subcommand(tmp_path, capsys, monkeypatch):

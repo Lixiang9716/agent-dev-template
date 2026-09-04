@@ -308,14 +308,11 @@ def _run_one(gate: Gate) -> tuple[Gate, str, str, bool]:
     output = ((proc.stdout or "") + (proc.stderr or "")).strip()
     if proc.returncode == 0:
         return gate, "PASS", output, False, duration_ms
-    return gate, "FAIL", _tail(output), True, duration_ms
-
-
-def _tail(text: str, limit: int = 2000) -> str:
-    text = text.strip()
-    if len(text) <= limit:
-        return text
-    return text[-limit:] + f"\n... (truncated, {len(text) - limit} more chars)"
+    # #109 failure-first: a failing gate's evidence is never clipped at
+    # capture time — the full output flows to the report and the JSON
+    # record, so "why did it fail" is answered by one run. Passing gates
+    # keep their display-side budget instead (D20 tail-3).
+    return gate, "FAIL", output, True, duration_ms
 
 
 def _changed_files(base: str) -> list[str] | None:
@@ -486,8 +483,10 @@ def run_gates(
         emit(f"--- summary: {len(failed)} blocking failure(s) ---")
         for gid in failed:
             first = details[gid].strip().splitlines()[0] if details[gid].strip() else ""
-            emit(f"{gid}: {first}" if first else f"{gid}:")
-        emit("rerun a single gate: gov run --gate <id>")
+            # #109: the failure line itself names the rerun command — the
+            # reader should not have to remember the flag exists.
+            line = f"{gid}: {first}" if first else f"{gid}:"
+            emit(f"{line} (rerun: gov run --gate {gid})")
 
     counts = {o: sum(1 for v in outcomes.values() if v == o) for o in OUTCOME_ORDER}
     parts = [f"{n} {o.lower()}" for o, n in counts.items() if n]
