@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.21.0](https://github.com/Lixiang9716/govrail/compare/v0.20.0...v0.21.0) (2026-09-04)
+
+
+### Features
+
+* gov task — task cards pin rules@hash for subagent briefs ([#125](https://github.com/Lixiang9716/govrail/issues/125)) ([bcf35bc](https://github.com/Lixiang9716/govrail/commit/bcf35bcc6983b2b14f1ae86b479ca8dfcb459608))
+* gov task — task cards pin rules@hash for subagent briefs ([#125](https://github.com/Lixiang9716/govrail/issues/125)) ([5635baf](https://github.com/Lixiang9716/govrail/commit/5635bafbd0fed362d3ead6fc2136af51f68ee366))
+* JSON output on the agent hot paths (gov run / audit-notes / verify-decisions / doctor) ([82e6603](https://github.com/Lixiang9716/govrail/commit/82e66032b1bb4daca710eec1e1b903edf269b66e))
+
 ## [0.20.0](https://github.com/Lixiang9716/govrail/compare/v0.19.0...v0.20.0) (2026-09-04)
 
 
