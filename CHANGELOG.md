@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.0](https://github.com/Lixiang9716/govrail/compare/v0.16.0...v0.17.0) (2026-09-04)
+
+
+### Features
+
+* decision-row tooling for parallel branches — next/add/--base/dir format ([#107](https://github.com/Lixiang9716/govrail/issues/107)) ([fd41fd9](https://github.com/Lixiang9716/govrail/commit/fd41fd90fe437db2348128a800ec846cf6bf8040))
+* decision-row tooling for parallel branches — next/add/--base/dir format ([#107](https://github.com/Lixiang9716/govrail/issues/107)) ([6622f6f](https://github.com/Lixiang9716/govrail/commit/6622f6fed6b7cbf3be01a6ebbaa4986c5cc50b7f))
+
 ## [0.16.0](https://github.com/Lixiang9716/govrail/compare/v0.15.1...v0.16.0) (2026-09-04)
 
 

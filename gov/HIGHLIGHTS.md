@@ -3,6 +3,26 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.17.0 — decision-row tooling for parallel branches
+
+- `gov decision next [--count N] [--base REF]` prints the next free
+  D-number from the configured decisions source; `--base origin/master`
+  unions what already landed there, so a branch cut before a sibling
+  landed prints the number the eventual merged history will show
+  instead of re-allocating a taken one (issue #107, D40).
+- `gov decision add --from FILE [--id Dn] [--dry-run]` appends a
+  decision atomically and validates before writing: a number that
+  already exists, a number that opens a gap, and a draft without the
+  options/rejected-alternatives section are each refused by name.
+- A `dir` decisions format (`{"path": ".gov/decisions", "format":
+  "dir"}`, one file per decision) makes parallel appends structurally
+  conflict-free: each `add` creates a new file, so two worktrees
+  appending from the same base merge with no textual conflict at all.
+- `gov verify-decisions --base REF` is the gate-time net: a number both
+  branches added since the merge-base is a named collision with the
+  renumber command in the message; pre-partitioned gaps (the number
+  exists on the base) stay informational.
+
 ## 0.16.0 — additive gate adoption for customized installs
 
 - `gov init --adopt-new gates.json` merges newly shipped gates into a
