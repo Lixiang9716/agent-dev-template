@@ -6,7 +6,6 @@
 ### Features
 
 * gov -C &lt;path&gt; targets another worktree without cd ([#121](https://github.com/Lixiang9716/govrail/issues/121)) ([6f8a79e](https://github.com/Lixiang9716/govrail/commit/6f8a79ebfec2b845e4fefc5b85f29bc7491098c2))
-* gov -C &lt;path&gt; targets another worktree without cd ([#121](https://github.com/Lixiang9716/govrail/issues/121)) ([b687834](https://github.com/Lixiang9716/govrail/commit/b687834def081493825e1328001b619b876408c4))
 
 ## [0.18.0](https://github.com/Lixiang9716/govrail/compare/v0.17.0...v0.18.0) (2026-09-04)
 

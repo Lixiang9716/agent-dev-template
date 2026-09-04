@@ -3,6 +3,19 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.19.0 — target another worktree without cd
+
+- `gov -C <path> <command>` (or `--path`, before the command) chdirs by
+  value before dispatch — a supervisor orchestrating several worktrees
+  steers `gov run --base Y`, `gov doctor`, the verify-* gates, etc. at
+  another tree with no cd bookkeeping (issue #121). Flags chain like
+  git's `-C`, each path resolving against the previous one.
+- The output header names the resolved work-tree root
+  (`gov: targeting <root> (via -C …)`), so a wrong-tree invocation is
+  visible, not just valid; a nonexistent path fails loud with exit 2.
+- Subcommands with their own `--path` (verify-decisions,
+  verify-rubric — a file argument after the command) are unaffected.
+
 ## 0.18.0 — optional pre-commit hook
 
 - `gov init --hooks --pre-commit` installs an OPT-IN pre-commit hook
