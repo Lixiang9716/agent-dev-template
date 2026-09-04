@@ -104,12 +104,14 @@
         "verify-decisions"
       ],
       "paths": [
-        "docs/decisions.md"
+        "docs/decisions.md",
+        ".gov/decisions.json",
+        ".gov/decisions/**"
       ]
     },
     {
       "id": "doc-sync",
-      "label": "CHANGELOG \u2194 HIGHLIGHTS pairing",
+      "label": "CHANGELOG ↔ HIGHLIGHTS pairing",
       "command": [
         "gov",
         "verify-doc-sync"

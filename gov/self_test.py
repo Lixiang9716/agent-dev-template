@@ -50,9 +50,10 @@ def _case_env() -> dict:
     return {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
 
 
-def _run(script: str, cwd: Path) -> subprocess.CompletedProcess:
+def _run(script: str, cwd: Path,
+         extra: list[str] | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(HERE / script)],
+        [sys.executable, str(HERE / script)] + (extra or []),
         cwd=cwd,
         capture_output=True,
         text=True,
@@ -731,6 +732,45 @@ def test_verify_decisions_rejects_broken_table() -> None:
         assert "D3: records no options" in result.stdout
 
 
+def test_verify_decisions_rejects_base_collision() -> None:
+    """#107: --base must refuse a number two branches both allocated."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _git_repo(root)
+        env = _fixture_env(root)
+
+        def git(*argv: str, check: bool = True):
+            return subprocess.run(
+                list(argv), cwd=root, check=check, capture_output=True,
+                text=True, env=env,
+            )
+
+        git("git", "branch", "-q", "-m", "main")
+        docs = root / "docs"
+        docs.mkdir()
+        (docs / "decisions.md").write_text(
+            "## D1 — a\n\n- **选项**：x\n", encoding="utf-8")
+        git("git", "add", "-A")
+        git("git", "-c", "commit.gpgsign=false", "commit", "-qm", "fork")
+        git("git", "checkout", "-q", "-b", "topic")
+        (docs / "decisions.md").write_text(
+            "## D1 — a\n\n- **选项**：x\n\n## D2 — mine\n\n- **选项**：x\n",
+            encoding="utf-8")
+        git("git", "add", "-A")
+        git("git", "-c", "commit.gpgsign=false", "commit", "-qm", "branch D2")
+        git("git", "checkout", "-q", "main")
+        (docs / "decisions.md").write_text(
+            "## D1 — a\n\n- **选项**：x\n\n## D2 — theirs\n\n- **选项**：x\n",
+            encoding="utf-8")
+        git("git", "add", "-A")
+        git("git", "-c", "commit.gpgsign=false", "commit", "-qm", "sibling")
+        git("git", "checkout", "-q", "topic")
+        result = _run("verify_decisions.py", root, ["--base", "main"])
+        assert result.returncode == 1, \
+            "a number both branches allocated must be a named collision"
+        assert "D2: number collision" in result.stdout
+
+
 def test_skills_text_command_drift_is_named() -> None:
     """Wish 11: a typo'd command in a skill file is named, not silently stale."""
     with tempfile.TemporaryDirectory() as td:
@@ -915,6 +955,7 @@ CASES = [
     test_gates_rejects_gate_in_no_mode,
     test_self_test_adopts_project_rejection_cases,
     test_verify_decisions_rejects_broken_table,
+    test_verify_decisions_rejects_base_collision,
     test_skills_text_command_drift_is_named,
     test_registry_real_flags_are_not_drift,
     test_gates_rejects_unknown_keys,

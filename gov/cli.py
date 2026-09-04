@@ -20,7 +20,7 @@ from typing import Any
 
 from . import archive_notes, audit_notes, change_scope, gates, recall, review
 from . import doctor, note, self_test, trend, whatsnew
-from . import verify_archive, verify_decisions, verify_doc_sync
+from . import decision, verify_archive, verify_decisions, verify_doc_sync
 from . import verify_conflict_markers
 from . import verify_note_presence
 from . import verify_notes, verify_rubric
@@ -756,7 +756,8 @@ _COMMANDS = {
     "verify-note-presence": "warn when a non-trivial diff carries no note (e.g. --base <ref>, --strict)",
     "verify-rubric": "check the review rubric's structure (ids, fields, parity)",
     "verify-archive": "verify the archived-notes seal (pinned sha256 per file)",
-    "verify-decisions": "verify the decisions table (numbering, alternatives, orphans)",
+    "verify-decisions": "verify the decisions table (numbering, alternatives, orphans; --base checks branch collisions)",
+    "decision": "decision-row tooling (next free D-number; atomic validated add)",
     "verify-doc-sync": "CHANGELOG ↔ HIGHLIGHTS pairing (every version has a section)",
     "verify-conflict-markers": "fail when changed files carry git conflict markers (e.g. --base <ref>, --staged)",
     "review": "assemble the review dossier for a diff (scope, notes, recall, rubric)",
@@ -929,6 +930,8 @@ def main(argv: list[str] | None = None) -> int:
         return verify_archive.main(rest)
     if cmd == "verify-decisions":
         return verify_decisions.main(rest)
+    if cmd == "decision":
+        return decision.main(rest)
     if cmd == "verify-doc-sync":
         return verify_doc_sync.main(rest)
     if cmd == "verify-conflict-markers":

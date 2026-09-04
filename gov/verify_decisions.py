@@ -12,15 +12,22 @@ This gate is the verify-rubric pattern applied to decisions:
   what it beat is the notes rule-3 violation wearing a different hat);
 - orphan decisions — defined but never D-referenced by any note — are
   reported as information, not violations (a decision may simply predate
-  the notes that would cite it).
+  the notes that would cite it);
+- ``--base REF`` (#107/D40) adds the parallel-branch check: numbers this
+  branch added that a sibling ALSO added on REF since the fork point are
+  a named collision (a duplicate in the merged history — refuse before
+  the merge, with the fix in the message); a numbering gap that merely
+  pre-partitions numbers still landing on sibling branches stays
+  informational.
 
 Exit codes: 0 = table intact (orphans allowed); 1 = violations; 2 =
-unreadable table or bad ``--path``.
+unreadable table or bad ``--path``/``--base``.
 """
 from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -69,6 +76,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--path", default=str(DEFAULT_PATH),
                         help=f"decisions table (default: {DEFAULT_PATH})")
+    parser.add_argument("--base", metavar="REF", default=None,
+                        help="also check parallel-branch number collisions: "
+                             "numbers added both here and on REF since the "
+                             "merge-base are named and refused (#107)")
     args = parser.parse_args(argv)
 
     src = dec.load()
@@ -133,6 +144,51 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if due < date.today():
             overdue.append(f"{d} (review-by {m.group(1)})")
+
+    # #107/D40: parallel-branch numbering — loud, named collision before
+    # the merge; pre-partitioned gaps (numbers landing on siblings) stay
+    # informational like orphans.
+    if args.base:
+        fork = subprocess.run(
+            ["git", "merge-base", "HEAD", args.base],
+            capture_output=True, text=True,
+        )
+        if fork.returncode != 0:
+            print(f"verify_decisions: cannot resolve --base '{args.base}' "
+                  f"or merge-base with it — {(fork.stderr or '').strip()}",
+                  file=sys.stderr)
+            return 2
+        try:
+            base_nums = dec.numbers_in_rev(args.base)
+            fork_nums = dec.numbers_in_rev(fork.stdout.strip())
+        except subprocess.CalledProcessError as e:
+            print(f"verify_decisions: cannot read the decisions source at "
+                  f"'{args.base}' or its merge-base — "
+                  f"{(e.stderr or '').strip()}", file=sys.stderr)
+            return 2
+        local_nums = set(numbers)
+        branch_new = local_nums - fork_nums
+        base_new = base_nums - fork_nums
+        for n in sorted(branch_new & base_new):
+            violations.append(
+                f"D{n}: number collision — added both here and on "
+                f"'{args.base}' since the fork point; merged history would "
+                f"carry it twice. Renumber this branch to "
+                f"D{max(local_nums | base_nums) + 1} "
+                f"(gov decision next --base {args.base})"
+            )
+        if branch_new:
+            floor = max(fork_nums) + 1 if fork_nums else min(branch_new)
+            top = max(branch_new)
+            # Numbers neither side has: a gap in the eventual merged
+            # history unless a third sibling lands them — report, don't
+            # block (pre-partitioning across branches is a legal workflow).
+            missing = [f"D{n}" for n in range(floor, top)
+                       if n not in local_nums and n not in base_nums]
+            if missing:
+                print(f"note: branch numbering not contiguous with "
+                      f"'{args.base}' (allocated elsewhere?): "
+                      f"{', '.join(missing)}")
 
     for v in violations:
         print(v)

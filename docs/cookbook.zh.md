@@ -117,6 +117,22 @@ D 引用明示"未核对"——绝不静默跳过。
 打败了什么）、并报告孤儿（无笔记引用——信息性）。上下文可能过期
 的决策带 `review-by: 2027-01-01`；过期打 review-due 提示。
 
+## 并行分支都要"下一个 D 号"
+
+```sh
+gov decision next --base origin/master   # 合并后历史会显示的号
+gov decision add --from draft.md          # 原子追加，写前校验
+gov verify-decisions --base origin/master
+```
+
+两个 worktree 从同一基线各算"下一个空闲号"都会拿到 D39；`--base`
+并入基线分支已落地的号，门禁运行时点名冲突（`D39: number
+collision … 用 gov decision next --base 重编号）而不是让重复行
+悄悄合并。单文件格式的追加是原子的（临时文件+替换），但跨
+worktree 合并仍是文本冲突——配置 `.gov/decisions.json`
+`{"path": ".gov/decisions", "format": "dir"}`（一决策一文件）后
+追加即新增文件：并行分支合并零冲突。
+
 ## 模板演进了——先看，再采纳
 
 ```sh
