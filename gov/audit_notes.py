@@ -60,7 +60,7 @@ FLAGS: dict[str, set[str]] = {
              "--json", "--adopt", "--adopt-new", "--preview"},
     "uninstall": {"--project", "--force"},
     "run": {"--config", "--mode", "--base", "--gate", "--every-gate",
-            "--no-record", "--json", "--fail-fast", "--verbose"},
+            "--tag", "--no-record", "--json", "--fail-fast", "--verbose"},
     "self-test": {"--scope"},
     "verify-notes": set(),
     "verify-pairing": {"--write", "--staged"},
@@ -72,7 +72,7 @@ FLAGS: dict[str, set[str]] = {
     "verify-doc-sync": set(),
     "verify-conflict-markers": {"--base", "--staged"},
     "review": {"--base", "--hits", "--grade"},
-    "trend": {"--last", "--gate", "--base"},
+    "trend": {"--last", "--gate", "--base", "--by-tag"},
     "doctor": {"--json"},
     "note": {"--class", "--ref"},  # on the `new` subcommand
     "whatsnew": {"--since"},

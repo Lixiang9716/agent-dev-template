@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -361,6 +362,7 @@ def run_gates(
     changed: list[str] | None = None,
     selected_by: str = "all-enabled",
     scoped_out: list[str] | None = None,
+    caller: str | None = None,
 ) -> int:
     """Run the selected gates (every enabled gate when selection is None).
 
@@ -545,12 +547,18 @@ def run_gates(
         # D28/D29: append-only history — one line per run, the plane's
         # own philosophy. Recording is the default (the file is local
         # and gitignored); --no-record opts out.
+        # #120/D42: a caller tag (--tag / GOV_CALLER) rides along as
+        # caller-supplied free text; absent = anonymous, exactly the
+        # pre-#120 record shape.
         record_path.parent.mkdir(parents=True, exist_ok=True)
+        run_record = {
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "gates": records,
+        }
+        if caller:
+            run_record["caller"] = caller
         with record_path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(
-                {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                 "gates": records}, separators=(",", ":")
-            ) + "\n")
+            f.write(json.dumps(run_record, separators=(",", ":")) + "\n")
     return 1 if failed else 0
 
 
@@ -576,6 +584,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--every-gate", action="store_true",
                         help="run every enabled gate — the full matrix, ignoring "
                              "modes and defaultMode (CI owns this)")
+    parser.add_argument("--tag", default=None,
+                        help="caller tag recorded into .gov/history/gates.jsonl "
+                             "for multi-agent attribution (gov trend --by-tag "
+                             "splits on it); falls back to $GOV_CALLER; "
+                             "absent = anonymous, as before (#120)")
     parser.add_argument("--no-record", action="store_true",
                         help="do not append this run to .gov/history/gates.jsonl "
                              "(recording is the default; see gov trend)")
@@ -667,11 +680,16 @@ def main(argv: list[str] | None = None) -> int:
         if probe is not None:
             changed = probe
 
+    # #120: --tag wins over $GOV_CALLER; whitespace-only means absent.
+    caller = (args.tag if args.tag is not None
+              else os.environ.get("GOV_CALLER"))
+    caller = caller.strip() if caller else ""
     return run_gates(gates, selection, concurrency, args.fail_fast,
                      json_mode=args.json,
                      record_path=None if args.no_record
                      else _history_path(), changed=changed,
-                     selected_by=selected_by, scoped_out=scoped_out_ids)
+                     selected_by=selected_by, scoped_out=scoped_out_ids,
+                     caller=caller or None)
 
 
 if __name__ == "__main__":
