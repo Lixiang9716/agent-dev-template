@@ -3,6 +3,20 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.21.0 — task cards: a brief says obey rules@<hash>
+
+- `gov task new "Title" --check "criterion"` writes
+  `.gov/tasks/T-0001-*.json` pinning the current rule set
+  (`.gov/rules.md` + `gates.json`) by content hash — a subagent brief
+  carries the one-line pin `obey rules@<hash>` instead of fifteen lines
+  of restated governance prose (issue #125, D43).
+- `gov task check` — a gate scoped to `.gov/tasks/**` — names the STALE
+  cards after a governance adoption, so pasted-rule drift is detectable
+  instead of silent; done cards' receipts are re-verified too.
+- `gov task close T-0001` runs the gate DAG now; only an all-green run
+  becomes the card's completion receipt. Red runs change nothing (they
+  still land in history); a stale-pinned card refuses to close.
+
 ## 0.20.0 — caller tagging in gate history
 
 - `gov run --tag <name>` (or `$GOV_CALLER`) records the caller's own
