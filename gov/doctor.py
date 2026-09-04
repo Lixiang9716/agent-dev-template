@@ -8,9 +8,10 @@ names the problems, one per line, rule-5 style; exit 1 when any check
 fails, 0 when the environment is sound.
 
 Checks: CLI reachability from PATH (the hook's fast path), the Python
-interpreter against the package requirement, pre-push hook presence and
-executability (both copies), gates.json schema (strict keys), and — when
-a decisions table exists — that it parses.
+interpreter against the package requirement, git hook presence and
+executability (both copies; the pre-commit hook is opt-in), gates.json
+schema (strict keys), and — when a decisions table exists — that it
+parses.
 """
 from __future__ import annotations
 
@@ -65,16 +66,21 @@ def _check_hook(problems: list[str]) -> None:
     if git_dir is None:
         print("note: not a git repository — hook checks skipped")
         return
-    hook = os.path.join(git_dir, "hooks", "pre-push")
-    for rel, what in ((hook, "the wired git hook"),
-                      (".gov/hooks/pre-push", "the auditable copy")):
-        if not os.path.exists(rel):
-            print(f"note: {rel} absent ({what}) — gov init --hooks installs it")
-            continue
-        if os.access(rel, os.X_OK):
-            print(f"ok: {rel} is executable")
-        else:
-            problems.append(f"{rel} is not executable — chmod +x it")
+    # pre-push: the gate-DAG runner; pre-commit: the OPT-IN commit-stage
+    # gates (#110) — its absence is a choice, not a problem.
+    for name, how in (("pre-push", "gov init --hooks installs it"),
+                      ("pre-commit",
+                       "gov init --hooks --pre-commit installs it (opt-in)")):
+        hook = os.path.join(git_dir, "hooks", name)
+        for rel, what in ((hook, "the wired git hook"),
+                          (f".gov/hooks/{name}", "the auditable copy")):
+            if not os.path.exists(rel):
+                print(f"note: {rel} absent ({what}) — {how}")
+                continue
+            if os.access(rel, os.X_OK):
+                print(f"ok: {rel} is executable")
+            else:
+                problems.append(f"{rel} is not executable — chmod +x it")
 
 
 def _check_version_drift(problems: list[str]) -> None:

@@ -348,3 +348,9 @@
 - **状态**：已决
 - **决定**：① **`gov decision next [--count N] [--base REF]`**：从配置的决策源（.gov/decisions.json，共享加载器）算下一个空闲号；`--base` 并入 REF 上已落地的号——先分叉、兄弟先合并的分支不再重复分配（给出的是"合并后历史会显示的号"）。② **`gov decision add --from FILE [--id Dn] [--base REF] [--dry-run]`**：原子追加（临时文件 + os.replace，flock 防同检出并发），写前校验——重复号、跳号（破坏连续性）、缺 选项/被否 段一律拒绝并点名。③ **`dir` 格式**（.gov/decisions.json format:"dir"，一决策一文件 Dn-slug.md）：追加=新增文件，并行分支同基线各自追加结构性零冲突；加载器/verify-decisions/audit-notes/recall 统一支持。④ **`gov verify-decisions --base REF`**：分叉点两边都新增的号 = 点名冲突（合并后即重复行，拒绝并给 `decision next --base` 修复指引）；仅为预分区留的空档（号在 REF 侧存在）保持信息性。⑤ 自带 tools 族拒绝用例（--base 碰撞变红）+ 双 worktree 验收测试（同基线两 worktree 各自 add：dir 格式合并零文本冲突、同号成为点名的门禁失败，绝不静默）。
 - **被否**：文件锁跨 worktree——锁不住独立检出，跨分支分配是 --base 的职责不是锁的；自动迁移既有单文件表到 dir 格式——单向大改写，采用者按需配置即可；冲突时自动改号——改号等于替人做决策且会静默改变笔记里的 D 引用，大声点名才是正解；预分区空档算违规——预分区正是并行开发的合法工作流，合并前信息性提示足够。
+## D41 — 可选 pre-commit 钩子:配对漂移提前到提交时(issue #110)
+
+- **问题**:radiant 两次实证同一往返:编辑双语对 → commit → push,pre-push 钩子以配对漂移拦截并内联修复命令 → 跑点名的 `--write` → amend → 再 push。检查本身有效,但反馈晚了一个阶段——忙碌分支上每一次对编辑都先换一次被阻塞的 push。
+- **状态**:已决
+- **决定**:`gov init --hooks --pre-commit` 额外安装**可选** pre-commit 钩子(单用 `--pre-commit` fail loud;外来 pre-commit 绝不覆盖,同 pre-push 规则;已初始化项目可事后补装),只跑暂存区上的廉价内容门:**`gov verify-pairing --staged`**(新)——仅检查 git index 触及的对(源侧、对侧、`.i18n.yaml` sidecar 任一被暂存即算触及),失步报错内联点名 `gov verify-pairing --write <pair>`;以及 `gov verify-conflict-markers --staged`(0.15.0 已有)。无对文件暂存时静默通过;完整门禁 DAG 仍归 pre-push(规则 1:push 拥有最小充分集,commit 必须快)。未加 flag 的仓库提交阶段行为零变化;doctor 视 pre-commit 为可选(缺席是选择不是问题,在场则查双副本可执行);两钩子都记入 manifest `gitHooks`,`uninstall` 精确反转;钩子模板连跑两门故不 `exec`,同样剥除 GIT_* 环境(#20/D32⑥)。拒绝证明:tools 族 self-test 用例 + `.gov/rejections/case-pre-commit-hook.sh`(`# gate: pairing`) + demo 标本用例。
+- **被否**:默认安装——issue 明确 opt-in,觉得 commit 钩子侵入的仓库留在 pre-push 模型;pre-commit 跑完整 DAG——commit 必须快,全矩阵归 push/CI;新起子命令而非 `--staged` 模式——与 conflict-markers 的既有 `--staged` 形态一致,避免第二套 CLI 词汇。

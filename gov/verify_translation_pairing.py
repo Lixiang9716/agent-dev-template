@@ -27,6 +27,10 @@ Naming conventions are configuration, not code — ``.gov/pairing.json``
 
 A ``counterparts`` pattern is ``{stem}`` plus a literal suffix (no ``/``);
 a file ending in that suffix is a counterpart side, never a source.
+``--staged`` narrows the check to the pairs the git index touches (source
+side, counterpart side, or the record) — the cheap content gate the
+optional pre-commit hook runs, so pairing drift is caught at ``git
+commit`` instead of one stage later at push (issue #110).
 AGENTS.md (agent instructions) and notes under ``.agents/notes/`` are
 English-only and out of scope.
 """
@@ -252,6 +256,77 @@ def _register(src: Path, zh: Path) -> Path:
     return record
 
 
+def _staged_files() -> list[str] | None:
+    """Paths staged in the index (deleted paths dropped); None = git failed."""
+    proc = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=d"],
+        capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        print(f"verify_translation_pairing: --staged failed: "
+              f"{proc.stderr.strip()}", file=sys.stderr)
+        return None
+    return [line for line in proc.stdout.splitlines() if line.strip()]
+
+
+def _staged_sources(staged: list[str], cfg: dict[str, list[str]]) -> list[Path]:
+    """In-scope pair sources a staged path belongs to (source side,
+    counterpart side, or the ``.i18n.yaml`` record — editing any of the
+    three is touching the pair)."""
+    by_path = {str(s): s for s in _sources(cfg)}
+    involved: dict[Path, None] = {}
+    for path in staged:
+        p = Path(path)
+        hit: Path | None = None
+        if path in by_path:
+            hit = by_path[path]
+        elif p.name.endswith(".i18n.yaml"):
+            stem = p.name[: -len(".i18n.yaml")]
+            hit = by_path.get(str(p.with_name(stem + ".md")))
+        else:
+            for lit in _literals(cfg):
+                if p.name.endswith(lit):
+                    stem = p.name[: -len(lit)]
+                    hit = by_path.get(str(p.with_name(stem + ".md")))
+                    break
+        if hit is not None:
+            involved[hit] = None
+    return sorted(involved)
+
+
+def _pair_errors(src: Path, cfg: dict[str, list[str]]) -> list[str]:
+    """The violation lines for one pair (shared by full and --staged runs)."""
+    zh = _counterpart(src, cfg)
+    if zh is None:
+        return [
+            f"{src}: no counterpart found (conventions: {_convention_hint(cfg)}) — "
+            f"translate it, or register one: --write en:{src} zh:<path>"
+        ]
+    if not zh.exists():
+        return [
+            f"{src}: recorded counterpart '{zh.name}' is missing — "
+            "re-register with --write en:" + str(src) + " zh:<path>"
+        ]
+    rec = _record_path(src)
+    if not rec.exists():
+        return [f"{src}: missing record {rec.name} — baseline with --write {src}"]
+    recorded = _parse_record(rec)
+    current = {"en": _blob_hash(src), "zh": _blob_hash(zh)}
+    errors: list[str] = []
+    for side, expect in (("en", src), ("zh", zh)):
+        if side not in recorded or not recorded[side]:
+            errors.append(f"{rec.name}: missing recorded hash for {side}")
+        elif recorded[side] != current[side]:
+            moved = _last_commit(expect) or "uncommitted"
+            errors.append(
+                f"{expect}: out of sync — re-confirm: "
+                f"gov verify-pairing --write {src} "
+                f"(the {side} side last moved in {moved}, "
+                f"confirmed {recorded.get('last_confirmed', 'unknown time')})"
+            )
+    return errors
+
+
 def _pair_is_stale(src: Path, cfg: dict[str, list[str]]) -> bool:
     """A pair needs re-baselining: unrecorded, drifted, or missing a side."""
     zh = _counterpart(src, cfg)
@@ -368,6 +443,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--write", nargs="*", metavar="PAIR",
                         help="re-record pairs (bare stem or any side); or register an "
                              "explicitly named pair with en:<path> zh:<path>")
+    parser.add_argument("--staged", action="store_true",
+                        help="check only the pairs the index touches (the cheap "
+                             "pre-commit gate; issue #110) — quiet on an index "
+                             "with no paired files staged")
     args = parser.parse_args(argv)
 
     cfg = _load_config()
@@ -377,39 +456,29 @@ def main(argv: list[str] | None = None) -> int:
     if args.write is not None:
         return _write(args.write, cfg)
 
+    if args.staged:
+        staged = _staged_files()
+        if staged is None:
+            return 2
+        sources = _staged_sources(staged, cfg)
+        if not sources:
+            print("verify_translation_pairing: no staged file belongs to a "
+                  "pair — nothing to check")
+            return 0
+        errors = [e for src in sources for e in _pair_errors(src, cfg)]
+        if errors:
+            for e in errors:
+                print(e)
+            print(f"verify_translation_pairing: {len(errors)} violation(s) in "
+                  f"{len(sources)} staged pair(s)")
+            return 1
+        print(f"verify_translation_pairing: {len(sources)} staged pair(s) ok")
+        return 0
+
     errors: list[str] = []
     pairs = _sources(cfg)
     for src in pairs:
-        zh = _counterpart(src, cfg)
-        if zh is None:
-            errors.append(
-                f"{src}: no counterpart found (conventions: {_convention_hint(cfg)}) — "
-                f"translate it, or register one: --write en:{src} zh:<path>"
-            )
-            continue
-        if not zh.exists():
-            errors.append(
-                f"{src}: recorded counterpart '{zh.name}' is missing — "
-                "re-register with --write en:" + str(src) + " zh:<path>"
-            )
-            continue
-        rec = _record_path(src)
-        if not rec.exists():
-            errors.append(f"{src}: missing record {rec.name} — baseline with --write {src}")
-            continue
-        recorded = _parse_record(rec)
-        current = {"en": _blob_hash(src), "zh": _blob_hash(zh)}
-        for side, expect in (("en", src), ("zh", zh)):
-            if side not in recorded or not recorded[side]:
-                errors.append(f"{rec.name}: missing recorded hash for {side}")
-            elif recorded[side] != current[side]:
-                moved = _last_commit(expect) or "uncommitted"
-                errors.append(
-                    f"{expect}: out of sync — re-confirm: "
-                    f"gov verify-pairing --write {src} "
-                    f"(the {side} side last moved in {moved}, "
-                    f"confirmed {recorded.get('last_confirmed', 'unknown time')})"
-                )
+        errors.extend(_pair_errors(src, cfg))
     # Wish 14/D28: a record whose both sides are gone is garbage that
     # nothing ever reported — count it.
     for rec in sorted(_record_files(cfg)):

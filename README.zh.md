@@ -61,7 +61,7 @@ gov audit-notes                # implemented 笔记的新鲜度信号
 gov change-scope --base <ref>  # 最小充分集（.gov/surfaces.json 可映射路径）
 ```
 
-`init` 非侵入且幂等：创建 `.gov/rules.md`，仅在缺失时添加 `gates.json`、笔记 README 与 agent 技能（recall-first、pre-push-checks、code-review、archive-agent-notes），向 AGENTS.md 追加一行引用，绝不覆盖项目自己的文件——包括它自己的技能。`--hooks`/`--ci` 可**事后补装**（已初始化项目 `gov init --hooks` 只装该加装，定制原样不动）。`uninstall` 精确反转一切；文件与模板有差异时点名并列出，需 `--force` 才继续（真两步）。新装首跑不红：pairing 门禁以 advisory 落地，`gov verify-pairing --write` 为存量文档建立基线后，摘除 `allowFailure` 即升级为强制。`enabled: false` 让门禁下线而不删除定义。
+`init` 非侵入且幂等：创建 `.gov/rules.md`，仅在缺失时添加 `gates.json`、笔记 README 与 agent 技能（recall-first、pre-push-checks、code-review、archive-agent-notes），向 AGENTS.md 追加一行引用，绝不覆盖项目自己的文件——包括它自己的技能。`--hooks`/`--ci` 可**事后补装**（已初始化项目 `gov init --hooks` 只装该加装，定制原样不动）；`--hooks --pre-commit` 额外安装可选的 pre-commit 钩子——只对暂存文件跑廉价内容门（配对 sidecar 新鲜度、冲突标记），配对漂移在 `git commit` 即被拦截并内联点名修复命令，而非晚一个阶段到 push 才现形（#110）。`uninstall` 精确反转一切；文件与模板有差异时点名并列出，需 `--force` 才继续（真两步）。新装首跑不红：pairing 门禁以 advisory 落地，`gov verify-pairing --write` 为存量文档建立基线后，摘除 `allowFailure` 即升级为强制。`enabled: false` 让门禁下线而不删除定义。
 
 ## 内部内容
 

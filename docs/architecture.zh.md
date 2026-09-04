@@ -29,6 +29,8 @@
 
 执行路径是显式选装：`gov init --hooks` 装 pre-push 钩子跑门禁 DAG（外来的 pre-push 绝不覆盖——加装在任何变更之前预检、fail loud），`gov init --ci` 仅在文件不存在时生成 `.github/workflows/gov.yml` 跑 `gov run`。两者都记入 manifest，`uninstall` 精确反转。
 
+可选的 pre-commit 钩子（`gov init --hooks --pre-commit`，#110）只对暂存文件跑廉价内容门——`verify-pairing --staged`（被暂存 `.md`/`.zh.md` 对的 sidecar 新鲜度；暂存源侧、对侧或 sidecar 记录任一即算触及该对）与 `verify-conflict-markers --staged`——配对漂移因此在 `git commit` 即现形并内联点名修复命令，比 pre-push 拦截早一个阶段。觉得 commit 钩子侵入的仓库留在 pre-push 模型（不加 flag，提交阶段零变化）；完整门禁 DAG 绝不在 commit 时跑——commit 必须快，规则 1 把最小充分集交给 push。单用 `--pre-commit` fail loud（它随 `--hooks` 一起装）；外来的 pre-commit 绝不覆盖。
+
 新装项目首跑不红：pairing 门禁以 advisory 落地（`allowFailure: true`），报告哪些文档待 baseline；`gov verify-pairing --write` 记录存量配对后，摘除 `allowFailure` 即升级为强制。`init` 会打印这些 next steps。
 
 ## 平面成长

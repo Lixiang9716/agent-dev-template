@@ -6,7 +6,10 @@ templates shipped as package data, and ``uninstall`` reverses it exactly via
 the ``.gov/manifest.json`` it wrote. ``init --hooks`` additionally installs a
 ``pre-push`` hook that runs the gate DAG, and ``init --ci`` generates a
 GitHub Actions workflow — both recorded in the manifest and reversed by
-``uninstall``.
+``uninstall``. ``init --hooks --pre-commit`` additionally installs the
+optional pre-commit hook: the cheap content gates (pairing sidecar
+freshness, conflict markers) on the staged files only, so pairing drift
+surfaces at ``git commit`` instead of one stage later at push (#110).
 """
 from __future__ import annotations
 
@@ -55,9 +58,9 @@ def _remove_empty_dirs(root: Path) -> None:
         p = p.parent
 
 
-def _hook_conflict(project: Path) -> bool:
-    """True when .git/hooks/pre-push exists and is not a gov hook."""
-    git_hook = project / ".git" / "hooks" / "pre-push"
+def _hook_conflict(project: Path, name: str = "pre-push") -> bool:
+    """True when .git/hooks/<name> exists and is not a gov hook."""
+    git_hook = project / ".git" / "hooks" / name
     if not git_hook.exists():
         return False
     try:
@@ -67,12 +70,12 @@ def _hook_conflict(project: Path) -> bool:
     return HOOK_MARKER not in existing
 
 
-def _install_hook(project: Path) -> None:
-    """Write .gov/hooks/pre-push and wire it into .git/hooks (both executable)."""
-    data = TEMPLATES.joinpath("pre-push").read_bytes()
+def _install_hook(project: Path, name: str = "pre-push") -> None:
+    """Write .gov/hooks/<name> and wire it into .git/hooks (both executable)."""
+    data = TEMPLATES.joinpath(name).read_bytes()
     hook_dir = project / ".gov" / "hooks"
     hook_dir.mkdir(parents=True, exist_ok=True)
-    for dest in (hook_dir / "pre-push", project / ".git" / "hooks" / "pre-push"):
+    for dest in (hook_dir / name, project / ".git" / "hooks" / name):
         dest.write_bytes(data)
         dest.chmod(0o755)
 
@@ -91,10 +94,18 @@ def _install_ci(project: Path, created: list[str]) -> None:
 def init(project: Path, hooks: bool = False, ci: bool = False,
          upgrade: bool = False, adopt: list[str] | None = None,
          report_json: bool = False, preview: bool = False,
-         adopt_new: str | None = None) -> int:
+         adopt_new: str | None = None, pre_commit: bool = False) -> int:
     project = project.resolve()
     if not project.is_dir():
         print(f"init: {project} is not a directory", file=sys.stderr)
+        return 2
+    if pre_commit and not hooks:
+        # The pre-commit hook rides with --hooks: both are git-hook add-ons
+        # recorded in one manifest, and an accidental lone --pre-commit must
+        # fail loud (rule 5), not silently skip the pre-push runner.
+        print("init: --pre-commit installs alongside --hooks "
+              "(the optional commit-stage gates ride with the hook runner)",
+              file=sys.stderr)
         return 2
     manifest_path = project / ".gov" / "manifest.json"
     if adopt_new is not None and not manifest_path.exists():
@@ -110,20 +121,24 @@ def init(project: Path, hooks: bool = False, ci: bool = False,
         if not (hooks or ci):
             print(f"init: {project} is already initialized")
             return 0
-        return _add_ons(project, manifest_path, hooks, ci)  # F5: retrofit path
+        return _add_ons(project, manifest_path, hooks, ci,  # F5: retrofit path
+                        pre_commit=pre_commit)
 
     # Pre-flight the add-ons: fail loud before mutating anything, so a
     # conflict never leaves a half-initialized project with no manifest.
     if hooks and not (project / ".git").is_dir():
         print("init: --hooks needs a git repository (no .git found)", file=sys.stderr)
         return 2
-    if hooks and _hook_conflict(project):
-        print(
-            f"init: refusing to overwrite {project / '.git' / 'hooks' / 'pre-push'} — "
-            "it is not a gov hook; merge the two by hand",
-            file=sys.stderr,
-        )
-        return 2
+    for name in (("pre-push",) if hooks and not pre_commit
+                 else ("pre-push", "pre-commit") if hooks
+                 else ()):
+        if _hook_conflict(project, name):
+            print(
+                f"init: refusing to overwrite {project / '.git' / 'hooks' / name} — "
+                "it is not a gov hook; merge the two by hand",
+                file=sys.stderr,
+            )
+            return 2
 
     gov_dir = project / ".gov"
     created: list[str] = []
@@ -163,8 +178,11 @@ def init(project: Path, hooks: bool = False, ci: bool = False,
         ag.write_text(REFERENCE_LINE + "\n", encoding="utf-8")
 
     if hooks:
-        _install_hook(project)
+        _install_hook(project, "pre-push")
         git_hooks.append("pre-push")
+        if pre_commit:
+            _install_hook(project, "pre-commit")
+            git_hooks.append("pre-commit")
     if ci:
         _install_ci(project, created)
 
@@ -185,6 +203,9 @@ def init(project: Path, hooks: bool = False, ci: bool = False,
     print("  AGENTS.md reference line")
     if hooks:
         print("  .gov/hooks/pre-push + .git/hooks/pre-push (runs gov run before push)")
+        if pre_commit:
+            print("  .gov/hooks/pre-commit + .git/hooks/pre-commit "
+                  "(cheap content gates on staged files — opt-in, #110)")
     if ci and ".github/workflows/gov.yml" in created:
         print("  .github/workflows/gov.yml (CI runs gov run)")
 
@@ -231,6 +252,7 @@ def _inventory(created: set[str]) -> list[tuple[str, Any]]:
         (".agents/notes/README.md", TEMPLATES.joinpath("notes-README.md")),
         (".gov/rejections/README.md", TEMPLATES.joinpath("rejections-README.md")),
         (".gov/hooks/pre-push", TEMPLATES.joinpath("pre-push")),
+        (".gov/hooks/pre-commit", TEMPLATES.joinpath("pre-commit")),
     ]
     expected += [
         (f".agents/skills/{name}/SKILL.md", TEMPLATES.joinpath("skills") / name / "SKILL.md")
@@ -337,7 +359,7 @@ def _adopt(project: Path, manifest_path: Path, targets: list[str],
         if rel not in created:
             created.append(rel)
         recorded[rel] = tpl_h
-        if rel.endswith("pre-push"):
+        if rel.endswith(("pre-push", "pre-commit")):
             dest.chmod(0o755)
         print(f"init: adopted {rel}")
         applied += 1
@@ -499,7 +521,7 @@ def _upgrade_report(project: Path, manifest_path: Path,
     current: list[str] = []
     missing: list[str] = []
     differing: list[tuple[str, Any]] = []
-    opt_in = {".gov/hooks/pre-push"}  # add-ons, not always-injected
+    opt_in = {".gov/hooks/pre-push", ".gov/hooks/pre-commit"}  # add-ons, not always-injected
     for rel, tpl in expected:
         local = project / rel
         if not local.exists():
@@ -518,7 +540,7 @@ def _upgrade_report(project: Path, manifest_path: Path,
     if json_mode:
         # Wish 6c/D30: machine-readable drift — an agent decides adoptions
         # programmatically (stdout is exactly one JSON value).
-        opt_in = {".gov/hooks/pre-push"}
+        opt_in = {".gov/hooks/pre-push", ".gov/hooks/pre-commit"}
         files_out = []
         for rel, tpl in expected:
             local = project / rel
@@ -601,7 +623,8 @@ def _upgrade_report(project: Path, manifest_path: Path,
     return 0
 
 
-def _add_ons(project: Path, manifest_path: Path, hooks: bool, ci: bool) -> int:
+def _add_ons(project: Path, manifest_path: Path, hooks: bool, ci: bool,
+             pre_commit: bool = False) -> int:
     """Install --hooks/--ci on an already-initialized project (F5).
 
     Only the requested add-ons are touched — rules, gates, notes, skills,
@@ -620,17 +643,25 @@ def _add_ons(project: Path, manifest_path: Path, hooks: bool, ci: bool) -> int:
         if not (project / ".git").is_dir():
             print("init: --hooks needs a git repository (no .git found)", file=sys.stderr)
             return 2
-        if _hook_conflict(project):
-            print(
-                f"init: refusing to overwrite {project / '.git' / 'hooks' / 'pre-push'} — "
-                "it is not a gov hook; merge the two by hand",
-                file=sys.stderr,
-            )
-            return 2
-        _install_hook(project)
+        for name in (("pre-push", "pre-commit") if pre_commit else ("pre-push",)):
+            if _hook_conflict(project, name):
+                print(
+                    f"init: refusing to overwrite "
+                    f"{project / '.git' / 'hooks' / name} — "
+                    "it is not a gov hook; merge the two by hand",
+                    file=sys.stderr,
+                )
+                return 2
+        _install_hook(project, "pre-push")
         if "pre-push" not in git_hooks:
             git_hooks.append("pre-push")
         print("init: installed .gov/hooks/pre-push + .git/hooks/pre-push (runs gov run before push)")
+        if pre_commit:
+            _install_hook(project, "pre-commit")
+            if "pre-commit" not in git_hooks:
+                git_hooks.append("pre-commit")
+            print("init: installed .gov/hooks/pre-commit + .git/hooks/pre-commit "
+                  "(cheap content gates on staged files — opt-in, #110)")
     if ci:
         before = len(created)
         _install_ci(project, created)
@@ -747,12 +778,14 @@ def uninstall(project: Path, force: bool = False) -> int:
 
 
 _COMMANDS = {
-    "init": "inject the plane into a project (--hooks/--ci add runners; --upgrade shows template drift; --adopt-new merges new shipped gates)",
+    "init": "inject the plane into a project (--hooks/--ci add runners; --hooks "
+            "--pre-commit adds the opt-in commit-stage gates; --adopt-new "
+            "merges new shipped gates; --upgrade shows template drift)",
     "uninstall": "reverse init",
     "run": "run the project's gate DAG (args forwarded to gates.py)",
     "self-test": "run governance rejection cases",
     "verify-notes": "check note format",
-    "verify-pairing": "check bilingual pairing (e.g. --write)",
+    "verify-pairing": "check bilingual pairing (e.g. --write, --staged)",
     "verify-note-presence": "warn when a non-trivial diff carries no note (e.g. --base <ref>, --strict)",
     "verify-rubric": "check the review rubric's structure (ids, fields, parity)",
     "verify-archive": "verify the archived-notes seal (pinned sha256 per file)",
@@ -794,6 +827,9 @@ COMMAND_FLAGS: dict[str, tuple[tuple[str, str], ...]] = {
     "init": (
         ("--project DIR", "target project root (default: current directory)"),
         ("--hooks", "add the git hooks runner (needs a git repository)"),
+        ("--pre-commit", "with --hooks: also install the optional pre-commit "
+                         "hook — cheap content gates (pairing sidecar freshness, "
+                         "conflict markers) on the staged files (#110)"),
         ("--ci", "add the CI runner (.github/workflows/gov.yml)"),
         ("--upgrade", "report template drift; reads, never writes"),
         ("--json", "with --upgrade: exactly one machine-readable report"),
@@ -832,7 +868,7 @@ def _init_uninstall_args(
 ) -> tuple[Path, bool, bool, bool, bool] | None:
     """Parse --project (+ init's --hooks/--ci/--upgrade, uninstall's --force)."""
     project = "."
-    hooks = ci = force = upgrade = adopt = report_json = preview = False
+    hooks = ci = force = upgrade = adopt = report_json = preview = pre_commit = False
     adopt_targets: list[str] = []
     adopt_new: str | None = None
     i = 0
@@ -846,6 +882,9 @@ def _init_uninstall_args(
             i += 2
         elif what == "init" and a == "--hooks":
             hooks = True
+            i += 1
+        elif what == "init" and a == "--pre-commit":
+            pre_commit = True
             i += 1
         elif what == "init" and a == "--ci":
             ci = True
@@ -880,7 +919,8 @@ def _init_uninstall_args(
             _usage()
             return None
     return (Path(project), hooks, ci, force, upgrade,
-            (adopt_targets if adopt else None), report_json, preview, adopt_new)
+            (adopt_targets if adopt else None), report_json, preview,
+            adopt_new, pre_commit)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -910,7 +950,8 @@ def main(argv: list[str] | None = None) -> int:
                                             upgrade=parsed[4], adopt=parsed[5],
                                             report_json=parsed[6],
                                             preview=parsed[7],
-                                            adopt_new=parsed[8])
+                                            adopt_new=parsed[8],
+                                            pre_commit=parsed[9])
     if cmd == "uninstall":
         parsed = _init_uninstall_args(rest, "uninstall")
         return 2 if parsed is None else uninstall(parsed[0], force=parsed[3])
