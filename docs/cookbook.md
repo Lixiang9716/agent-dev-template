@@ -284,6 +284,21 @@ gov verify-note-presence --staged     # index only; silent when clean
 
 Lists fold past five (`…and N more`).
 
+## The note-presence advisory cries wolf on routine bookkeeping
+
+It should not, any more: task-card receipts (`.gov/tasks/**`) are exempt by
+default (#149). If another surface is routine for this repo, declare it in
+`.gov/manifest.json` — the advisory then fires only where a note is
+genuinely expected:
+
+```json
+{ "note_presence_exempt": ["docs/**", "tools/**"] }
+```
+
+When the warning does fire it says which absence it found — "no note file
+appears anywhere in this diff" — and the active exemptions are printed on
+every run.
+
 ## Something feels off in the environment
 
 ```sh

@@ -27,8 +27,12 @@ from pathlib import Path
 
 try:  # package context (`gov change-scope`)
     from .gates import _glob_regex
+    from .verify_note_presence import (_is_exempt, _is_trivially_scoped,
+                                       _load_exempt_globs)
 except ImportError:  # direct script execution (self-test runs files by path)
     from gates import _glob_regex
+    from verify_note_presence import (_is_exempt, _is_trivially_scoped,
+                                      _load_exempt_globs)
 
 # Fallback when gates.json declares no per-gate paths (legacy configs).
 SURFACE_GATES = {
@@ -162,9 +166,17 @@ def main(argv: list[str] | None = None) -> int:
     print(f"suggested gates ({source}): {', '.join(suggested) or 'code gates (project toolchain)'}")
     print("run them: gov run --base " + args.base + "  (or: gov run --gate <id>)")
 
-    non_trivial = [f for f in files if not f.startswith(".agents/notes/")
-                   and not (f.endswith((".md", ".i18n.yaml")) and "/" not in f)
-                   and not f.startswith("docs/")]
+    # The reminder gates the same surface verify-note-presence does (#149):
+    # bookkeeping (task receipts) and repo-declared exemptions are shared,
+    # so the two tools never disagree about what deserves a note. Root .md
+    # files other than README/CHANGELOG-class are behavior-bearing (D20).
+    exempt_globs, err = _load_exempt_globs()
+    if err is not None:
+        print(f"change_scope: {err}", file=sys.stderr)
+        return 2
+    non_trivial = [f for f in files
+                   if not _is_trivially_scoped(f)
+                   and not _is_exempt(f, exempt_globs)]
     has_note = any(f.startswith(NOTES_DIR) for f in files)
     if non_trivial and not has_note:
         print("note: no Agent Note in this change — if it is non-trivial, add one "

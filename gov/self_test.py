@@ -713,6 +713,74 @@ def test_note_presence_auto_base_catches_committed_work() -> None:
         assert strict.returncode == 1, "--strict must catch the committed no-note change"
 
 
+def test_note_presence_task_receipts_and_manifest_exemptions() -> None:
+    """#149: routine bookkeeping never cries wolf; the repo rules where a
+    note is expected via note_presence_exempt in .gov/manifest.json."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _git_repo(root)
+        tasks = root / ".gov" / "tasks"
+        tasks.mkdir(parents=True)
+        (tasks / "T-0001-x.json").write_text("{}\n", encoding="utf-8")
+        script = str(HERE / "verify_note_presence.py")
+        receipt = subprocess.run(
+            [sys.executable, script, "--strict"], cwd=root,
+            capture_output=True, text=True,
+        )
+        assert receipt.returncode == 0, (
+            "a task receipt is machine bookkeeping; it must not warn (#149)\n"
+            + receipt.stdout)
+        (root / "src").mkdir()
+        (root / "src" / "gen.py").write_text("x = 1\n", encoding="utf-8")
+        (root / ".gov" / "manifest.json").write_text(
+            json.dumps({"note_presence_exempt": ["src/**"]}), encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+        subprocess.run(
+            ["git", "-c", "commit.gpgsign=false", "commit", "-qm", "exempt"],
+            cwd=root, check=True,
+        )  # the declaration lands first, like a real repo's would
+        (root / "src" / "gen.py").write_text("x = 2\n", encoding="utf-8")
+        exempt = subprocess.run(
+            [sys.executable, script, "--strict"], cwd=root,
+            capture_output=True, text=True,
+        )
+        assert exempt.returncode == 0, (
+            "a repo-declared exemption must silence its paths (#149)\n"
+            + exempt.stdout)
+        (root / ".gov" / "manifest.json").write_text(
+            json.dumps({"version": "0.0.0"}), encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+        subprocess.run(
+            ["git", "-c", "commit.gpgsign=false", "commit", "-qm", "bare"],
+            cwd=root, check=True,
+        )
+        (root / "src" / "gen.py").write_text("x = 3\n", encoding="utf-8")
+        bare = subprocess.run(
+            [sys.executable, script, "--strict"], cwd=root,
+            capture_output=True, text=True,
+        )
+        assert bare.returncode == 1, (
+            "without the exemption the warning must still fire\n" + bare.stdout)
+
+
+def test_note_presence_rejects_ill_shaped_manifest() -> None:
+    """Rule 5: a manifest that exists but cannot serve must exit 2, named."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _git_repo(root)
+        (root / ".gov").mkdir()
+        (root / ".gov" / "manifest.json").write_text(
+            json.dumps({"note_presence_exempt": "src/**"}), encoding="utf-8")
+        result = subprocess.run(
+            [sys.executable, str(HERE / "verify_note_presence.py")], cwd=root,
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 2, (
+            "an ill-shaped note_presence_exempt must fail loud (rule 5)\n"
+            + result.stdout + result.stderr)
+        assert "note_presence_exempt" in result.stderr
+
+
 def test_verify_notes_rejects_status_lying() -> None:
     """The lifecycle is the directory; the Status field must not improvise."""
     with tempfile.TemporaryDirectory() as td:
@@ -1223,6 +1291,8 @@ CASES = [
     test_rubric_rejects_zero_items,
     test_passing_gate_output_stays_visible,
     test_note_presence_auto_base_catches_committed_work,
+    test_note_presence_task_receipts_and_manifest_exemptions,
+    test_note_presence_rejects_ill_shaped_manifest,
     test_verify_notes_rejects_status_lying,
     test_archive_seal_detects_tampering_and_refuses_laundering,
     test_gates_rejects_gate_in_no_mode,

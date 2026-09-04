@@ -402,3 +402,11 @@
 - **状态**：已决
 - **决定**：(b)+(d)。① `decision next/add` 增 `--against REF`：与 `--base` 同 dest 的别名（issue 点名的表面与既有词汇是同一语义，不开第二含义），有 ref 时计算 `ref − local`，非空即软警告 `your base is N rows behind '<ref>' (missing …) — rebase before numbering`——走 stderr，`next` 的 stdout 恰为编号列表不污染；② 同一感知进 `add`，软警告绝不阻断，union 分配的行照写；③ `gov doctor` 新增 gate-adoption 检查（note 永不 problem）：清点当前 govrail 版本发布的门——模板门（采用路径 `gov init --adopt-new gates.json`，D39）与 paths 因项目而异的手工门（verify-decisions/verify-rubric/verify-doc-sync，点名要接的命令）——按 gate id 或命令 token 对照项目 gates.json，缺失即点名；`enabled: false` 停用计为已采用（响的停靠是显式选择，D24）；旗标注册表同步 `--against`。
 - **被否**：(a) 两旗标两处声明已是词汇分叉，别名把成本压到零；(c) 自动探测属"猜意图"（D11 立场），ref 缺失/离线时的静默分支比显式 flag 的缺席更难解释——警告与并入都只挂在显式 ref 上；(e) 采用是刻意的（D17/D28：平面是地板，成长事件驱动），缺失不是故障，且 defined-but-unmoded 已由 D24 的可达性校验大声拦截；把 verify-decisions 塞进注入模板——D28 已裁决不进（内容因项目而异），doctor 点名 + 手工接入正是不违该裁决的发现层。
+
+## D49 — note-presence 的降噪：任务回执默认豁免 + manifest 申报豁免面（issue #149）
+
+- **问题**：radiant 一周内两次假阳性：① 关任务卡写入 `.gov/tasks/T-*.json`（机器生成、rules 哈希钉住的回执，D43）被 note-presence 点名"改了非平凡文件却没有笔记"；② 每个 docs-sync PR（决策表行 + README 对重确认，无代码）同样被警告——feature PR 里笔记早已存在，sync PR 只是落地其载体。advisory-only 的定级是对的（D14），但当两种最常见的 agent 日常流程——关任务、落地 docs-sync——**永远**触发警告，agent 会学会"警告即噪音"并停止阅读，包括它真正指向遗漏的时候。
+- **选项**：(a) 只把 `.gov/tasks/**` 回执判为簿记；(b) (a) + 仓库可申报豁免面（manifest 键 `note_presence_exempt`）；(c) 警告升级为 per-path 笔记归属检查
+- **状态**：已决
+- **决定**：(b)，外加警告自述语义。① `.gov/tasks/**` 进 trivial 前缀——任务系统本就产出防篡气回执（D43），回执是簿记不是决策，关任务默认不再触发。② `.gov/manifest.json` 新增可选键 `"note_presence_exempt": [glob, …]`（D15 glob 语义：`**` 跨目录、`*` 不跨，匹配仓库相对路径）——advisory 只在仓库声明"确实期望 note"的范围外触发；manifest 或键缺席 = 仅内建默认（manifest 是 init 的记录且可选，其未知键与本门无关——与现有 manifest 读取方一致）；manifest 存在但解析失败或键形不对 → exit 2 点名文件与键（规则 5，与 surfaces.json/decisions.json 的坏配置同风格）；活动豁免打印在输出里可见。③ 警告加一行自述：本警告意为"diff 里完全没有 note 文件"，而非"有 note 但不覆盖这些路径"——后者不可能出现（diff 存在任一 note 文件即通过，per-path 归属不可机械判定）。change-scope 的提醒与 review 档案改用同一判定函数，两处表面永不分歧（change-scope 对根级 .md 的旧判定借此对齐 D20）。advisory-only 语义不变：这是降噪，不是把检查变严。
+- **被否**：(c) per-path 归属——笔记与路径之间没有机械可查的映射，真做只能把"有 note 的 diff"也变成警告（变严，正是本次要反的面）或假装检查；只做 (a)——docs-sync 类假阳性原样保留，且各仓库的簿记面不同，没有申报面就只能等下一个 issue 改工具；豁免键放 `.gov/pairing.json` 或新开 `.gov/note-presence.json`——为每扇门开一个私有配置文件是配置面碎片化，manifest 已是"本仓库对治理平面的声明"所在（D10/D34 词汇）。
