@@ -85,6 +85,25 @@ def _slugify(title: str) -> str:
     return slug[:40] or "decision"
 
 
+def _example_row(src_text: str) -> str:
+    """A minimal valid row, modeled on the table's own header (#132).
+
+    The header names the adopter's columns, so the example borrows them:
+    the refusal shows a row that fits THIS table, not a generic one.
+    No header line → a generic three-cell fallback.
+    """
+    for line in src_text.splitlines():
+        s = line.strip()
+        if not (s.startswith("|") and s.endswith("|") and len(s) > 1):
+            continue
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        if all(re.fullmatch(r":?-+:?", c) for c in cells):
+            continue  # the |---| separator, not the header
+        return "|" + "|".join([" ? "] + [f" <{c or '…'}> "
+                                         for c in cells[1:]]) + "|"
+    return "| ? | <title> | <…> |"
+
+
 def _parse_draft(path: Path, fmt: str) -> tuple[str | None, str]:
     """(title, body) for sections/dir; (None, rows) for table.
 
@@ -95,6 +114,12 @@ def _parse_draft(path: Path, fmt: str) -> tuple[str | None, str]:
     """
     text = path.read_text(encoding="utf-8")
     if fmt == "table":
+        if not text.strip():
+            # an empty table draft would otherwise append nothing while
+            # still rewriting the file — fail loud, named (#132)
+            print(f"decision add: draft {path} is empty — table format "
+                  "wants row lines (first cell Dn or '?')", file=sys.stderr)
+            raise SystemExit(2)
         return None, text.strip("\n")
     lines = text.splitlines()
     while lines and not lines[0].strip():
@@ -202,7 +227,10 @@ def _add(args: argparse.Namespace) -> int:
                 continue
             if not line.lstrip().startswith("|"):
                 print(f"decision add: REFUSED — table drafts are table "
-                      f"rows; this line is not: {line!r}", file=sys.stderr)
+                      f"rows (first cell Dn or '?'), one row per line; "
+                      f"this line is not: {line!r}\n"
+                      f"  a valid row for this table: "
+                      f"{_example_row(src.text)}", file=sys.stderr)
                 raise SystemExit(1)
             cells = line.strip().strip("|").split("|")
             first = cells[0].strip()
@@ -268,11 +296,20 @@ def main(argv: list[str] | None = None) -> int:
                              "sibling landed must not re-allocate")
     p_next.set_defaults(func=_next)
 
+    # The draft shape the help describes must be the shape the validator
+    # enforces FOR THIS REPO's configured format (#132): a title+body
+    # clause in a table-format repo reads as correct and is not.
+    if dec.configured_path_fmt()[1] == "table":
+        from_help = ("draft file: table-row lines ONLY — first cell Dn or "
+                     "'?', one row per decision; not title+body (a "
+                     "non-row line is refused, with an example row)")
+    else:
+        from_help = ("draft file: first line the title, the rest the body "
+                     "(state the options / rejected alternatives)")
     p_add = sub.add_parser(
         "add", help="append a decision atomically, validated before writing")
-    p_add.add_argument("--from", dest="draft", metavar="FILE", required=True,
-                       help="draft file: first line the title, the rest the "
-                            "body (table format: the row lines)")
+    p_add.add_argument("--from", dest="draft", metavar="FILE",
+                       required=True, help=from_help)
     p_add.add_argument("--id", metavar="Dn",
                        help="explicit number (default: next free)")
     p_add.add_argument("--base", metavar="REF",
