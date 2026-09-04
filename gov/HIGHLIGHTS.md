@@ -3,6 +3,23 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.18.0 — optional pre-commit hook
+
+- `gov init --hooks --pre-commit` installs an OPT-IN pre-commit hook
+  that runs only the cheap content gates on the staged files:
+  `gov verify-pairing --staged` (sidecar freshness for just the pairs
+  the index touches — source, counterpart, or record) and
+  `gov verify-conflict-markers --staged`. Pair drift now surfaces at
+  `git commit` with the scoped fix inline, one stage earlier than the
+  pre-push block (issue #110, D41).
+- Repos without the flag see zero change at the commit stage — the
+  pre-push model is untouched; a lone `--pre-commit` fails loud, a
+  foreign pre-commit is never overwritten, and `gov uninstall` reverses
+  both hooks. `gov doctor` treats pre-commit as optional (absent is a
+  choice).
+- Bypass for one commit: `git commit --no-verify`. The full gate DAG
+  stays on pre-push; CI owns the full matrix (rule 1).
+
 ## 0.17.0 — decision-row tooling for parallel branches
 
 - `gov decision next [--count N] [--base REF]` prints the next free

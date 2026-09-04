@@ -5,8 +5,6 @@
 
 ### Features
 
-* optional pre-commit hook — pairing drift surfaces at commit, not push (D40) ([9a68c38](https://github.com/Lixiang9716/govrail/commit/9a68c38d114738d1b5ee6fcb5cefd2af13ec2c0d))
-* optional pre-commit hook — pairing drift surfaces at commit, not push (D41) ([bdb14a6](https://github.com/Lixiang9716/govrail/commit/bdb14a603b3b90cfe7ba68595f6e5ad03a4f1084))
 * optional pre-commit hook — pairing drift surfaces at commit, not push (D41) ([#114](https://github.com/Lixiang9716/govrail/issues/114)) ([9a68c38](https://github.com/Lixiang9716/govrail/commit/9a68c38d114738d1b5ee6fcb5cefd2af13ec2c0d))
 
 ## [0.17.0](https://github.com/Lixiang9716/govrail/compare/v0.16.0...v0.17.0) (2026-09-04)
