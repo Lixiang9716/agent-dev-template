@@ -26,6 +26,7 @@ unreadable table or bad ``--path``/``--base``.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -80,21 +81,40 @@ def main(argv: list[str] | None = None) -> int:
                         help="also check parallel-branch number collisions: "
                              "numbers added both here and on REF since the "
                              "merge-base are named and refused (#107)")
+    parser.add_argument("--json", action="store_true",
+                        help="machine-readable: stdout is exactly one JSON "
+                             "object {source, decisions, violations, orphans, "
+                             "overdue, status}; the human report moves to stderr")
     args = parser.parse_args(argv)
+
+    def emit(text: str) -> None:
+        # #119/D26: in json mode stdout carries exactly one JSON value;
+        # the human report (and violation prose) moves to stderr.
+        print(text, file=sys.stderr if args.json else sys.stdout)
+
+    def report(payload: dict, rc: int) -> int:
+        if args.json:
+            print(json.dumps(payload, indent=2))
+        return rc
 
     src = dec.load()
     if src is None:
         refs = _note_refs()
         if refs:
             shown = ", ".join(sorted(refs)[:5]) + ("…" if len(refs) > 5 else "")
-            print(f"verify_decisions: REFUSED — notes reference {shown} "
-                  "but no decisions source exists (docs/decisions.md missing; "
-                  "configure .gov/decisions.json with "
-                  '{"path": ..., "format": "sections"|"table"} '
-                  "if the table lives elsewhere)")
-            return 1
-        print("verify_decisions: no decisions table and no D-refs — nothing to verify")
-        return 0
+            emit(f"verify_decisions: REFUSED — notes reference {shown} "
+                 "but no decisions source exists (docs/decisions.md missing; "
+                 "configure .gov/decisions.json with "
+                 '{"path": ..., "format": "sections"|"table"} '
+                 "if the table lives elsewhere)")
+            return report({"source": None, "decisions": 0,
+                           "violations": ["no decisions source while notes "
+                                          "carry D-refs"],
+                           "orphans": [], "overdue": [],
+                           "status": "refused"}, 1)
+        emit("verify_decisions: no decisions table and no D-refs — nothing to verify")
+        return report({"source": None, "decisions": 0, "violations": [],
+                       "orphans": [], "overdue": [], "status": "ok"}, 0)
     path = src.path
     text = src.text
     sections = dec.Source.entries(src)  # (id, title, body)
@@ -186,23 +206,28 @@ def main(argv: list[str] | None = None) -> int:
             missing = [f"D{n}" for n in range(floor, top)
                        if n not in local_nums and n not in base_nums]
             if missing:
-                print(f"note: branch numbering not contiguous with "
-                      f"'{args.base}' (allocated elsewhere?): "
-                      f"{', '.join(missing)}")
+                emit(f"note: branch numbering not contiguous with "
+                     f"'{args.base}' (allocated elsewhere?): "
+                     f"{', '.join(missing)}")
 
     for v in violations:
-        print(v)
+        emit(v)
     if orphans:
-        print(f"note: referenced by no note: {', '.join(orphans)} (informational)")
+        emit(f"note: referenced by no note: {', '.join(orphans)} (informational)")
     if overdue:
-        print(f"note: review due — context may have drifted: {', '.join(overdue)}")
+        emit(f"note: review due — context may have drifted: {', '.join(overdue)}")
+    status = "violations" if violations else "ok"
     if violations:
-        print(f"verify_decisions: {len(violations)} violation(s) in {len(sections)} decision(s)")
-        return 1
-    print(f"verify_decisions: {len(sections)} decision(s) ok"
-          + (f", {len(orphans)} orphan(s)" if orphans else "")
-          + (f", {len(overdue)} review-due" if overdue else ""))
-    return 0
+        emit(f"verify_decisions: {len(violations)} violation(s) in {len(sections)} decision(s)")
+        return report({"source": str(path), "decisions": len(sections),
+                       "violations": violations, "orphans": orphans,
+                       "overdue": overdue, "status": status}, 1)
+    emit(f"verify_decisions: {len(sections)} decision(s) ok"
+         + (f", {len(orphans)} orphan(s)" if orphans else "")
+         + (f", {len(overdue)} review-due" if overdue else ""))
+    return report({"source": str(path), "decisions": len(sections),
+                   "violations": [], "orphans": orphans,
+                   "overdue": overdue, "status": status}, 0)
 
 
 if __name__ == "__main__":

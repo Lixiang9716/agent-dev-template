@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -395,8 +396,46 @@ def test_json_mode_pure_stdout(tmp_path, capsys, monkeypatch):
     assert records[0]["outcome"] == "PASS"
     assert records[1]["outcome"] == "DISABLED"
     assert isinstance(records[0]["duration_ms"], int) and records[0]["duration_ms"] >= 0
-    assert sorted(records[0].keys()) == ["blocking", "detail", "duration_ms", "gate", "outcome"]
+    assert sorted(records[0].keys()) == ["blocking", "detail", "duration_ms",
+                                         "gate", "outcome", "scoped_out",
+                                         "selected_by"]
+    assert records[0]["selected_by"] == "every-gate"  # #119
+    assert records[0]["scoped_out"] is False
     assert "PASS a" in captured.err  # the human report moved to stderr
+
+
+def test_json_mode_names_unselected_and_scoped_out(tmp_path, capsys, monkeypatch):
+    """#119: one invocation answers the whole gate-set question — gates the
+    mode did not pick (NOT_SELECTED) and gates the diff did not touch
+    (SCOPED_OUT, scoped_out: true) appear in the record, not as absence."""
+    monkeypatch.chdir(tmp_path)
+    _write(tmp_path, {
+        "modes": {"quick": ["a"], "slow": ["a", "b"]},
+        "gates": [{"id": "a", "command": ["true"]},
+                  {"id": "b", "command": ["true"], "paths": ["docs/**"]}],
+    })
+    assert gates.main(["--json", "--mode", "quick"]) == 0
+    import json as _json
+    records = {r["gate"]: r for r in _json.loads(capsys.readouterr().out)}
+    assert records["a"]["outcome"] == "PASS"
+    assert records["a"]["selected_by"] == "mode:quick"
+    assert records["b"]["outcome"] == "NOT_SELECTED"
+    assert records["b"]["scoped_out"] is False
+    assert records["b"]["blocking"] is False
+    # path scoping (--base against a commit touching nothing)
+    subprocess.run(["git", "init", "-q"], check=True)
+    subprocess.run(["git", "commit", "--allow-empty", "-q", "-m", "empty"],
+                   check=True, env={**os.environ, "GIT_AUTHOR_NAME": "t",
+                                    "GIT_AUTHOR_EMAIL": "t@t",
+                                    "GIT_COMMITTER_NAME": "t",
+                                    "GIT_COMMITTER_EMAIL": "t@t"})
+    assert gates.main(["--json", "--base", "HEAD"]) == 0
+    records = {r["gate"]: r for r in _json.loads(capsys.readouterr().out)}
+    # a has no paths -> always runs; b is path-scoped and nothing matched
+    assert records["a"]["outcome"] == "PASS"
+    assert records["b"]["outcome"] == "SCOPED_OUT"
+    assert records["b"]["scoped_out"] is True
+    assert records["b"]["selected_by"] == "base:HEAD"
 
 
 @pytest.mark.parametrize("selector", [

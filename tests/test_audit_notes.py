@@ -166,3 +166,20 @@ def test_registry_mismatch_fails_loud(tmp_path, monkeypatch, capsys):
     assert audit_notes.main([]) == 2
     err = capsys.readouterr().err
     assert "missing 'doctor'" in err
+
+
+def test_json_mode_pure_stdout(tmp_path, monkeypatch, capsys):
+    """#119: audit-notes --json — stdout is exactly one JSON object; the
+    human report (findings included) moves to stderr."""
+    import json as _json
+    monkeypatch.chdir(tmp_path)
+    _note(tmp_path, "2026-01-01-stale.md",
+          "# Agent Note: stale\n\nStatus: implemented\n\n"
+          "## Decision\nGuarded by `gov verify-links`.\n")
+    assert audit_notes.main(["--json"]) == 0
+    captured = capsys.readouterr()
+    payload = _json.loads(captured.out)
+    assert payload["notes"] == 1
+    assert payload["state"] == "dirty"
+    assert any("verify-links" in f["signal"] for f in payload["findings"])
+    assert "verify-links" in captured.err  # human findings on stderr

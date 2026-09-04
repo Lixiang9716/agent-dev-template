@@ -60,6 +60,12 @@ def _split_by_base(runs: list[dict], base: str) -> tuple[list[dict], list[dict]]
     return early, late
 
 
+# #119: records may carry non-run outcomes (SCOPED_OUT, NOT_SELECTED,
+# NOT_RUN, DISABLED) — a gate the diff did not touch must not drag a
+# 0ms p50 down.
+NON_RUN = {"SCOPED_OUT", "NOT_SELECTED", "NOT_RUN", "DISABLED"}
+
+
 def _report(early_runs: list[dict], late_runs: list[dict], indent: str, args) -> None:
     """Print the per-gate p50 early→late comparison for one run window.
 
@@ -71,14 +77,14 @@ def _report(early_runs: list[dict], late_runs: list[dict], indent: str, args) ->
     for run in early_runs + late_runs:
         for rec in run.get("gates", []):
             gid = rec.get("gate")
-            if gid is None:
+            if gid is None or rec.get("outcome") in NON_RUN:
                 continue
             durations.setdefault(gid, []).append(int(rec.get("duration_ms", 0)))
 
     def _window(gid: str, group: list[dict]) -> list[int]:
         return [int(rec.get("duration_ms", 0))
                 for run in group for rec in run.get("gates", [])
-                if rec.get("gate") == gid]
+                if rec.get("gate") == gid and rec.get("outcome") not in NON_RUN]
 
     movers, stable = [], []
     for gid in sorted(durations):

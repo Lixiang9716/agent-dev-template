@@ -360,14 +360,20 @@ def run_gates(
     json_mode: bool = False,
     record_path: Path | None = None,
     changed: list[str] | None = None,
+    selected_by: str = "all-enabled",
+    scoped_out: list[str] | None = None,
     caller: str | None = None,
 ) -> int:
     """Run the selected gates (every enabled gate when selection is None).
 
     In ``json_mode`` the human-readable report goes to stderr and stdout
     carries exactly one JSON array — one object per gate, in config order:
-    ``{gate, outcome, blocking, duration_ms, detail}`` (D25). Disabled
-    gates appear with outcome ``DISABLED``.
+    ``{gate, outcome, blocking, duration_ms, detail, selected_by,
+    scoped_out}`` (D25; #119 adds the last two). Disabled gates appear
+    with outcome ``DISABLED``; enabled gates the selection mechanism did
+    not pick appear as ``NOT_SELECTED``, and gates excluded by ``--base``
+    path scoping as ``SCOPED_OUT`` — one invocation answers the whole
+    gate-set question, not just what ran.
     """
 
     def emit(text: str) -> None:
@@ -496,19 +502,44 @@ def run_gates(
         f"{len(outcomes)} gates: " + (", ".join(parts) if parts else "none ran")
     )
 
+    scoped_out_ids = set(scoped_out or [])
     records = []
     for g in gates:
         if not g.enabled:
             records.append(
                 {"gate": g.id, "outcome": "DISABLED", "blocking": False,
-                 "duration_ms": 0, "detail": ""}
+                 "duration_ms": 0, "detail": "",
+                 "selected_by": selected_by, "scoped_out": False}
             )
         elif g.id in outcomes:
             records.append(
                 {"gate": g.id, "outcome": outcomes[g.id],
                  "blocking": blocking.get(g.id, False),
                  "duration_ms": durations.get(g.id, 0),
-                 "detail": details.get(g.id, "")}
+                 "detail": details.get(g.id, ""),
+                 "selected_by": selected_by, "scoped_out": False}
+            )
+        elif g.id in scoped_out_ids:
+            # #119: the gate exists, is enabled, and the diff did not touch
+            # its paths — an agent reading the record must see it was
+            # scoped out, not silently absent.
+            records.append(
+                {"gate": g.id, "outcome": "SCOPED_OUT", "blocking": False,
+                 "duration_ms": 0, "detail": "",
+                 "selected_by": selected_by, "scoped_out": True}
+            )
+        elif g.id in selected_ids:
+            # Selected but never settled — a --fail-fast run cancelled it.
+            records.append(
+                {"gate": g.id, "outcome": "NOT_RUN", "blocking": False,
+                 "duration_ms": 0, "detail": "",
+                 "selected_by": selected_by, "scoped_out": False}
+            )
+        else:
+            records.append(
+                {"gate": g.id, "outcome": "NOT_SELECTED", "blocking": False,
+                 "duration_ms": 0, "detail": "",
+                 "selected_by": selected_by, "scoped_out": False}
             )
     if json_mode:
         print(json.dumps(records, indent=2))
@@ -563,8 +594,9 @@ def main(argv: list[str] | None = None) -> int:
                              "(recording is the default; see gov trend)")
     parser.add_argument("--json", action="store_true",
                         help="machine-readable: stdout is exactly one JSON array "
-                             "of {gate, outcome, blocking, duration_ms, detail}; "
-                             "the human report moves to stderr")
+                             "of {gate, outcome, blocking, duration_ms, detail, "
+                             "selected_by, scoped_out}; the human report moves "
+                             "to stderr")
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
@@ -582,6 +614,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     selection = None
+    scoped_out_ids: list[str] = []
+    # #119: name the mechanism that picked the gate set, so a JSON reader
+    # can tell "mode ci chose 5 gates" from "the diff scoped 3 out".
+    selected_by = "all-enabled"
     if args.gate:
         known = {g.id for g in gates}
         if args.gate not in known:
@@ -601,6 +637,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
         selection = [args.gate]
+        selected_by = "gate"
     elif args.mode:
         if args.mode not in modes:
             print(
@@ -610,14 +647,16 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
         selection = modes[args.mode]
+        selected_by = f"mode:{args.mode}"
     elif args.base:
         changed = _changed_files(args.base)
         if changed is None:
             return 2
-        selection, out = _select_by_paths(gates, changed)
+        selection, scoped_out_ids = _select_by_paths(gates, changed)
+        selected_by = f"base:{args.base}"
         scope_line = (
             f"scope vs {args.base}: {len(selection)}/{len([g for g in gates if g.enabled])} "
-            f"gate(s) selected" + (f"; out of scope: {', '.join(out)}" if out else "")
+            f"gate(s) selected" + (f"; out of scope: {', '.join(scoped_out_ids)}" if scoped_out_ids else "")
         )
         if args.json:  # stdout carries exactly one JSON value (D26)
             print(scope_line, file=sys.stderr, flush=True)
@@ -625,8 +664,10 @@ def main(argv: list[str] | None = None) -> int:
             print(scope_line, flush=True)
     elif args.every_gate:
         selection = None  # every enabled gate — the explicit full matrix
+        selected_by = "every-gate"
     elif default_mode:
         selection = modes[default_mode]
+        selected_by = f"default-mode:{default_mode}"
     elif not gates:
         print("no gates configured", file=sys.stderr)
         return 0
@@ -647,6 +688,7 @@ def main(argv: list[str] | None = None) -> int:
                      json_mode=args.json,
                      record_path=None if args.no_record
                      else _history_path(), changed=changed,
+                     selected_by=selected_by, scoped_out=scoped_out_ids,
                      caller=caller or None)
 
 

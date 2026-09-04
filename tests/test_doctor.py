@@ -59,3 +59,24 @@ def test_missing_gate_command_is_a_problem(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "gate 'x': command 'no-such-bin-xyz' not found on PATH" in out
     assert "ok: gate 'y' command resolves" in out
+
+
+def test_json_mode_pure_stdout(tmp_path, monkeypatch, capsys):
+    """#119: doctor --json — stdout is exactly one JSON object; the human
+    report moves to stderr."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "gates.json").write_text(json.dumps(
+        {"modes": {"all": ["x", "y"]},
+         "gates": [{"id": "x", "command": ["no-such-bin-xyz"]},
+                   {"id": "y", "command": ["true"]}]}))
+    import json as _json
+    assert doctor.main(["--json"]) == 1
+    captured = capsys.readouterr()
+    payload = _json.loads(captured.out)  # exactly one JSON value
+    assert payload["status"] == "problems"
+    assert any(c["name"] == "gate:x" and c["state"] == "problem"
+               for c in payload["checks"])
+    assert "gate:x" in payload["problems"]
+    assert all(c["state"] in ("ok", "note", "problem") for c in payload["checks"])
+    assert "gov doctor" in captured.err  # the human report moved to stderr
+    assert payload["problems"][0] == "gate:x"
