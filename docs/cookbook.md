@@ -219,6 +219,22 @@ gov run --tag subagent-3        # or: GOV_CALLER=subagent-3 gov run
 gov trend --by-tag              # per-caller early/late p50 comparison
 ```
 
+## What did this milestone's LLM spend cost?
+
+Govrail meters nothing itself — but the tool driving your agents usually
+already counts tokens/calls. Hand those numbers to the same run line in
+one standard shape (#126/D45), then roll up per caller:
+
+```sh
+GOV_CALLER=bridge-agent GOV_COST="tokens=1200,calls=4" gov run
+gov run --tag adjudicator --cost tokens=300.5,calls=1   # flags beat env
+gov trend --cost   # per caller: per-unit totals and early→late split
+```
+
+Untagged cost-bearing runs group under `(untagged)`; runs without
+`--cost`/`$GOV_COST` behave exactly as before; a malformed value fails
+loud naming the fragment.
+
 ## Long session, drowning in untracked-file warnings
 
 ```sh

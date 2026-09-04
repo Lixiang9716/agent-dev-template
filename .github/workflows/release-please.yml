@@ -63,7 +63,7 @@ jobs:
           python -m pip install --upgrade twine
           twine upload dist/*
 
-  # D45: while the release PR is open, draft its missing HIGHLIGHTS
+  # D46: while the release PR is open, draft its missing HIGHLIGHTS
   # sections (gov verify-doc-sync --write) straight onto the PR branch,
   # so the release merge lands CHANGELOG + version + HIGHLIGHTS together
   # and doc-sync never goes red on master (the post-release gap hit
@@ -103,5 +103,5 @@ jobs:
           git config user.name "govrail-release-bot"
           git config user.email "bot@users.noreply.github.com"
           git add gov/HIGHLIGHTS.md
-          git commit -m "docs: HIGHLIGHTS sections drafted from CHANGELOG (D37, D45)"
+          git commit -m "docs: HIGHLIGHTS sections drafted from CHANGELOG (D37, D46)"
           git push origin "$BRANCH"

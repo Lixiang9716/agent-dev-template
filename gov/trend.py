@@ -36,6 +36,10 @@ def _fmt(ms: float) -> str:
     return f"{ms / 1000:.1f}s" if ms >= 1000 else f"{ms:.0f}ms"
 
 
+def _fmt_cost(v: float) -> str:
+    return f"{int(v):,}" if float(v).is_integer() and abs(v) < 1e15 else f"{v:,.1f}"
+
+
 def _split_by_base(runs: list[dict], base: str) -> tuple[list[dict], list[dict]] | None:
     """Partition runs at --base's commit date; None = unresolvable ref."""
     import subprocess as _sp
@@ -113,6 +117,56 @@ def _report(early_runs: list[dict], late_runs: list[dict], indent: str, args) ->
         print(f"{indent}  no duration movers in this window")
 
 
+def _cost_report(early: list[dict], late: list[dict], window: int) -> int:
+    """#126/D45: per-caller roll-up of run-level ``cost`` over the window.
+
+    A malformed cost field is named on stderr and skipped, never silently
+    summed (rule 5); a non-numeric unit value is named too. Zero reporting
+    prints the opt-in pointer — a window with no cost reported must not
+    read like a roll-up of zero.
+    """
+    per: dict[str, dict] = {}
+
+    def _add(runs: list[dict], when: str) -> None:
+        for i, run in enumerate(runs):
+            if "cost" not in run:
+                continue
+            tag = str(run.get("caller") or "(untagged)")
+            cost = run["cost"]
+            if not isinstance(cost, dict) or not cost:
+                print(f"trend: skipping malformed cost field in a history "
+                      f"line (expected a unit=value object)", file=sys.stderr)
+                continue
+            entry = per.setdefault(tag, {"runs": 0, "early": {}, "late": {}})
+            entry["runs"] += 1
+            bucket = entry[when]
+            for unit, value in cost.items():
+                if not isinstance(value, (int, float)) or isinstance(value, bool):
+                    print(f"trend: skipping non-numeric {unit!r} in a "
+                          f"history line", file=sys.stderr)
+                    continue
+                bucket[unit] = bucket.get(unit, 0.0) + float(value)
+
+    _add(early, "early")
+    _add(late, "late")
+
+    print(f"trend --cost: {window} run(s) in {HISTORY}, "
+          f"{sum(e['runs'] for e in per.values())} reporting cost")
+    for tag in sorted(per):
+        entry = per[tag]
+        units = sorted(set(entry["early"]) | set(entry["late"]))
+        cells = []
+        for unit in units:
+            e, l = entry["early"].get(unit, 0.0), entry["late"].get(unit, 0.0)
+            cells.append(f"{unit} {_fmt_cost(e + l)} "
+                         f"({_fmt_cost(e)} early → {_fmt_cost(l)} late)")
+        print(f"  caller {tag}: {entry['runs']} run(s): " + "; ".join(cells))
+    if not per:
+        print("  no cost reported in this window — tools opt in per run "
+              "(gov run --cost tokens=…,calls=… or $GOV_COST)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     anchor_to_git_root("trend")
     parser = argparse.ArgumentParser(
@@ -130,7 +184,22 @@ def main(argv: list[str] | None = None) -> int:
                         help="split runs by their caller tag (--tag/GOV_CALLER "
                              "on gov run) — multi-agent attribution; untagged "
                              "runs group under (untagged) (#120)")
+    parser.add_argument("--cost", action="store_true",
+                        help="roll up caller-reported cost (gov run --cost / "
+                             "$GOV_COST, #126) per caller tag instead of "
+                             "duration movers — govrail standardizes the "
+                             "ledger shape; the numbers stay caller-supplied")
     args = parser.parse_args(argv)
+
+    if args.by_tag and args.cost:
+        print("trend: --by-tag and --cost cannot be combined — --cost "
+              "already groups by caller tag", file=sys.stderr)
+        return 2
+    if args.cost and args.gate:
+        print("trend: --cost reports run-level cost (it belongs to the run, "
+              "not a single gate); --gate filters durations only",
+              file=sys.stderr)
+        return 2
 
     if not HISTORY.is_file():
         print("trend: no history yet — never recorded; runs record by "
@@ -195,6 +264,17 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             _report(g_halves[0], g_halves[1], "  ", args)
         return 0
+
+    if args.cost:
+        # #126/D45: roll up run-level cost fields per caller tag over the
+        # window (D42's tag is the grouping key — same vocabulary, no
+        # second attribution scheme). Cost-bearing but untagged runs group
+        # under (untagged); runs without a cost field do not appear here.
+        # halves is already the base split (or None → the halfway split).
+        if halves is None:
+            half = len(runs) // 2
+            halves = (runs[:half], runs[half:])
+        return _cost_report(halves[0], halves[1], len(runs))
 
     half = len(runs) // 2
     halves = halves or (runs[:half], runs[half:])

@@ -2,7 +2,7 @@
 
 Status: implemented
 
-Related: D45, D37, issue #125 (follow-up), runbook note
+Related: D46, D37, issue #125 (follow-up), runbook note
 2026-08-28-release-pr-approval-runbook.md (unchanged — this automates the
 step that note leaves manual)
 
