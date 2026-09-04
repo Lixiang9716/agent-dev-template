@@ -49,6 +49,7 @@ gov verify-pairing --write en:docs/a.md zh:docs/a_CN.md  # 登记任意命名的
 gov verify-note-presence       # 非平凡 diff 未带 Agent Note 时警告
 gov verify-rubric              # 检查评审量规的结构
 gov verify-decisions           # 守卫决策表（编号、被否段、孤儿）
+gov verify-conflict-markers    # 变更文件携带 git 冲突标记时失败
 gov review --base <ref> --grade  # 评审档案 + 交互式量规打分
 gov trend                      # --record 历史的门禁耗时趋势
 gov recall <terms>             # 检索笔记、决策、postmortem

@@ -5,6 +5,7 @@
       "notes",
       "pairing",
       "note-presence",
+      "conflict-markers",
       "rubric",
       "archive",
       "decisions",
@@ -62,6 +63,14 @@
       "command": [
         "gov",
         "verify-note-presence"
+      ]
+    },
+    {
+      "id": "conflict-markers",
+      "label": "no unresolved conflict markers in changed files",
+      "command": [
+        "gov",
+        "verify-conflict-markers"
       ]
     },
     {

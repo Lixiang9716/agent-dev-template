@@ -54,6 +54,32 @@ docs/foo.md: out of sync — re-confirm: gov verify-pairing --write docs/foo
 3. 查账本：`gov self-test --scope project` 末尾应是
    `source-limits(1)`——而不是 `NONE — rule 6`。
 
+## rebase 把冲突标记带进了提交
+
+症状：rebase 中途 `git add` 了仍带 `<<<<<<<` / `=======` / `>>>>>>>`
+块的文件，`git rebase --continue` 一声不吭照单提交——git 分不清真
+标记与被引用的标记，只能沉默。conflict-markers 门随模板 all 模式
+自带，读的是变更文件的内容：
+
+```sh
+gov verify-conflict-markers            # 变更文件 vs auto 基线
+gov verify-conflict-markers --staged   # 只查暂存区——pre-commit 轻量版
+```
+
+diff 里存在带标记文件时的预期输出（exit 1）：
+
+```
+doc.md:3: conflict marker '<<<<<<<' — resolve the merge, or append 'gov:ignore-marker' to exempt a deliberate literal
+doc.md:5: conflict marker '======='
+doc.md:7: conflict marker '>>>>>>>'
+verify_conflict_markers: 3 marker(s) in 1 file(s) — git will not police its own conflict text; the gate does (D38)
+```
+
+逃生门：确实要写字面量（引用标记的测试夹具、讲合并的文档）时，
+在该行行尾追加令牌 `gov:ignore-marker` 即可通过。孤立的裸
+`=======`（Markdown H1 setext 下划线）不算标记；只有同文件存在
+兄弟标记时才计数（D38）。
+
 ## 实验装置不是运行时代码
 
 `.gov/surfaces.json`：
