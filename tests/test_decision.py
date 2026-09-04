@@ -163,6 +163,82 @@ def test_add_table_format_allocates_first_cell(tmp_path, monkeypatch, capsys):
     assert vd.main([]) == 0
 
 
+def test_add_table_format_refuses_title_draft_and_shows_example(
+        tmp_path, monkeypatch, capsys):
+    """#132: a draft shaped as the old help described (title first line)
+    is refused — the message quotes the exact line AND shows a minimal
+    valid row modeled on this table's own header."""
+    monkeypatch.chdir(tmp_path)
+    gov = tmp_path / ".gov"
+    gov.mkdir()
+    (gov / "decisions.json").write_text(
+        '{"path": "TABLE.md", "format": "table"}', encoding="utf-8")
+    (tmp_path / "TABLE.md").write_text(
+        "| id | title | alternatives |\n|---|---|---|\n"
+        "| D1 | one | a vs b |\n", encoding="utf-8")
+    draft = tmp_path / "draft.md"
+    draft.write_text(
+        "D2: add retry\nOptions: backoff; rejected fixed delay.\n",
+        encoding="utf-8")
+    try:
+        decision.main(["add", "--from", str(draft)])
+        raise AssertionError("a title-line draft must be refused for table")
+    except SystemExit as e:
+        assert e.code == 1
+    err = capsys.readouterr().err
+    assert "this line is not: 'D2: add retry'" in err
+    assert "| ? | <title> | <alternatives> |" in err
+    # nothing was written by the refusal
+    assert "D2" not in (tmp_path / "TABLE.md").read_text(encoding="utf-8")
+
+
+def test_add_table_format_empty_draft_fails_loud(tmp_path, monkeypatch,
+                                                 capsys):
+    """#132: an empty table draft must not append nothing silently."""
+    monkeypatch.chdir(tmp_path)
+    gov = tmp_path / ".gov"
+    gov.mkdir()
+    (gov / "decisions.json").write_text(
+        '{"path": "TABLE.md", "format": "table"}', encoding="utf-8")
+    (tmp_path / "TABLE.md").write_text(
+        "| id | title | alternatives |\n|---|---|---|\n"
+        "| D1 | one | a vs b |\n", encoding="utf-8")
+    empty = tmp_path / "empty.md"
+    empty.write_text("\n", encoding="utf-8")
+    try:
+        decision.main(["add", "--from", str(empty)])
+        raise AssertionError("an empty table draft must exit 2")
+    except SystemExit as e:
+        assert e.code == 2
+    assert "wants row lines" in capsys.readouterr().err
+
+
+def test_add_help_describes_the_enforced_shape(tmp_path, monkeypatch, capsys):
+    """#132: --help must describe the draft shape the validator enforces
+    for the repo's configured format — not the other format's shape."""
+    monkeypatch.chdir(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "decisions.md").write_text(SECTIONS_TABLE)
+    try:  # default (sections): title+body is the truth
+        decision.main(["add", "--help"])
+    except SystemExit as e:
+        assert e.code == 0
+    assert "first line the title" in capsys.readouterr().out
+    # table repo: rows-only is the truth; title+body must not appear
+    gov = tmp_path / ".gov"
+    gov.mkdir()
+    (gov / "decisions.json").write_text(
+        '{"path": "TABLE.md", "format": "table"}', encoding="utf-8")
+    try:
+        decision.main(["add", "--help"])
+    except SystemExit as e:
+        assert e.code == 0
+    out = capsys.readouterr().out
+    assert "table-row lines ONLY" in out
+    assert "first line the title" not in out
+
+
 def test_add_dir_format_creates_file_and_gate_passes(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     gov = tmp_path / ".gov"
