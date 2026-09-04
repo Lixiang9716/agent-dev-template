@@ -181,3 +181,77 @@ def test_out_of_sync_report_gives_fix_command(tmp_path, monkeypatch, capsys):
     assert "gov verify-pairing --write docs/foo" in out  # copy-paste fix
     assert "the en side last moved in" in out  # who moved first
     assert "confirmed 20" in out  # when it was confirmed
+
+
+def _git_repo(root):
+    import subprocess
+    for cmd in (["git", "init", "-q", "."],
+                ["git", "config", "user.email", "t@t"],
+                ["git", "config", "user.name", "t"]):
+        subprocess.run(cmd, cwd=root, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "-c", "commit.gpgsign=false", "commit", "-qm", "base"],
+                   cwd=root, check=True)
+
+
+def test_record_comments_state_field_semantics(tmp_path, monkeypatch):
+    """Issue #150: the generated record states its own field semantics —
+    they existed only in code, and a hand restamp read en_commit as HEAD."""
+    monkeypatch.chdir(tmp_path)
+    docs = _pair(tmp_path)
+    _git_repo(tmp_path)
+    assert vtp.main(["--write", "foo"]) == 0
+    rec = (docs / "foo.i18n.yaml").read_text()
+    comments = [ln for ln in rec.splitlines() if ln.startswith("#")]
+    assert comments, "the record template must carry comment lines"
+    text = "\n".join(comments)
+    assert "blob hash" in text and "hash-object" in text  # not sha256
+    assert "not" in text and "HEAD" in text  # last-touched, not HEAD
+    assert "ISO-8601" in text  # last_confirmed's format
+    # the comments must not disturb parsing: the gate stays green, and the
+    # recorded fields still resolve
+    assert vtp.main([]) == 0
+    parsed = vtp._parse_record(docs / "foo.i18n.yaml")
+    assert parsed["en"] == vtp._blob_hash(docs / "foo.md")
+    assert parsed["counterpart"] == "foo.zh.md"
+    assert "last_confirmed" in parsed and "en_commit" in parsed
+
+
+def test_write_output_names_field_values(tmp_path, monkeypatch, capsys):
+    """Issue #150: --write prints the fields it wrote, not just the path."""
+    monkeypatch.chdir(tmp_path)
+    docs = _pair(tmp_path)
+    _git_repo(tmp_path)
+    assert vtp.main(["--write", "foo"]) == 0
+    out = capsys.readouterr().out
+    rec = (docs / "foo.i18n.yaml").read_text()
+    assert "wrote docs/foo.i18n.yaml" in out
+    en_hash = vtp._blob_hash(docs / "foo.md")
+    zh_hash = vtp._blob_hash(docs / "foo.zh.md")
+    assert en_hash in out and zh_hash in out  # the hashes it pinned
+    assert "git blob hashes, not file sha256" in out
+    assert "en_commit:" in out and "zh_commit:" in out
+    assert "last commit that touched each side" in out and "not HEAD" in out
+    import re
+    confirmed = re.search(r"last_confirmed: (\S+)", rec).group(1)
+    assert confirmed in out  # the same instant the record carries
+    assert "(UTC ISO-8601)" in out
+
+
+def test_explain_is_read_only(tmp_path, monkeypatch, capsys):
+    """Issue #150: --explain dumps schema + conventions, touches nothing."""
+    monkeypatch.chdir(tmp_path)
+    docs = _pair(tmp_path)  # an unrecorded pair: explain must not baseline it
+    _git_repo(tmp_path)
+    before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    assert vtp.main(["--explain"]) == 0
+    out = capsys.readouterr().out
+    assert "read-only" in out
+    assert "git blob hash" in out and "sha256" in out
+    assert "en_commit" in out and "not HEAD" in out
+    assert "last_confirmed" in out
+    assert "{stem}.zh.md" in out  # this project's convention
+    assert "docs/**/*.md" in out  # this project's include scope
+    after = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    assert after == before, "--explain must not create or modify any file"
+    assert vtp.main([]) == 1  # the pair is still unrecorded: explain judged nothing

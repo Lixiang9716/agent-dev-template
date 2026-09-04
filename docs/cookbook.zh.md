@@ -32,6 +32,30 @@ docs/foo.md: out of sync — re-confirm: gov verify-pairing --write docs/foo
 `--write <stem>` 只重基线指名的对。括号里说明哪侧在哪个提交动的、
 何时确认的——先核对翻译再确认，别反过来。
 
+## sidecar 字段到底是什么意思？
+
+记录的字段语义过去只活在代码里——agent 手工重盖 sidecar 时被告知
+"写 HEAD"，跟门禁纠缠到一次 amend + force-push 之后才绿（#150）。
+这些字段不是 HEAD：
+
+```
+pair:
+  en: 6f0f…    # 源侧的 git blob hash（git hash-object）——不是文件 sha256
+  zh: 5c81…    # 对侧同
+counterpart: foo.zh.md
+last_confirmed: 2026-09-04T19:24:25+00:00  # 该次确认的 UTC ISO-8601 时刻
+en_commit: 113b230  # 确认时最后触碰该侧的提交——
+zh_commit: 113b230  # 不是 HEAD，也不是确认提交；仅为上下文
+```
+
+绝不手工编辑记录：`--write` 会重新生成它，并在记录内部的注释行里
+声明这些语义，写出时逐字段点名。记录全文 schema 与本项目的约定，
+一条只读命令即可得：
+
+```sh
+gov verify-pairing --explain
+```
+
 ## 漂移在提交时抓到，而不是推送时
 
 pre-push 拦截有效，但忙碌分支上每次对编辑都先付一次被阻塞的 push

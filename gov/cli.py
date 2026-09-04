@@ -789,7 +789,8 @@ _COMMANDS = {
     "receipt": "verifiable run receipts: verify a cited receipt against a "
                "commit (issue #124/D42)",
     "verify-notes": "check note format",
-    "verify-pairing": "check bilingual pairing (e.g. --write, --staged)",
+    "verify-pairing": "check bilingual pairing (--write re-confirms; --staged "
+                     "checks the index; --explain prints the schema)",
     "verify-note-presence": "warn when a non-trivial diff carries no note (e.g. --base <ref>, --strict)",
     "verify-rubric": "check the review rubric's structure (ids, fields, parity)",
     "verify-archive": "verify the archived-notes seal (pinned sha256 per file)",

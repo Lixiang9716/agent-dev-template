@@ -48,7 +48,9 @@ gov self-test                  # 拒绝用例：工具自带 + 你的（.gov/rej
 gov run --json                 # 机器可读：[{gate, outcome, duration_ms, detail,
                                #  selected_by, scoped_out, ...}] —— 含被路径排除的整张门禁集
 gov verify-pairing --write     # 编辑一侧后重新确认双语配对
+                               #   （写出时逐字段点名；记录的注释声明字段语义——#150）
 gov verify-pairing --write en:docs/a.md zh:docs/a_CN.md  # 登记任意命名的配对
+gov verify-pairing --explain   # 记录 schema 与约定，只读
 gov verify-note-presence       # 非平凡 diff 未带 Agent Note 时警告
                                #   （任务回执默认豁免；manifest 的 note_presence_exempt 申报更多）
 gov verify-rubric              # 检查评审量规的结构

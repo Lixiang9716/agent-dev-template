@@ -53,7 +53,10 @@ gov self-test                  # rejection cases: the tools' + yours (.gov/rejec
 gov run --json                 # machine-readable: [{gate, outcome, duration_ms, detail,
                                #  selected_by, scoped_out, ...}] — the whole gate set, incl. scoped-out
 gov verify-pairing --write    # re-confirm a bilingual pair after editing one side
+                              #   (names the field values it wrote; the record's
+                              #    comments state the field semantics — #150)
 gov verify-pairing --write en:docs/a.md zh:docs/a_CN.md  # register any naming
+gov verify-pairing --explain  # the record schema + conventions, read-only
 gov verify-note-presence      # warn when a non-trivial diff carries no Agent Note
                               #   (task receipts exempt; manifest note_presence_exempt names more)
 gov verify-rubric             # check the review rubric's structure
