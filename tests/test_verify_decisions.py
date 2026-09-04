@@ -84,3 +84,31 @@ def test_review_by_overdue_and_future(tmp_path, monkeypatch, capsys):
     assert "D3: unparseable review-by date 'not-a-date'" in out
     assert "review due — context may have drifted: D1 (review-by 2020-01-01)" in out
     assert "D2 (review-by" not in out  # future date stays silent
+
+
+def test_json_mode_pure_stdout(tmp_path, monkeypatch, capsys):
+    """#119: verify-decisions --json — stdout is exactly one JSON object;
+    the human report moves to stderr."""
+    import json as _json
+    monkeypatch.chdir(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "decisions.md").write_text(_table(
+        _d(1),
+        _d(2, body="nothing rejected here\n"),
+        _d(4),  # gap -> numbering violation too
+    ))
+    assert vd.main(["--json"]) == 1
+    captured = capsys.readouterr()
+    payload = _json.loads(captured.out)
+    assert payload["status"] == "violations"
+    assert payload["decisions"] == 3
+    assert any("D2" in v and "alternatives" in v for v in payload["violations"])  # en word
+    assert any("D2" in v for v in payload["violations"])
+    assert any("contiguous" in v for v in payload["violations"])
+    assert "verify_decisions" in captured.err  # human report on stderr
+    # the ok path also reports JSON
+    (docs / "decisions.md").write_text(_table(_d(1), _d(2)))
+    assert vd.main(["--json"]) == 0
+    payload = _json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ok" and payload["violations"] == []

@@ -12,10 +12,16 @@ interpreter against the package requirement, git hook presence and
 executability (both copies; the pre-commit hook is opt-in), gates.json
 schema (strict keys), and — when a decisions table exists — that it
 parses.
+
+``--json`` (#119): stdout carries exactly one JSON object —
+``{version, status, checks, problems}`` where each check is
+``{name, state, detail}`` (state: ok | note | problem) — and the human
+report moves to stderr. The human format remains the default.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -25,27 +31,28 @@ from . import __version__
 MIN_PYTHON = (3, 9)
 
 
-def _check_gov_on_path(problems: list[str]) -> None:
+def _check_gov_on_path(checks: list[dict]) -> None:
     if shutil.which("gov"):
-        print("ok: gov resolves on PATH (hooks' fast path works)")
+        checks.append({"name": "gov-on-path", "state": "ok",
+                       "detail": "gov resolves on PATH (hooks' fast path works)"})
     else:
-        problems.append(
-            "gov is not on PATH — hooks and rejection cases calling `gov` "
-            "will fail; export GOV_BIN, or ensure the install bin dir "
-            "(e.g. ~/.local/bin) is on PATH"
-        )
+        checks.append({
+            "name": "gov-on-path", "state": "problem",
+            "detail": "gov is not on PATH — hooks and rejection cases calling "
+                      "`gov` will fail; export GOV_BIN, or ensure the install "
+                      "bin dir (e.g. ~/.local/bin) is on PATH"})
 
 
-def _check_python(problems: list[str]) -> None:
+def _check_python(checks: list[dict]) -> None:
     v = sys.version_info
     if v[:2] >= MIN_PYTHON:
-        print(f"ok: python {v.major}.{v.minor} meets the required >="
-              f" {MIN_PYTHON[0]}.{MIN_PYTHON[1]}")
+        checks.append({"name": "python", "state": "ok",
+                       "detail": f"python {v.major}.{v.minor} meets the required "
+                                 f">= {MIN_PYTHON[0]}.{MIN_PYTHON[1]}"})
     else:
-        problems.append(
-            f"python {v.major}.{v.minor} is below the required "
-            f"{MIN_PYTHON[0]}.{MIN_PYTHON[1]}"
-        )
+        checks.append({"name": "python", "state": "problem",
+                       "detail": f"python {v.major}.{v.minor} is below the "
+                                 f"required {MIN_PYTHON[0]}.{MIN_PYTHON[1]}"})
 
 
 def _git_dir() -> str | None:
@@ -60,11 +67,12 @@ def _git_dir() -> str | None:
     return os.path.abspath(proc.stdout.strip()) or None
 
 
-def _check_hook(problems: list[str]) -> None:
+def _check_hook(checks: list[dict]) -> None:
     import os
     git_dir = _git_dir()
     if git_dir is None:
-        print("note: not a git repository — hook checks skipped")
+        checks.append({"name": "git-repo", "state": "note",
+                       "detail": "not a git repository — hook checks skipped"})
         return
     # pre-push: the gate-DAG runner; pre-commit: the OPT-IN commit-stage
     # gates (#110) — its absence is a choice, not a problem.
@@ -75,17 +83,19 @@ def _check_hook(problems: list[str]) -> None:
         for rel, what in ((hook, "the wired git hook"),
                           (f".gov/hooks/{name}", "the auditable copy")):
             if not os.path.exists(rel):
-                print(f"note: {rel} absent ({what}) — {how}")
+                checks.append({"name": f"hook:{rel}", "state": "note",
+                               "detail": f"{rel} absent ({what}) — {how}"})
                 continue
             if os.access(rel, os.X_OK):
-                print(f"ok: {rel} is executable")
+                checks.append({"name": f"hook:{rel}", "state": "ok",
+                               "detail": f"{rel} is executable"})
             else:
-                problems.append(f"{rel} is not executable — chmod +x it")
+                checks.append({"name": f"hook:{rel}", "state": "problem",
+                               "detail": f"{rel} is not executable — chmod +x it"})
 
 
-def _check_version_drift(problems: list[str]) -> None:
+def _check_version_drift(checks: list[dict]) -> None:
     """#19/D32: the environment self-check must see manifest drift."""
-    import json
     import os
     manifest = ".gov/manifest.json"
     if not os.path.exists(manifest):
@@ -96,43 +106,58 @@ def _check_version_drift(problems: list[str]) -> None:
     except (OSError, ValueError):
         return
     if init_version and init_version != __version__:
-        print(f"note: manifest initialized with govrail {init_version}, "
-              f"this package is {__version__} — gov init --upgrade shows "
-              "template drift; gov whatsnew --since "
-              f"{init_version} shows what arrived")
+        checks.append({
+            "name": "manifest-drift", "state": "note",
+            "detail": f"manifest initialized with govrail {init_version}, this "
+                      f"package is {__version__} — gov init --upgrade shows "
+                      "template drift; gov whatsnew --since "
+                      f"{init_version} shows what arrived"})
 
 
-def _check_gates(problems: list[str]) -> None:
+def _check_gates(checks: list[dict]) -> None:
     import os
     if not os.path.exists("gates.json"):
-        print("note: no gates.json — gov init creates one when missing")
+        checks.append({"name": "gates.json", "state": "note",
+                       "detail": "no gates.json — gov init creates one when missing"})
         return
     from . import gates as gates_mod
     try:
         _, gs, _, _ = gates_mod.load_config("gates.json")
-        print("ok: gates.json passes the strict schema")
+        checks.append({"name": "gates.json", "state": "ok",
+                       "detail": "gates.json passes the strict schema"})
         for g in gs:
             if g.command and not shutil.which(g.command[0]):
-                problems.append(
-                    f"gate '{g.id}': command '{g.command[0]}' not found on "
-                    "PATH — the run would report MISSING"
-                )
+                checks.append({
+                    "name": f"gate:{g.id}", "state": "problem",
+                    "detail": f"gate '{g.id}': command '{g.command[0]}' not found on "
+                              "PATH — the run would report MISSING"})
             elif g.command:
-                print(f"ok: gate '{g.id}' command resolves ({g.command[0]})")
+                checks.append({"name": f"gate:{g.id}", "state": "ok",
+                               "detail": f"gate '{g.id}' command resolves ({g.command[0]})"})
     except gates_mod.ConfigError as e:
-        problems.append(f"gates.json: {e}")
+        checks.append({"name": "gates.json", "state": "problem",
+                        "detail": f"gates.json: {e}"})
 
 
-def _check_decisions(problems: list[str]) -> None:
+def _check_decisions(checks: list[dict]) -> None:
+    import contextlib
+    import io
     import os
     if not os.path.exists("docs/decisions.md"):
         return  # no table, nothing to check — not an environment problem
     from . import verify_decisions as vd
-    rc = vd.main([])
+    # Capture the sub-run's stdout: in --json mode doctor's stdout must
+    # carry exactly one JSON value (D26), never verify-decisions prose.
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = vd.main([])
     if rc == 0:
-        print("ok: decisions table parses")
+        checks.append({"name": "decisions-table", "state": "ok",
+                       "detail": "decisions table parses"})
     else:
-        problems.append("decisions table has violations — gov verify-decisions")
+        checks.append({"name": "decisions-table", "state": "problem",
+                       "detail": "decisions table has violations — "
+                                 "gov verify-decisions"})
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -140,25 +165,49 @@ def main(argv: list[str] | None = None) -> int:
         prog="gov doctor",
         description="Environment self-check: PATH, Python, hooks, gates schema.",
     )
-    parser.parse_args(argv)
+    parser.add_argument("--json", action="store_true",
+                        help="machine-readable: stdout is exactly one JSON "
+                             "object {version, status, checks, problems}; "
+                             "the human report moves to stderr")
+    args = parser.parse_args(argv)
 
-    problems: list[str] = []
-    print(f"gov doctor — govrail {__version__}")
-    _check_gov_on_path(problems)
-    _check_python(problems)
-    _check_version_drift(problems)
-    _check_hook(problems)
-    _check_gates(problems)
-    _check_decisions(problems)
+    def emit(text: str) -> None:
+        if args.json:
+            print(text, file=sys.stderr)
+        else:
+            print(text)
 
+    checks: list[dict] = []
+    _check_gov_on_path(checks)
+    _check_python(checks)
+    _check_version_drift(checks)
+    _check_hook(checks)
+    _check_gates(checks)
+    _check_decisions(checks)
+    problems = [c for c in checks if c["state"] == "problem"]
+
+    emit(f"gov doctor — govrail {__version__}")
+    for c in checks:
+        if c["state"] == "ok":
+            emit(f"ok: {c['detail']}")
+        elif c["state"] == "note":
+            emit(f"note: {c['detail']}")
     if problems:
-        print()
-        for p in problems:
-            print(f"problem: {p}")
-        print(f"gov doctor: {len(problems)} problem(s)")
-        return 1
-    print("gov doctor: environment sound")
-    return 0
+        emit("")
+        for c in problems:
+            emit(f"problem: {c['detail']}")
+        emit(f"gov doctor: {len(problems)} problem(s)")
+    else:
+        emit("gov doctor: environment sound")
+
+    if args.json:
+        print(json.dumps(
+            {"version": __version__,
+             "status": "sound" if not problems else "problems",
+             "checks": checks,
+             "problems": [c["name"] for c in problems]},
+            indent=2))
+    return 1 if problems else 0
 
 
 if __name__ == "__main__":

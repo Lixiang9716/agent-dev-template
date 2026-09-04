@@ -72,10 +72,13 @@ def main(argv: list[str] | None = None) -> int:
 
     durations: dict[str, list[int]] = {}
     outcomes: dict[str, list[str]] = {}
+    # #119: records may now carry non-run outcomes (SCOPED_OUT, NOT_SELECTED,
+    # NOT_RUN) — a gate the diff did not touch must not drag a 0ms p50 down.
+    NON_RUN = {"SCOPED_OUT", "NOT_SELECTED", "NOT_RUN", "DISABLED"}
     for run in runs:
         for rec in run.get("gates", []):
             gid = rec.get("gate")
-            if gid is None:
+            if gid is None or rec.get("outcome") in NON_RUN:
                 continue
             durations.setdefault(gid, []).append(int(rec.get("duration_ms", 0)))
             outcomes.setdefault(gid, []).append(rec.get("outcome", "?"))
@@ -112,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
         out = []
         for i in run_ids:
             for rec in runs[i].get("gates", []):
-                if rec.get("gate") == gid:
+                if rec.get("gate") == gid and rec.get("outcome") not in NON_RUN:
                     out.append(int(rec.get("duration_ms", 0)))
         return out
 

@@ -67,17 +67,17 @@ FLAGS: dict[str, set[str]] = {
     "verify-note-presence": {"--base", "--strict", "--staged"},
     "verify-rubric": {"--path"},
     "verify-archive": set(),
-    "verify-decisions": {"--path", "--base"},
+    "verify-decisions": {"--path", "--base", "--json"},
     "decision": {"--count", "--base", "--from", "--id", "--dry-run"},
     "verify-doc-sync": set(),
     "verify-conflict-markers": {"--base", "--staged"},
     "review": {"--base", "--hits", "--grade"},
     "trend": {"--last", "--gate", "--base"},
-    "doctor": set(),
+    "doctor": {"--json"},
     "note": {"--class", "--ref"},  # on the `new` subcommand
     "whatsnew": {"--since"},
     "recall": set(),
-    "audit-notes": set(),
+    "audit-notes": {"--json"},
     "change-scope": {"--base"},
     "archive-notes": {"--rebaseline"},
 }
@@ -162,7 +162,15 @@ def main(argv: list[str] | None = None) -> int:
         prog="gov audit-notes",
         description="Report mechanical staleness signals in implemented notes.",
     )
-    parser.parse_args(argv)
+    parser.add_argument("--json", action="store_true",
+                        help="machine-readable: stdout is exactly one JSON "
+                             "object {notes, skills, decisions_source, "
+                             "findings, state}; the human report moves to stderr")
+    args = parser.parse_args(argv)
+
+    def emit(text: str) -> None:
+        # #119/D26: in json mode stdout carries exactly one JSON value.
+        print(text, file=sys.stderr if args.json else sys.stdout)
 
     commands = _known_commands()
     if commands is None:
@@ -186,14 +194,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     decisions = _known_decisions()
 
-    findings = 0
+    findings: list[dict] = []
     notes = 0
     for p in sorted(IMPLEMENTED.rglob("*.md")):
         notes += 1
         text = p.read_text(encoding="utf-8")
         for flag in _flags_note(text, commands, decisions):
-            print(f"{p}: {flag}")
-            findings += 1
+            emit(f"{p}: {flag}")
+            findings.append({"file": str(p), "signal": flag})
 
     # Wish 11/D28: skills are the manual agents read most literally —
     # a renamed command or flag silently expires them.
@@ -202,16 +210,24 @@ def main(argv: list[str] | None = None) -> int:
         for p in sorted(SKILLS_DIR.rglob("*.md")):
             skills += 1
             for flag in _drift(p.read_text(encoding="utf-8"), commands):
-                print(f"{p}: {flag}")
-                findings += 1
-    state = "clean" if not findings else f"{findings} signal(s)"
+                emit(f"{p}: {flag}")
+                findings.append({"file": str(p), "signal": flag})
+    human_state = "clean" if not findings else f"{len(findings)} signal(s)"
+    state = "clean" if not findings else "dirty"
     if decisions is None:
         extra = " (no decisions source; D-refs unchecked)"
     elif not decisions:
         extra = f" ({DECISIONS} has no '## Dn — ' sections; D-refs unchecked)"
     else:
         extra = ""
-    print(f"audit_notes: {notes} implemented note(s), {skills} skill file(s), {state}{extra}")
+    emit(f"audit_notes: {notes} implemented note(s), {skills} skill file(s), "
+         f"{human_state}{extra}")
+    if args.json:
+        print(json.dumps(
+            {"notes": notes, "skills": skills,
+             "decisions_source": bool(decisions),
+             "findings": findings, "state": state},
+            indent=2))
     return 0
 
 

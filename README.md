@@ -42,6 +42,7 @@ gov init --project <path> --upgrade  # show template drift (diffs, never writes)
 gov init --project <path> --adopt all  # land missing template files (never overwrites)
 gov init --project <path> --adopt-new gates.json  # merge new shipped gates into a customized gates.json
 gov doctor                     # environment self-check (PATH, python, hooks, schema)
+gov doctor --json             # machine-readable: {status, checks, problems}
 gov note new --class process --ref D6 "Title"  # scaffold a note, pre-validated
 gov init --project <path> --hooks --ci  # also install a pre-push hook and CI
 gov uninstall --project <path>  # reverse it exactly
@@ -49,13 +50,15 @@ gov run                        # run the default mode's gate DAG (defaultMode)
 gov run --base HEAD~1          # only the gates whose paths match the diff
 gov run --gate pairing         # rerun a single gate
 gov self-test                  # rejection cases: the tools' + yours (.gov/rejections/)
-gov run --json                 # machine-readable: [{gate, outcome, duration_ms, ...}]
+gov run --json                 # machine-readable: [{gate, outcome, duration_ms, detail,
+                               #  selected_by, scoped_out, ...}] — the whole gate set, incl. scoped-out
 gov verify-pairing --write    # re-confirm a bilingual pair after editing one side
 gov verify-pairing --write en:docs/a.md zh:docs/a_CN.md  # register any naming
 gov verify-note-presence      # warn when a non-trivial diff carries no Agent Note
 gov verify-rubric             # check the review rubric's structure
 gov verify-decisions          # guard the decisions table (ids, alternatives)
 gov verify-decisions --base <ref>  # + parallel-branch number collisions
+gov verify-decisions --json    # machine-readable: {violations, orphans, overdue, ...}
 gov decision next --base <ref>     # next free D-number (branch-aware)
 gov decision add --from FILE       # append a decision, validated + atomic
 gov verify-conflict-markers   # fail when changed files carry git conflict markers
@@ -63,6 +66,7 @@ gov review --base <ref> --grade  # dossier + interactive rubric grading
 gov trend                     # gate duration trends from --record history
 gov recall <terms>            # retrieve notes, decisions, postmortems
 gov audit-notes               # staleness signals in implemented notes
+gov audit-notes --json         # machine-readable: {findings: [{file, signal}], ...}
 gov change-scope --base <ref> # smallest sufficient set (.gov/surfaces.json maps paths)
 ```
 
