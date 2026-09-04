@@ -438,3 +438,44 @@ def test_adopt_new_fail_loud_edges(tmp_path, capsys):
     (tmp_path / ".gov" / "manifest.json").unlink()
     assert cli.init(tmp_path, adopt_new="gates.json") == 2
     assert "needs an initialized project" in capsys.readouterr().err
+
+
+def test_cd_flag_targets_another_tree(tmp_path, capsys):
+    """#121: `gov -C <path> <cmd>` acts on that tree and names the root."""
+    import subprocess
+    wt = tmp_path / "wt-x"
+    (wt / "sub").mkdir(parents=True)
+    for cmd in (
+        ["git", "init", "-q", "."],
+        ["git", "config", "user.email", "t@t"],
+        ["git", "config", "user.name", "t"],
+    ):
+        subprocess.run(cmd, cwd=wt, check=True)
+    # -C into a SUBDIRECTORY: the announcement still names the work-tree
+    # root — exactly what cd + root anchoring would resolve to.
+    assert cli.main(["-C", str(wt / "sub"), "init", "--project", "."]) == 0
+    err = capsys.readouterr().err
+    assert f"gov: targeting {wt}" in err
+    # init resolves --project against the new cwd (it does not anchor to
+    # the git root); the root-relative tools (run/verify-*/doctor) do.
+    assert (wt / "sub" / ".gov" / "manifest.json").exists()
+
+
+def test_cd_flag_chainable_git_semantics(tmp_path, capsys):
+    wt = tmp_path / "wt-y"
+    (wt / "a" / "b").mkdir(parents=True)
+    assert cli.main(["-C", str(wt), "-C", "a", "-C", "b",
+                     "init", "--project", "."]) == 0
+    err = capsys.readouterr().err
+    assert f"gov: targeting {tmp_path / 'wt-y' / 'a' / 'b'}" in err
+    assert (wt / "a" / "b" / ".gov" / "manifest.json").exists()
+
+
+def test_cd_flag_nonexistent_path_fails_loud(tmp_path, capsys):
+    assert cli.main(["-C", str(tmp_path / "nope"), "doctor"]) == 2
+    assert "no such directory" in capsys.readouterr().err
+
+
+def test_cd_flag_requires_path(tmp_path, capsys):
+    assert cli.main(["-C"]) == 2
+    assert "requires a directory path" in capsys.readouterr().err

@@ -168,6 +168,19 @@ gov whatsnew                  # 自你的 init 版本以来新增了什么
 gates.json 可增量吸收新 shipped 门——本地门原样保留，同名冲突大声
 拒绝（D39）；`--upgrade --json` 让 agent 程序化决策。
 
+## 编排多个 worktree 而不 cd
+
+```sh
+gov -C ../wt-x run --base master   # 门禁跑在 wt-x 那棵树，不是当前树
+gov -C ../wt-x doctor
+```
+
+`-C <path>`（或 `--path`，置于子命令之前；可像 git 一样链式）在派发
+前按值切换目录，输出头部点名解析出的 work-tree 根——跑错树一眼可
+见，而不只是"合法"。路径不存在则大声失败（#121）。自带 `--path`
+的子命令（verify-decisions、verify-rubric）不受影响：它们的
+`--path` 指文件，且写在命令之后。
+
 ## 读 trend 的 mover
 
 运行默认记录（`.gov/history/`，已 gitignore）。`gov trend` 按窗口
