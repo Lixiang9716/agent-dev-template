@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from gov import self_test as st
 
 
@@ -112,3 +114,72 @@ def test_coverage_pointer_when_uncovered(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "x(NONE — rule 6)" in out
     assert "write one: .gov/rejections/case-<gate-id>.sh" in out
+
+
+def test_classifier_labels_probes_by_clean_env_replay():
+    """#139/D47: the verdict comes from the replay, not from a guess.
+
+    The always-broken probe replays red (tool-defect); the env-only probe
+    — which genuinely breaks under a shadowed PYTHONPATH, the #138 shape
+    — replays green once the host's site layer is gone (environment-
+    suspect).
+    """
+    saved = os.environ.get("PYTHONPATH")
+    try:
+        os.environ["PYTHONPATH"] = "/tmp/gov-selftest-shadow-probe/x"
+        try:
+            st._probe_env_only_failure()
+            raise AssertionError("env-only probe did not reproduce under "
+                                 "a shadowed PYTHONPATH")
+        except AssertionError as e:
+            assert "shadowed PYTHONPATH" in str(e)
+    finally:
+        if saved is None:
+            os.environ.pop("PYTHONPATH", None)
+        else:
+            os.environ["PYTHONPATH"] = saved
+    env_lines = st._classify_tool_failure(st._probe_env_only_failure)
+    assert any("environment-suspect" in l for l in env_lines), env_lines
+    tool_lines = st._classify_tool_failure(st._probe_always_fails)
+    assert any("tool-defect" in l for l in tool_lines), tool_lines
+
+
+def test_unrunnable_replay_is_unclassified_not_tool_defect(tmp_path, monkeypatch):
+    """#139: a replay that cannot run (case unknown to the staged copy,
+    exit 2) classifies nothing — a crash is not a verdict."""
+    monkeypatch.chdir(tmp_path)
+
+    def not_in_staged_copy():
+        raise AssertionError("boom")
+
+    lines = st._classify_tool_failure(not_in_staged_copy)
+    assert any("unclassified" in l for l in lines), lines
+
+
+def test_case_flag_runs_one_case_and_names_unknown(tmp_path, monkeypatch, capsys):
+    """--case NAME is the replay's building block: one case, one line;
+    an unknown name aborts loud with the offending name (rule 5)."""
+    monkeypatch.chdir(tmp_path)
+
+    def ok_case():
+        pass
+
+    monkeypatch.setattr(st, "CASES", [ok_case])
+    assert st.main(["--case", "ok_case"]) == 0
+    assert "PASS ok_case" in capsys.readouterr().out
+    with pytest.raises(SystemExit) as exc:
+        st.main(["--case", "ghost"])
+    assert exc.value.code == 2
+    assert "unknown case 'ghost'" in capsys.readouterr().err
+
+
+def test_project_failure_carries_hand_repro_hint(tmp_path, monkeypatch, capsys):
+    """#139: project cases are arbitrary scripts — their FAIL gets the
+    reproduce-by-hand hint, never an automatic replay verdict."""
+    monkeypatch.chdir(tmp_path)
+    _rejection(tmp_path, "case-broken.sh", "#!/bin/sh\nexit 1\n")
+    assert st.main(["--scope", "project"]) == 1
+    out = capsys.readouterr().out
+    assert "reproduce by hand" in out
+    assert "clean-env replay" not in out
+    assert "unclassified 1" in out

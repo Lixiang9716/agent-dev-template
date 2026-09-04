@@ -16,6 +16,18 @@ Two families, reported separately so they never blur:
 Cases run concurrently; the report order stays deterministic (tools in
 CASES order, project sorted by path). ``--scope tools|project`` runs one
 family. All failures are reported, not just the first.
+
+Every FAIL is classified (#139/D47): a failing tools-family case is
+replayed once in a minimal clean environment — a fresh copy of the
+govrail package alone on ``PYTHONPATH`` (the package is stdlib-only by
+design) with the host's ``PYTHON*`` configuration dropped. The replay
+passes → the failure is **environment-suspect** (this host's site layer
+breaks the tool path; check site-packages shadowing / ``PYTHONPATH``).
+It fails again → **tool-defect** (the traceback stands). Project cases
+are arbitrary scripts: their failures carry a "reproduce by hand" hint
+instead of an automatic replay. A classified FAIL still fails the run —
+classification is a diagnosis, never a pass. ``--case NAME`` reruns one
+tools-family case in isolation (the replay's own building block).
 """
 from __future__ import annotations
 
@@ -23,6 +35,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -1079,6 +1092,35 @@ def test_receipt_rejects_partial_run_as_full_evidence() -> None:
             "a partial run must never pass as a full green run")
 
 
+def test_failure_classifier_labels_tool_vs_environment() -> None:
+    """#139/D47: a FAIL's label is earned from evidence, not guessed.
+
+    A probe that genuinely breaks only under a polluted import path must
+    replay green (environment-suspect); one that breaks everywhere must
+    replay red (tool-defect). The probes double as ``--case`` fixtures.
+    """
+    # First prove the env-only probe's failure is real: under the shadow
+    # path it reproduces; this is the #138 shape (a promoted site dir).
+    saved = os.environ.get("PYTHONPATH")
+    try:
+        os.environ["PYTHONPATH"] = "/tmp/gov-selftest-shadow-probe/x"
+        try:
+            _probe_env_only_failure()
+            raise AssertionError("the env-only probe failed to reproduce "
+                                 "under a shadowed PYTHONPATH")
+        except AssertionError as e:
+            assert "shadowed PYTHONPATH" in str(e)
+    finally:
+        if saved is None:
+            os.environ.pop("PYTHONPATH", None)
+        else:
+            os.environ["PYTHONPATH"] = saved
+    env_lines = _classify_tool_failure(_probe_env_only_failure)
+    assert any("environment-suspect" in l for l in env_lines), env_lines
+    tool_lines = _classify_tool_failure(_probe_always_fails)
+    assert any("tool-defect" in l for l in tool_lines), tool_lines
+
+
 CASES = [
     test_verify_notes_rejects_missing_section,
     test_gates_rejects_duplicate_id,
@@ -1122,6 +1164,7 @@ CASES = [
     test_task_check_rejects_tampered_receipt,
     test_receipt_rejects_forged_record,
     test_receipt_rejects_partial_run_as_full_evidence,
+    test_failure_classifier_labels_tool_vs_environment,
 ]
 
 
@@ -1206,10 +1249,155 @@ def _run_tool_case(case) -> tuple[str, bool]:
     try:
         case()
     except Exception as e:  # noqa: BLE001 — report, don't traceback
-        first = str(e).strip().splitlines()
-        why = f": {first[0]}" if first else ""
+        # The evidence line: assertion messages that embed subprocess
+        # output end with the real cause (the killer exception is the
+        # last line), so quote the last non-empty line, not the header
+        # (#139: the operator should not have to trace a traceback to
+        # read the TypeError that killed the case).
+        lines = [l for l in str(e).strip().splitlines() if l.strip()]
+        why = f": {lines[-1].strip()}" if lines else ""
         return f"FAIL {case.__name__} ({type(e).__name__}{why})", False
     return f"PASS {case.__name__}", True
+
+
+# --- failure classification: tool-defect vs environment-suspect (#139/D47)
+
+# The clean replay's budget: the slowest single case recursively runs a
+# nested self-test with its own 120s ceiling (D26's spirit — bounded, not
+# unbounded); a replay that outlives this is reported unclassified.
+CLEAN_REPLAY_TIMEOUT_S = 180
+
+_CLEAN_STAGE: tempfile.TemporaryDirectory | None = None
+
+
+def _clean_stage() -> Path:
+    """A pristine copy of the running package, alone in a temp dir.
+
+    The replayed case must import govrail without the host's site layer
+    in the way: staging a copy lets ``PYTHONPATH`` point at a directory
+    holding ONLY the package, so the stdlib resolves ahead of every
+    site-packages entry and a stray backport (e.g. an ``argparse.py``
+    installed there) cannot shadow it. Stdlib-only by design (D1's
+    single-implementation decision) is what makes a package copy a
+    complete, dependency-free environment.
+    """
+    global _CLEAN_STAGE
+    if _CLEAN_STAGE is None:
+        _CLEAN_STAGE = tempfile.TemporaryDirectory(
+            prefix="gov-selftest-clean-")
+        shutil.copytree(
+            HERE, Path(_CLEAN_STAGE.name) / HERE.name,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
+    return Path(_CLEAN_STAGE.name)
+
+
+def _clean_replay_env(stage: Path) -> dict:
+    """The minimal environment for a clean replay (#139/D47).
+
+    Everything ``PYTHON*`` from the host is dropped — ``PYTHONPATH`` is
+    the promotion vector that put a site-packages backport ahead of the
+    stdlib in the #138 incident — and the staged package is the only
+    extra path entry. ``GIT_*`` stays scrubbed (D32), and the staged
+    process re-establishes the git ceiling wall itself via ``main()``.
+    """
+    env = {k: v for k, v in os.environ.items()
+           if not k.startswith("GIT_") and not k.startswith("PYTHON")}
+    env["PYTHONNOUSERSITE"] = "1"
+    env["PYTHONPATH"] = str(stage)
+    return env
+
+
+def _classify_tool_failure(case) -> list[str]:
+    """Replay one failing tools-family case in the minimal env.
+
+    Returns the indented verdict lines printed under the FAIL line:
+    a replay that passes labels the failure environment-suspect, one
+    that fails again confirms a tool-defect, and a replay that cannot
+    run (timeout, interpreter failure) is reported unclassified with
+    the hand-rerun command — never silently guessed.
+    """
+    stage = _clean_stage()
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "gov.self_test", "--case", case.__name__],
+            cwd=str(stage), env=_clean_replay_env(stage),
+            capture_output=True, text=True,
+            timeout=CLEAN_REPLAY_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        return [f"    clean-env replay: TIMEOUT after "
+                f"{CLEAN_REPLAY_TIMEOUT_S}s — unclassified; rerun by hand: "
+                f"gov self-test --case {case.__name__}"]
+    if proc.returncode not in (0, 1):
+        # The replay itself failed to run (a case unknown to the staged
+        # copy, an interpreter crash) — that classifies nothing.
+        tail = [l for l in proc.stderr.splitlines() if l.strip()]
+        why = f": {tail[-1].strip()}" if tail else ""
+        return [f"    clean-env replay: not runnable (exit "
+                f"{proc.returncode}{why}) — unclassified; rerun by hand: "
+                f"gov self-test --case {case.__name__}"]
+    if proc.returncode == 0:
+        return ["    clean-env replay: PASS — environment-suspect: the same "
+                "case passes with the host's site layer removed (only the "
+                "stdlib + a clean copy of govrail). Check this host's "
+                "site-packages shadowing / PYTHON* environment; the "
+                "traceback in the FAIL line is the environmental evidence."]
+    lines = [l for l in proc.stdout.splitlines() if l.strip()]
+    why = f": {lines[0].strip()}" if lines else f"exit {proc.returncode}"
+    return [f"    clean-env replay: FAIL — tool-defect: fails in the "
+            f"minimal stdlib env too ({why})"]
+
+
+def _probe_env_only_failure() -> None:
+    """Classifier probe (#139, never in CASES): the #138 miniature.
+
+    Broken only when ``PYTHONPATH`` carries the probe's shadow directory
+    — exactly how a promoted site-packages backport broke ``gov task``.
+    """
+    pp = os.environ.get("PYTHONPATH", "")
+    assert "gov-selftest-shadow-probe" not in pp, (
+        f"broken only under a shadowed PYTHONPATH: {pp}")
+
+
+def _probe_always_fails() -> None:
+    """Classifier probe (#139, never in CASES): broken everywhere."""
+    raise AssertionError("broken in every environment")
+
+
+_DIAGNOSTIC_PROBES = (_probe_env_only_failure, _probe_always_fails)
+
+
+def _find_case(name: str):
+    """Resolve a --case name against CASES, then the diagnostic probes."""
+    for case in [*CASES, *_DIAGNOSTIC_PROBES]:
+        if case.__name__ == name:
+            return case
+    return None
+
+
+def _scrub_environment() -> None:
+    """The process-boundary scrub (#20/D32, wall three of #24/D33).
+
+    A pre-push hook leaks GIT_DIR/GIT_WORK_TREE into this process; the
+    tools resolve repositories by cwd (D21), so inherited GIT_* only
+    ever misleads — root anchoring in scratch repos would resolve the
+    HOST repository. Scrub once, at the process boundary, and say so
+    when it happened. The third wall pins GIT_CEILING_DIRECTORIES over
+    the temp area so no case's git command can walk up out of it.
+    """
+    REPO_RESOLVING = {"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE",
+                      "GIT_QUARANTINE_PATH", "GIT_OBJECT_DIRECTORY",
+                      "GIT_ALTERNATE_OBJECT_DIRECTORIES"}
+    leaked = [k for k in os.environ if k.startswith("GIT_")]
+    for k in leaked:
+        del os.environ[k]  # benign ones too: cases are hermetic by contract
+    os.environ["GIT_CEILING_DIRECTORIES"] = tempfile.gettempdir()
+    dangerous = sorted(set(leaked) & REPO_RESOLVING)
+    if dangerous:
+        print(f"self-test: scrubbed repository-resolving variable(s) from the "
+              f"environment ({', '.join(dangerous)}) — cases must resolve "
+              "repositories by cwd (hook-context leak, #20)")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1220,28 +1408,23 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--scope", choices=("all", "tools", "project"),
                         default="all", help="which family of cases to run")
+    parser.add_argument("--case", metavar="NAME",
+                        help="run one tools-family case by name and exit — "
+                             "the diagnostic building block of the clean-env "
+                             "replay (#139); implies --scope tools")
     args = parser.parse_args(argv)
 
-    # #20/D32: a pre-push hook leaks GIT_DIR/GIT_WORK_TREE into this
-    # process; the tools resolve repositories by cwd (D21), so inherited
-    # GIT_* only ever misleads — root anchoring in scratch repos would
-    # resolve the HOST repository. Scrub once, at the process boundary,
-    # and say so when it happened.
-    REPO_RESOLVING = {"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE",
-                      "GIT_QUARANTINE_PATH", "GIT_OBJECT_DIRECTORY",
-                      "GIT_ALTERNATE_OBJECT_DIRECTORIES"}
-    leaked = [k for k in os.environ if k.startswith("GIT_")]
-    for k in leaked:
-        del os.environ[k]  # benign ones too: cases are hermetic by contract
-    # Third wall (#24/D33): no git command issued by any case may walk up
-    # out of the temp area — case bodies call git directly with the
-    # process env, so the ceiling rides along with them.
-    os.environ["GIT_CEILING_DIRECTORIES"] = tempfile.gettempdir()
-    dangerous = sorted(set(leaked) & REPO_RESOLVING)
-    if dangerous:
-        print(f"self-test: scrubbed repository-resolving variable(s) from the "
-              f"environment ({', '.join(dangerous)}) — cases must resolve "
-              "repositories by cwd (hook-context leak, #20)")
+    if args.case:
+        case = _find_case(args.case)
+        if case is None:
+            parser.error(f"unknown case '{args.case}' — not in CASES or the "
+                         "diagnostic probes")
+        _scrub_environment()
+        line, ok = _run_tool_case(case)
+        print(line)
+        return 0 if ok else 1
+
+    _scrub_environment()
 
     tool_jobs = [] if args.scope == "project" else list(CASES)
     project_jobs = [] if args.scope == "tools" else _project_cases()
@@ -1256,14 +1439,36 @@ def main(argv: list[str] | None = None) -> int:
             results.append(fut.result())
 
     failures = [line for line, ok in results if not ok]
-    for line, ok in results:
+    # #139/D47: every FAIL is classified from evidence — a clean-env
+    # replay verdict under each tools-family failure, a hand-repro hint
+    # under project failures (their scripts may legitimately need this
+    # environment; an automatic replay would prove nothing).
+    counts = {"tool-defect": 0, "environment-suspect": 0, "unclassified": 0}
+    for idx, (line, ok) in enumerate(results):
         print(line)
+        if ok:
+            continue
+        if idx < len(tool_jobs):
+            for verdict in _classify_tool_failure(tool_jobs[idx]):
+                print(verdict)
+                for kind in counts:
+                    if kind in verdict:
+                        counts[kind] += 1
+                        break
+                else:
+                    counts["unclassified"] += 1
+        else:
+            print("    clean-env comparison not attempted — project cases "
+                  "run arbitrary scripts; reproduce by hand in a minimal "
+                  "environment.")
+            counts["unclassified"] += 1
     _coverage_report()
     tools_n, project_n = len(tool_jobs), len(project_jobs)
     parts = [f"tools {tools_n}" if tools_n else "", f"project {project_n}" if project_n else ""]
     family = " + ".join(p for p in parts if p)
     if failures:
-        print(f"self-test: {len(failures)} failure(s) ({family})")
+        tally = ", ".join(f"{k} {v}" for k, v in counts.items())
+        print(f"self-test: {len(failures)} failure(s) ({family}) — {tally}")
         return 1
     print(f"self-test: {family or 'no cases selected'} — all pass")
     return 0
