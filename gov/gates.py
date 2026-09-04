@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import shutil
@@ -275,6 +276,45 @@ def load_config(path: str) -> tuple[dict[str, list[str]], list[Gate], int, str |
     return modes, gates, concurrency or 0, default_mode
 
 
+def parse_cost(raw: str) -> dict[str, float]:
+    """#126/D45: parse a caller-supplied cost string, ``unit=value`` pairs.
+
+    ``tokens=1200,calls=4`` → ``{"tokens": 1200, "calls": 4}``. Units are
+    free-form tokens; values must be finite non-negative numbers — govrail
+    standardizes the LEDGER SHAPE, it never meters anything itself (the
+    tool that ran the LLMs supplies the numbers it already tracks).
+    Malformed input fails loud naming the fragment (rule 5).
+    """
+    cost: dict[str, float] = {}
+    for fragment in raw.split(","):
+        fragment = fragment.strip()
+        if not fragment:
+            continue
+        if "=" not in fragment:
+            raise ValueError(
+                f"cost fragment {fragment!r} is not unit=value "
+                "(e.g. tokens=1200,calls=4)"
+            )
+        unit, _, value = fragment.partition("=")
+        unit = unit.strip()
+        if not unit:
+            raise ValueError(f"cost fragment {fragment!r} has an empty unit")
+        try:
+            number = float(value.strip())
+        except ValueError:
+            raise ValueError(
+                f"cost fragment {fragment!r}: {value.strip()!r} is not a number"
+            ) from None
+        if not math.isfinite(number) or number < 0:
+            raise ValueError(
+                f"cost fragment {fragment!r}: value must be finite and >= 0"
+            )
+        cost[unit] = int(number) if number.is_integer() else number
+    if not cost:
+        raise ValueError(f"cost string {raw!r} carries no unit=value pair")
+    return cost
+
+
 def _history_path() -> Path:
     """#23/D32: history belongs to the repository, not the checkout —
     linked worktrees record into the main checkout's .gov/history (the
@@ -372,6 +412,7 @@ def run_gates(
     caller: str | None = None,
     receipt: dict | None = None,
     receipt_path: Path | None = None,
+    cost: dict[str, float] | None = None,
 ) -> int:
     """Run the selected gates (every enabled gate when selection is None).
 
@@ -572,6 +613,9 @@ def run_gates(
         # #120/D42: a caller tag (--tag / GOV_CALLER) rides along as
         # caller-supplied free text; absent = anonymous, exactly the
         # pre-#120 record shape.
+        # #126/D45: an optional cost ledger (--cost / $GOV_COST) rides the
+        # same run line — also absent-unless-supplied, so unreported runs
+        # keep the pre-#126 record shape.
         record_path.parent.mkdir(parents=True, exist_ok=True)
         run_record = {
             "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -579,6 +623,8 @@ def run_gates(
         }
         if caller:
             run_record["caller"] = caller
+        if cost:
+            run_record["cost"] = cost
         with record_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(run_record, separators=(",", ":")) + "\n")
     if rec is not None:
@@ -622,6 +668,13 @@ def main(argv: list[str] | None = None) -> int:
                              "for multi-agent attribution (gov trend --by-tag "
                              "splits on it); falls back to $GOV_CALLER; "
                              "absent = anonymous, as before (#120)")
+    parser.add_argument("--cost", default=None,
+                        help="optional resource cost recorded into the run's "
+                             "history line as free-form unit=value pairs, "
+                             "e.g. --cost tokens=1200,calls=4 (falls back to "
+                             "$GOV_COST) — caller-supplied ledger for "
+                             "`gov trend --cost`; govrail meters nothing "
+                             "itself (#126)")
     parser.add_argument("--no-record", action="store_true",
                         help="do not append this run to .gov/history/gates.jsonl "
                              "(recording is the default; see gov trend)")
@@ -741,6 +794,17 @@ def main(argv: list[str] | None = None) -> int:
             sel = {"kind": selected_by, "value": None}
         receipt_info = {"tag": caller or "", "selection": sel}
 
+    # #126/D45: --cost wins over $GOV_COST; malformed input fails loud
+    # (rule 5) naming the offending fragment, before any gate runs.
+    cost_raw = (args.cost if args.cost is not None
+                else os.environ.get("GOV_COST"))
+    cost = None
+    if cost_raw:
+        try:
+            cost = parse_cost(cost_raw)
+        except ValueError as e:
+            print(f"gov run: --cost: {e}", file=sys.stderr)
+            return 2
     return run_gates(gates, selection, concurrency, args.fail_fast,
                      json_mode=args.json,
                      record_path=None if args.no_record
@@ -748,7 +812,8 @@ def main(argv: list[str] | None = None) -> int:
                      selected_by=selected_by, scoped_out=scoped_out_ids,
                      caller=caller or None,
                      receipt=receipt_info,
-                     receipt_path=receipt_mod._receipt_path())
+                     receipt_path=receipt_mod._receipt_path(),
+                     cost=cost)
 
 
 if __name__ == "__main__":
