@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/Lixiang9716/govrail/compare/v0.17.0...v0.18.0) (2026-09-04)
+
+
+### Features
+
+* optional pre-commit hook — pairing drift surfaces at commit, not push (D41) ([#114](https://github.com/Lixiang9716/govrail/issues/114)) ([9a68c38](https://github.com/Lixiang9716/govrail/commit/9a68c38d114738d1b5ee6fcb5cefd2af13ec2c0d))
+
 ## [0.17.0](https://github.com/Lixiang9716/govrail/compare/v0.16.0...v0.17.0) (2026-09-04)
 
 
