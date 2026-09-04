@@ -284,7 +284,9 @@ def main(argv: list[str] | None = None) -> int:
         prog="gov decision",
         description="Allocate and append decision rows (parallel-branch safe).",
     )
-    sub = parser.add_subparsers(dest="subcommand", required=True)
+    # #138: no `required=True` — a shadowed pre-3.7 argparse backport
+    # rejects the kwarg; the rule is enforced by hand below instead.
+    sub = parser.add_subparsers(dest="subcommand")
 
     p_next = sub.add_parser(
         "next", help="the next free D-number from the decisions source")
@@ -319,6 +321,8 @@ def main(argv: list[str] | None = None) -> int:
     p_add.set_defaults(func=_add)
 
     args = parser.parse_args(argv)
+    if getattr(args, "func", None) is None:
+        parser.error("a subcommand is required (next|add)")
     return args.func(args)
 
 

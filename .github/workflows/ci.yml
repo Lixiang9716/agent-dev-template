@@ -26,3 +26,49 @@ jobs:
         run: gov self-test
       - name: Full gate DAG
         run: gov run --mode all
+
+  backport-shadow:
+    # Issue #138: a py2-era `argparse` backport (PyPI argparse==1.4.0)
+    # installed next to a wheel-installed gov must not break the CLI. The
+    # reporter's environment, kept alive in CI: happy paths of every
+    # add_subparsers-based command under the shadow, self-test and doctor
+    # against it, on the non-editable (site-packages) install layout.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install wheel + fossil argparse backport
+        run: |
+          pip install argparse==1.4.0
+          pip install .
+      - name: CLI happy paths under the promoted shadow
+        run: |
+          SP=$(python -c 'import site; print(site.getsitepackages()[0])')
+          export PYTHONPATH="$SP"
+          set -e
+          D=$(mktemp -d); cd "$D"; git init -q .
+          gov init
+          gov task new "Brief me"
+          printf '\n## 9. Adopted\n' >> .gov/rules.md
+          if gov task check; then echo "stale pin must fail check"; exit 1; fi
+          gov task list
+          D2=$(mktemp -d); cd "$D2"; git init -q .
+          gov init
+          echo '{"modes": {"all": ["ok"]}, "gates": [{"id":"ok","command":["true"]}]}' > gates.json
+          git add gates.json
+          git -c user.email=t@t -c user.name=t commit -qm init
+          gov task new "Close me"
+          gov task close T-0001
+      - name: Self-test under the shadow
+        run: |
+          SP=$(python -c 'import site; print(site.getsitepackages()[0])')
+          PYTHONPATH="$SP" gov self-test
+      - name: Doctor names the shadow
+        run: |
+          SP=$(python -c 'import site; print(site.getsitepackages()[0])')
+          if PYTHONPATH="$SP" gov doctor; then
+            echo "doctor must flag the shadowed argparse"; exit 1
+          fi
+          PYTHONPATH="$SP" gov doctor 2>&1 | grep -q "pip uninstall argparse"

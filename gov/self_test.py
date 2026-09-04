@@ -38,6 +38,7 @@ import re
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -61,6 +62,27 @@ def _case_env() -> dict:
     do when run by hand.
     """
     return {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+
+def _pinned_env() -> dict:
+    """Case env whose PYTHONPATH pins gov to the tested tree (#138).
+
+    The naive pin — ``PYTHONPATH = str(HERE.parent)`` — backfires when gov
+    is pip-installed: HERE.parent IS site-packages, and promoting it ahead
+    of the stdlib lets any module living there hijack the interpreter. This
+    machine shipped exactly that: a py2-era ``argparse==1.4.0`` backport in
+    site-packages shadowed the stdlib inside every case subprocess and
+    ``gov task`` died in a TypeError no case could get past. The stdlib dir
+    goes FIRST so the interpreter's own modules stay the interpreter's; gov
+    still resolves to the tested tree (the stdlib has no ``gov``), and any
+    ambient PYTHONPATH follows.
+    """
+    env = _case_env()
+    parts = [sysconfig.get_paths()["stdlib"], str(HERE.parent)]
+    if env.get("PYTHONPATH"):
+        parts.append(env["PYTHONPATH"])
+    env["PYTHONPATH"] = os.pathsep.join(parts)
+    return env
 
 
 def _run(script: str, cwd: Path,
@@ -192,8 +214,7 @@ def test_cli_init_help_no_side_effect() -> None:
     """`gov init --help` must show help and create nothing, not run init."""
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
-        env = dict(os.environ)
-        env["PYTHONPATH"] = str(HERE.parent) + os.pathsep + env.get("PYTHONPATH", "")
+        env = _pinned_env()
         result = subprocess.run(
             [sys.executable, "-m", "gov", "init", "--help"],
             cwd=root,
@@ -551,8 +572,7 @@ def test_init_hooks_ci_roundtrip() -> None:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         _git_repo(root)
-        env = dict(os.environ)
-        env["PYTHONPATH"] = str(HERE.parent) + os.pathsep + env.get("PYTHONPATH", "")
+        env = _pinned_env()
         for args in (
             ["-m", "gov", "init", "--hooks", "--ci"],
             ["-m", "gov", "uninstall"],
@@ -840,8 +860,7 @@ def test_skills_text_command_drift_is_named() -> None:
         skills = root / ".agents" / "skills" / "probe"
         skills.mkdir(parents=True)
         (skills / "SKILL.md").write_text("run `gov run --every-gat`\n", encoding="utf-8")
-        env = dict(os.environ)
-        env["PYTHONPATH"] = str(HERE.parent) + os.pathsep + env.get("PYTHONPATH", "")
+        env = _pinned_env()
         result = subprocess.run(
             [sys.executable, "-m", "gov", "audit-notes"],
             cwd=root, env=env, capture_output=True, text=True,
@@ -865,8 +884,7 @@ def test_registry_real_flags_are_not_drift() -> None:
             "`gov init --adopt all --preview` ran clean; `gov init --nonexistent` "
             "never did.\n\n## Problem\np\n\n## Alternatives considered\na\n",
             encoding="utf-8")
-        env = dict(os.environ)
-        env["PYTHONPATH"] = str(HERE.parent) + os.pathsep + env.get("PYTHONPATH", "")
+        env = _pinned_env()
         result = subprocess.run(
             [sys.executable, "-m", "gov", "audit-notes"],
             cwd=root, env=env, capture_output=True, text=True,
@@ -985,7 +1003,7 @@ def test_task_check_rejects_stale_rules_pin() -> None:
     hash must fail loud — the whole point of drift detection."""
     with tempfile.TemporaryDirectory() as td:
         root = _task_project(Path(td))
-        env = {**_case_env(), "PYTHONPATH": str(HERE.parent)}
+        env = _pinned_env()
         made = subprocess.run(
             [sys.executable, "-m", "gov", "task", "new", "Brief me"],
             cwd=root, capture_output=True, text=True, env=env)
@@ -1027,11 +1045,68 @@ def test_task_check_rejects_tampered_receipt() -> None:
         result = subprocess.run(
             [sys.executable, "-m", "gov", "task", "check"],
             cwd=root, capture_output=True, text=True,
-            env={**_case_env(), "PYTHONPATH": str(HERE.parent)})
+            env=_pinned_env())
         assert result.returncode == 1, (
             "a done card with a red receipt must fail check\n"
             f"{result.stdout}\n{result.stderr}")
         assert "not all-green" in result.stderr
+
+
+def test_task_survives_pre37_argparse_shadow() -> None:
+    """#138: govrail 0.21.x shipped `gov task` with
+    `add_subparsers(required=True)` — legal stdlib argparse since 3.7, but a
+    fossil `argparse==1.4.0` backport sitting beside an installed gov dies
+    on it with `TypeError: _SubParsersAction.__init__() got an unexpected
+    keyword argument 'required'` the moment PYTHONPATH promotes that dir.
+    The reporter's exact environment. The subcommand-required rule is
+    ours, not argparse's, so the happy path must survive the shadow."""
+    with tempfile.TemporaryDirectory() as td:
+        shadow = Path(td) / "shadow"
+        shadow.mkdir()
+        # A faithful-enough stand-in for the backport: real stdlib argparse
+        # with pre-3.7 `add_subparsers` restored — `required` is refused.
+        (shadow / "argparse.py").write_text(
+            "import importlib.util, os, sysconfig\n"
+            "_dir = os.path.dirname(os.path.abspath(__file__))\n"
+            "_p = os.path.join(sysconfig.get_paths()['stdlib'], 'argparse.py')\n"
+            "_s = importlib.util.spec_from_file_location('_stdlib_argparse', _p)\n"
+            "_m = importlib.util.module_from_spec(_s)\n"
+            "_s.loader.exec_module(_m)\n"
+            "globals().update(vars(_m))\n"
+            "__file__ = os.path.join(_dir, 'argparse.py')\n"
+            "__name__ = 'argparse'\n"
+            "_real = _m.ArgumentParser.add_subparsers\n"
+            "def _old_add_subparsers(self, **kw):\n"
+            "    if 'required' in kw:\n"
+            "        raise TypeError(\"_SubParsersAction.__init__() got an \"\n"
+            "                        \"unexpected keyword argument 'required'\")\n"
+            "    return _real(self, **kw)\n"
+            "ArgumentParser.add_subparsers = _old_add_subparsers\n",
+            encoding="utf-8")
+        # shadow first, then the tested tree: argparse MUST resolve to the
+        # shadow, gov to HERE.parent (rule 6 — prove the trap can fire).
+        env = {**_case_env(), "PYTHONPATH": os.pathsep.join(
+            [str(shadow), str(HERE.parent)])}
+        trap = subprocess.run(
+            [sys.executable, "-c",
+             "import argparse; "
+             "argparse.ArgumentParser().add_subparsers(required=True)"],
+            capture_output=True, text=True, env=env)
+        assert trap.returncode != 0 and "'required'" in trap.stderr, (
+            "the shadow must model the pre-3.7 backport first\n"
+            f"{trap.stdout}\n{trap.stderr}")
+        root = _task_project(Path(td) / "proj")
+        made = subprocess.run(
+            [sys.executable, "-m", "gov", "task", "new", "Brief me"],
+            cwd=root, capture_output=True, text=True, env=env)
+        assert made.returncode == 0, made.stderr
+        assert "obey rules@" in made.stdout, "the pin line is the brief"
+        bare = subprocess.run(
+            [sys.executable, "-m", "gov", "task"],
+            cwd=root, capture_output=True, text=True, env=env)
+        assert bare.returncode == 2, bare.stderr
+        assert "subcommand is required" in bare.stderr, (
+            "the hand-rolled rule names the choices, fail loud")
 
 
 def _task_project(root: Path) -> Path:
@@ -1162,6 +1237,7 @@ CASES = [
     test_conflict_markers_bare_separator_needs_sibling,
     test_task_check_rejects_stale_rules_pin,
     test_task_check_rejects_tampered_receipt,
+    test_task_survives_pre37_argparse_shadow,
     test_receipt_rejects_forged_record,
     test_receipt_rejects_partial_run_as_full_evidence,
     test_failure_classifier_labels_tool_vs_environment,

@@ -130,7 +130,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="gov note", description="Note scaffold and pre-commit check."
     )
-    sub = parser.add_subparsers(dest="subcommand", required=True)
+    # #138: no `required=True` — a shadowed pre-3.7 argparse backport
+    # rejects the kwarg; the rule is enforced by hand below instead.
+    sub = parser.add_subparsers(dest="subcommand")
     p_new = sub.add_parser("new", help="scaffold a note (pre-validates class and D-ref)")
     p_new.add_argument("--class", dest="note_class", required=True,
                        help=f"one of: {', '.join(CLASSES)}")
@@ -140,6 +142,8 @@ def main(argv: list[str] | None = None) -> int:
     p_check = sub.add_parser("check", help="format + placement + D-refs, now")
     p_check.set_defaults(func=_check)
     args = parser.parse_args(argv)
+    if getattr(args, "func", None) is None:
+        parser.error("a subcommand is required (new|check)")
     return args.func(args)
 
 

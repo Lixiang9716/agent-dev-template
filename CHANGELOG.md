@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.24.1](https://github.com/Lixiang9716/govrail/compare/v0.24.0...v0.24.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* **cli:** hand-roll required subcommands; keep case env off stdlib shadows ([5f2ed54](https://github.com/Lixiang9716/govrail/commit/5f2ed54293303e60f367763704720781863a6501)), closes [#138](https://github.com/Lixiang9716/govrail/issues/138)
+* **cli:** hand-roll required subcommands; keep case env off stdlib shadows ([#138](https://github.com/Lixiang9716/govrail/issues/138)) ([6f4b7ea](https://github.com/Lixiang9716/govrail/commit/6f4b7ea42365f91bfc6c940b84d78f211bb398b8))
+
 ## [0.24.0](https://github.com/Lixiang9716/govrail/compare/v0.23.0...v0.24.0) (2026-09-04)
 
 
