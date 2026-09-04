@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from gov import task
 
 
@@ -129,3 +131,15 @@ def test_close_ambiguous_prefix_fails_loud(tmp_path, monkeypatch):
         assert e.code == 2
     else:
         raise AssertionError("an ambiguous prefix must abort loud")
+
+
+def test_bare_task_fails_loud_naming_choices(tmp_path, monkeypatch, capsys):
+    """#138: `required=True` on add_subparsers died under a shadowed
+    pre-3.7 argparse backport, so the missing-subcommand rule is enforced
+    by hand — it must still exit 2 with the choices named."""
+    monkeypatch.chdir(_project(tmp_path))
+    with pytest.raises(SystemExit) as exc:
+        task.main([])
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    assert "a subcommand is required (new|check|close|list)" in err
