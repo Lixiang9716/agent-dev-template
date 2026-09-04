@@ -36,6 +36,8 @@ HELP_ARGV: dict[str, list[list[str]]] = {
                  ["decision", "add", "--help"]],
     # --check/--rules live on `new`; --mode/--timeout on `close` (#125)
     "task": [["task", "new", "--help"], ["task", "close", "--help"]],
+    "receipt": [["receipt", "verify", "--help"],   # --record is verify's
+                ["receipt", "show", "--help"]],    # --commit is show's
 }
 
 

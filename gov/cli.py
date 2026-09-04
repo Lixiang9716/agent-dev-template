@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from . import archive_notes, audit_notes, change_scope, gates, recall, review
-from . import doctor, note, self_test, trend, whatsnew
+from . import doctor, note, receipt, self_test, trend, whatsnew
 from . import decision, task, verify_archive, verify_decisions, verify_doc_sync
 from . import verify_conflict_markers
 from . import verify_note_presence
@@ -783,8 +783,11 @@ _COMMANDS = {
             "--pre-commit adds the opt-in commit-stage gates; --adopt-new "
             "merges new shipped gates; --upgrade shows template drift)",
     "uninstall": "reverse init",
-    "run": "run the project's gate DAG (args forwarded to gates.py)",
+    "run": "run the project's gate DAG (args forwarded to gates.py; "
+           "--receipt records a tamper-evident run receipt, #124)",
     "self-test": "run governance rejection cases",
+    "receipt": "verifiable run receipts: verify a cited receipt against a "
+               "commit (issue #124/D42)",
     "verify-notes": "check note format",
     "verify-pairing": "check bilingual pairing (e.g. --write, --staged)",
     "verify-note-presence": "warn when a non-trivial diff carries no note (e.g. --base <ref>, --strict)",
@@ -1016,6 +1019,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2 if parsed is None else uninstall(parsed[0], force=parsed[3])
     if cmd == "run":
         return gates.main(rest)
+    if cmd == "receipt":
+        return receipt.main(rest)
     if cmd == "self-test":
         return self_test.main(rest)
     if cmd == "verify-notes":
