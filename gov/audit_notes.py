@@ -61,7 +61,7 @@ FLAGS: dict[str, set[str]] = {
     "uninstall": {"--project", "--force"},
     "run": {"--config", "--mode", "--base", "--gate", "--every-gate",
             "--tag", "--no-record", "--receipt", "--json", "--fail-fast",
-            "--verbose"},
+            "--verbose", "--cost"},
     "self-test": {"--scope"},
     "receipt": {"--record", "--commit"},
     "verify-notes": set(),
@@ -74,7 +74,7 @@ FLAGS: dict[str, set[str]] = {
     "verify-doc-sync": set(),
     "verify-conflict-markers": {"--base", "--staged"},
     "review": {"--base", "--hits", "--grade"},
-    "trend": {"--last", "--gate", "--base", "--by-tag"},
+    "trend": {"--last", "--gate", "--base", "--by-tag", "--cost"},
     "doctor": {"--json"},
     "note": {"--class", "--ref"},  # on the `new` subcommand
     "whatsnew": {"--since"},

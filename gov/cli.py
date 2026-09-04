@@ -798,7 +798,7 @@ _COMMANDS = {
     "verify-doc-sync": "CHANGELOG ↔ HIGHLIGHTS pairing (every version has a section)",
     "verify-conflict-markers": "fail when changed files carry git conflict markers (e.g. --base <ref>, --staged)",
     "review": "assemble the review dossier for a diff (scope, notes, recall, rubric)",
-    "trend": "gate duration trends from .gov/history/ (p50 per window)",
+    "trend": "gate duration trends from .gov/history/ (p50 per window; --by-tag splits per caller, --cost rolls up caller-reported cost)",
     "doctor": "environment self-check (PATH, python, hooks, gates schema)",
     "note": "note scaffold and pre-commit check (new/check)",
     "whatsnew": "usage-oriented highlights since a version",

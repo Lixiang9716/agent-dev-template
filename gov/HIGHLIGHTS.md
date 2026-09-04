@@ -63,6 +63,7 @@ how to use them). `gov whatsnew [--since <version>]` prints from here.
   untagged as `(untagged)`) and compares p50 halves inside each group;
   `--base` cuts every group at the same commit date. Privacy-light by
   design — the label is only what the caller typed.
+(feat: caller-reported cost ledger in .gov/history — gov run --cost/GOV_COST, gov trend --cost (D43, #126))
 
 ## 0.19.0 — target another worktree without cd
 
