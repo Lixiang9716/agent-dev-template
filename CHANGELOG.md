@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/Lixiang9716/govrail/compare/v0.15.1...v0.16.0) (2026-09-04)
+
+
+### Features
+
+* gov init --adopt-new gates.json — additive adoption of new shipped gates (D39) ([965542f](https://github.com/Lixiang9716/govrail/commit/965542f5eb4982e90a640299788ff68c5391e9a3))
+
 ## [0.15.1](https://github.com/Lixiang9716/govrail/compare/v0.15.0...v0.15.1) (2026-09-04)
 
 
