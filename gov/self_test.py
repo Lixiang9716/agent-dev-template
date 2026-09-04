@@ -451,7 +451,8 @@ def test_run_failure_summary_and_gate_flag() -> None:
         assert result.returncode == 1
         assert "--- summary: 1 blocking failure(s) ---" in result.stdout
         assert "boom: boom" in result.stdout
-        assert "gov run --gate <id>" in result.stdout
+        # #109: the failure line itself names the per-gate rerun command.
+        assert "rerun: gov run --gate boom" in result.stdout
         single = subprocess.run(
             [sys.executable, str(HERE / "gates.py"), "--gate", "ok"],
             cwd=root, capture_output=True, text=True,
