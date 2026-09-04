@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import sys
 from importlib.resources import files
 from pathlib import Path
@@ -805,8 +806,58 @@ _COMMANDS = {
 }
 
 
+_CD_FLAGS = ("-C", "--path")
+
+
+def _resolved_target() -> str:
+    """The directory gov is acting on: the git work-tree root when inside
+    one (exactly what cd + root anchoring would resolve to), else cwd."""
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True,
+        )
+    except OSError:
+        proc = None
+    if proc is not None and proc.returncode == 0 and proc.stdout.strip():
+        return proc.stdout.strip()
+    return os.getcwd()
+
+
+def _apply_cd_flags(argv: list[str]) -> list[str] | None:
+    """Consume leading ``-C <path>`` / ``--path <path>`` flags (#121).
+
+    A supervisor orchestrating several worktrees chdirs by value instead
+    of bookkeeping: each path resolves against the previous one (git
+    ``-C`` semantics, chainable), the chdir lands before the subcommand
+    dispatches, and — because a wrong-tree invocation must be visible,
+    not just valid — the resolved root is announced in the output header
+    of every command run this way. A nonexistent path fails loud.
+    """
+    moved: list[str] = []
+    while argv and argv[0] in _CD_FLAGS:
+        if len(argv) < 2:
+            print(f"gov: {argv[0]} requires a directory path", file=sys.stderr)
+            return None
+        target = Path(argv[1])
+        if not target.is_dir():
+            print(f"gov: {argv[0]} {argv[1]}: no such directory", file=sys.stderr)
+            return None
+        os.chdir(target)
+        moved.append(argv[1])
+        argv = argv[2:]
+    if moved:
+        print(f"gov: targeting {_resolved_target()} "
+              f"(via -C {' -C '.join(moved)})", file=sys.stderr)
+    return argv
+
+
 def _usage() -> None:
-    print("usage: gov <command> [args]", file=sys.stderr)
+    print("usage: gov [-C <path>] <command> [args]", file=sys.stderr)
+    print("  -C, --path DIR   run <command> against DIR's repository "
+          "(before the command;", file=sys.stderr)
+    print("                   resolves the work-tree root and announces it)",
+          file=sys.stderr)
     print("commands:", file=sys.stderr)
     for name, help_text in _COMMANDS.items():
         print(f"  {name:<16} {help_text}", file=sys.stderr)
@@ -925,6 +976,12 @@ def _init_uninstall_args(
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv:
+        _usage()
+        return 2
+    argv = _apply_cd_flags(argv)
+    if argv is None:
+        return 2
     if not argv:
         _usage()
         return 2

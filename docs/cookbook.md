@@ -182,6 +182,20 @@ with one command; a customized gates.json can absorb newly shipped gates
 additively — local gates untouched, conflicting ids refused loudly
 (D39); `--upgrade --json` lets an agent decide programmatically.
 
+## Orchestrating several worktrees without cd
+
+```sh
+gov -C ../wt-x run --base master   # gates the wt-x tree, not this one
+gov -C ../wt-x doctor
+```
+
+`-C <path>` (or `--path`, before the command; chainable like git's)
+chdirs by value before dispatch, and the output header names the
+resolved work-tree root — a wrong-tree invocation is visible, not just
+valid. A nonexistent path fails loud (#121). Subcommands with their own
+`--path` (verify-decisions, verify-rubric) keep it: theirs names a
+file and comes after the command.
+
 ## Reading a trend mover
 
 Runs record by default (`.gov/history/`, gitignored). `gov trend`
