@@ -142,7 +142,7 @@ D 引用明示"未核对"——绝不静默跳过。
 
 ```sh
 gov decision next --base origin/master   # 合并后历史会显示的号
-gov decision add --from draft.md          # 原子追加，写前校验
+gov decision add --from draft.md --against origin/master  # --against = --base
 gov verify-decisions --base origin/master
 ```
 
@@ -154,9 +154,16 @@ worktree 合并仍是文本冲突——配置 `.gov/decisions.json`
 `{"path": ".gov/decisions", "format": "dir"}`（一决策一文件）后
 追加即新增文件：并行分支合并零冲突。
 
+陈旧的基线会被点名，而不只是被吸收（#147）：本地表缺少 ref 上已有
+的行时，`next` 与 `add` 都会警告——`your base is 2 rows behind
+'origin/master' (missing D2, D3) — rebase before numbering`——软警告，
+绝不阻断；你拿到的仍是合并后历史会显示的号。`--against` 是 `--base`
+的别名，不是第二套语义。
+
 ## 模板演进了——先看，再采纳
 
 ```sh
+gov doctor                    # 还会点名你从未采用的 shipped 门
 gov init --upgrade            # 逐文件 diff；绝不写入
 gov init --adopt all          # 只落地缺失的模板文件
 gov init --adopt-new gates.json  # 把新 shipped 门增量合入定制版
@@ -167,6 +174,12 @@ gov whatsnew                  # 自你的 init 版本以来新增了什么
 修改类文件仍归你手工合并（两步哲学）；纯新增一条命令落地；定制版
 gates.json 可增量吸收新 shipped 门——本地门原样保留，同名冲突大声
 拒绝（D39）；`--upgrade --json` 让 agent 程序化决策。
+
+不在 gates.json 里的门永远不会运行，而此前没有任何东西提示你采用
+它——`gov doctor` 会点名当前 govrail 版本已发布、而你的 gates.json
+缺少的门（#147）：模板门指向 `--adopt-new`；paths 因项目而异的工具
+（`verify-decisions`、`verify-rubric`、`verify-doc-sync`）会点名要
+手工接入 mode 的命令。这是 note 不是失败——采用是刻意的选择。
 
 ## 编排多个 worktree 而不 cd
 

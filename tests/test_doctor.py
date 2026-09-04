@@ -63,6 +63,61 @@ def test_missing_gate_command_is_a_problem(tmp_path, monkeypatch, capsys):
     assert "ok: gate 'y' command resolves" in out
 
 
+def test_unadopted_shipped_gates_are_named(tmp_path, monkeypatch, capsys):
+    """#147: a gate this govrail version ships but the project never wired
+    is invisible to every run — doctor names it (a note: adoption is
+    deliberate), with the mechanical adoption path for template gates and
+    the tool to wire for the hand ones (verify-decisions sat unadopted in
+    the issue's report, so the one check that would have named the
+    collision never ran)."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "gates.json").write_text(json.dumps(
+        {"modes": {"all": ["a"]}, "gates": [{"id": "a", "command": ["true"]}]}))
+    doctor.main([])  # exit code depends on the host (gov-on-PATH)
+    out = capsys.readouterr().out
+    assert "note: shipped gate(s) not adopted here" in out
+    assert "conflict-markers" in out  # a template gate this version ships
+    assert "gov init --adopt-new gates.json lands them" in out
+    # #147's motivating case: the hand-adoption tools are named too
+    assert "`gov verify-decisions`, decisions table guard" in out
+    assert "wire one into a mode by hand" in out
+
+
+def test_adopted_by_command_shape_counts(tmp_path, monkeypatch, capsys):
+    """A gate wired under a project-local id still counts as adopted when
+    its command runs the shipped tool (#147: identity is the tool, not
+    the id govrail's own repo happens to use)."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "gates.json").write_text(json.dumps(
+        {"modes": {"all": ["spine"]},
+         "gates": [{"id": "spine",
+                    "command": ["gov", "verify-decisions"]}]}))
+    doctor.main([])
+    out = capsys.readouterr().out
+    assert "`gov verify-decisions`" not in out  # not named as missing
+
+
+def test_all_shipped_gates_adopted_is_ok(tmp_path, monkeypatch, capsys):
+    """Every template gate id plus the hand tools (one deliberately
+    parked via enabled:false — parking is adoption, the loud mechanism)
+    and the check goes quiet-ok."""
+    monkeypatch.chdir(tmp_path)
+    gates_ = [{"id": i, "command": ["true"]} for i in
+              ("self-test", "notes", "pairing", "note-presence",
+               "conflict-markers", "archive", "task", "rubric")]
+    gates_.append({"id": "decisions",
+                   "command": ["gov", "verify-decisions"]})
+    gates_.append({"id": "doc-sync", "command": ["true"],
+                   "enabled": False})  # parked = a visible choice
+    (tmp_path / "gates.json").write_text(json.dumps(
+        {"modes": {"all": [g["id"] for g in gates_ if g.get("enabled", True)]},
+         "gates": gates_}))
+    doctor.main([])
+    out = capsys.readouterr().out
+    assert "ok: every gate this govrail version ships is wired" in out
+    assert "not adopted" not in out
+
+
 def test_json_mode_pure_stdout(tmp_path, monkeypatch, capsys):
     """#119: doctor --json — stdout is exactly one JSON object; the human
     report moves to stderr."""

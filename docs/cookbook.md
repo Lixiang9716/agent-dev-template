@@ -153,7 +153,7 @@ review-due note.
 
 ```sh
 gov decision next --base origin/master   # the number merged history will show
-gov decision add --from draft.md          # atomic append, validated before writing
+gov decision add --from draft.md --against origin/master  # --against = --base
 gov verify-decisions --base origin/master
 ```
 
@@ -167,9 +167,17 @@ merge conflict across worktrees — configure
 (one file per decision) and appends become new files: parallel branches
 merge with no conflict at all.
 
+A stale base is named, not just absorbed (#147): when the local table is
+missing rows the ref has, `next` and `add` warn —
+`your base is 2 rows behind 'origin/master' (missing D2, D3) — rebase
+before numbering` — soft, never blocking; the number you get is still
+the one merged history will show. `--against` is an alias of `--base`,
+not a second semantic.
+
 ## Templates evolved — see, then adopt
 
 ```sh
+gov doctor                    # also names shipped gates you never adopted
 gov init --upgrade            # per-file diffs; never writes
 gov init --adopt all          # lands MISSING template files only
 gov init --adopt-new gates.json  # merges NEW shipped gates into a
@@ -181,6 +189,13 @@ Modified files stay yours to merge (the two-step); pure additions land
 with one command; a customized gates.json can absorb newly shipped gates
 additively — local gates untouched, conflicting ids refused loudly
 (D39); `--upgrade --json` lets an agent decide programmatically.
+
+A gate absent from gates.json never runs, and nothing used to prompt its
+adoption — `gov doctor` names what this govrail version ships that your
+gates.json lacks (#147): template gates point at `--adopt-new`; the
+tools whose paths are project-specific (`verify-decisions`,
+`verify-rubric`, `verify-doc-sync`) name the command to wire into a
+mode by hand. A note, never a failure — adoption is deliberate.
 
 ## Orchestrating several worktrees without cd
 
