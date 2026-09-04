@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.26.0](https://github.com/Lixiang9716/govrail/compare/v0.25.0...v0.26.0) (2026-09-04)
+
+
+### Features
+
+* decision --against alias with stale-base warning; doctor names unadopted shipped gates ([#147](https://github.com/Lixiang9716/govrail/issues/147)) ([#151](https://github.com/Lixiang9716/govrail/issues/151)) ([3488119](https://github.com/Lixiang9716/govrail/commit/34881196657fc5915da1d36568debf041e6f43f4))
+* note-presence exemptions — task receipts by default, manifest note_presence_exempt ([#154](https://github.com/Lixiang9716/govrail/issues/154)) ([72c9d28](https://github.com/Lixiang9716/govrail/commit/72c9d28f5d3c29add8e650937bff8c5e119866ee))
+* pairing sidecar is self-describing — template comments, --write field echo, --explain ([#155](https://github.com/Lixiang9716/govrail/issues/155)) ([d446b2d](https://github.com/Lixiang9716/govrail/commit/d446b2db9bcbd36c995725de376d4fc66e583206)), closes [#150](https://github.com/Lixiang9716/govrail/issues/150)
+* recall misses are diagnosable — corpus statement, per-term counts, --any ([#148](https://github.com/Lixiang9716/govrail/issues/148)) ([#153](https://github.com/Lixiang9716/govrail/issues/153)) ([113b230](https://github.com/Lixiang9716/govrail/commit/113b230896089dfd4be1c612dee186fc1fc81780))
+
 ## [0.25.0](https://github.com/Lixiang9716/govrail/compare/v0.24.1...v0.25.0) (2026-09-04)
 
 
