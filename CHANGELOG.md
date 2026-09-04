@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.21.1](https://github.com/Lixiang9716/govrail/compare/v0.21.0...v0.21.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* decision add table-format draft shape — help and validator agree ([#132](https://github.com/Lixiang9716/govrail/issues/132)) ([7a69aa5](https://github.com/Lixiang9716/govrail/commit/7a69aa5717b48a204f9243d4fc3ac7984a08e9cf))
+* decision add table-format draft shape — help and validator agree ([#132](https://github.com/Lixiang9716/govrail/issues/132)) ([2d68ac4](https://github.com/Lixiang9716/govrail/commit/2d68ac432cad90288e70709c35d21bf12c0d6168))
+
 ## [0.21.0](https://github.com/Lixiang9716/govrail/compare/v0.20.0...v0.21.0) (2026-09-04)
 
 
