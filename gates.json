@@ -9,6 +9,7 @@
       "rubric",
       "archive",
       "decisions",
+      "task",
       "doc-sync"
     ],
     "quick": [
@@ -110,8 +111,20 @@
       ]
     },
     {
+      "id": "task",
+      "label": "task cards",
+      "command": [
+        "gov",
+        "task",
+        "check"
+      ],
+      "paths": [
+        ".gov/tasks/**"
+      ]
+    },
+    {
       "id": "doc-sync",
-      "label": "CHANGELOG ↔ HIGHLIGHTS pairing",
+      "label": "CHANGELOG \u2194 HIGHLIGHTS pairing",
       "command": [
         "gov",
         "verify-doc-sync"

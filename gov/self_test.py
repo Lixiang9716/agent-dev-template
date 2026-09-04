@@ -967,6 +967,69 @@ def test_passing_gate_output_stays_visible() -> None:
         assert "heads up" in result.stdout
 
 
+def test_task_check_rejects_stale_rules_pin() -> None:
+    """#125: after a governance adoption, a card pinning the OLD rule-set
+    hash must fail loud — the whole point of drift detection."""
+    with tempfile.TemporaryDirectory() as td:
+        root = _task_project(Path(td))
+        env = {**_case_env(), "PYTHONPATH": str(HERE.parent)}
+        made = subprocess.run(
+            [sys.executable, "-m", "gov", "task", "new", "Brief me"],
+            cwd=root, capture_output=True, text=True, env=env)
+        assert made.returncode == 0, made.stderr
+        # the adoption: the rule set moves under the open card
+        (root / ".gov" / "rules.md").write_text(
+            (root / ".gov" / "rules.md").read_text(encoding="utf-8")
+            + "\n## 8. New rule adopted mid-flight\n", encoding="utf-8")
+        result = subprocess.run(
+            [sys.executable, "-m", "gov", "task", "check"],
+            cwd=root, capture_output=True, text=True, env=env)
+        assert result.returncode == 1, (
+            "a card pinning a pre-adoption rules hash must fail check\n"
+            f"{result.stdout}\n{result.stderr}")
+        assert "STALE" in result.stdout, "the stale card must be named"
+        assert "T-0001" in result.stderr, "the failure names the card id"
+
+
+def test_task_check_rejects_tampered_receipt() -> None:
+    """#125: a done card whose receipt is not an all-green run against the
+    pinned rules must fail check — the receipt is evidence, not prose."""
+    with tempfile.TemporaryDirectory() as td:
+        root = _task_project(Path(td))
+        from . import task as task_mod
+        combined, _ = task_mod.rules_hash(root)
+        card_path = root / ".gov" / "tasks" / "T-0001-done.json"
+        card_path.write_text(json.dumps({
+            "id": "T-0001",
+            "title": "Done deed",
+            "rules": {"hash": combined, "files": {}},
+            "checklist": [],
+            "status": "done",
+            "receipt": {"ts": "2026-09-04T00:00:00+00:00", "mode": "quick",
+                        "rules": combined, "green": True,
+                        "gates": [{"gate": "notes", "outcome": "FAIL",
+                                   "blocking": True, "duration_ms": 1,
+                                   "detail": ""}]},
+        }), encoding="utf-8")
+        result = subprocess.run(
+            [sys.executable, "-m", "gov", "task", "check"],
+            cwd=root, capture_output=True, text=True,
+            env={**_case_env(), "PYTHONPATH": str(HERE.parent)})
+        assert result.returncode == 1, (
+            "a done card with a red receipt must fail check\n"
+            f"{result.stdout}\n{result.stderr}")
+        assert "not all-green" in result.stderr
+
+
+def _task_project(root: Path) -> Path:
+    """A minimal gov-initialized project: rule set + empty tasks dir."""
+    (root / ".gov" / "tasks").mkdir(parents=True, exist_ok=True)
+    (root / ".gov" / "rules.md").write_text("# Rules\n", encoding="utf-8")
+    (root / "gates.json").write_text(
+        json.dumps({"gates": []}), encoding="utf-8")
+    return root
+
+
 CASES = [
     test_verify_notes_rejects_missing_section,
     test_gates_rejects_duplicate_id,
@@ -1006,6 +1069,8 @@ CASES = [
     test_doc_sync_rejects_changelog_without_highlights,
     test_conflict_markers_rejects_marked_file,
     test_conflict_markers_bare_separator_needs_sibling,
+    test_task_check_rejects_stale_rules_pin,
+    test_task_check_rejects_tampered_receipt,
 ]
 
 

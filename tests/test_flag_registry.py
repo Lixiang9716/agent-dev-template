@@ -34,6 +34,8 @@ HELP_ARGV: dict[str, list[list[str]]] = {
     "note": [["note", "new", "--help"]],  # --class/--ref are `note new` flags
     "decision": [["decision", "next", "--help"],
                  ["decision", "add", "--help"]],
+    # --check/--rules live on `new`; --mode/--timeout on `close` (#125)
+    "task": [["task", "new", "--help"], ["task", "close", "--help"]],
 }
 
 

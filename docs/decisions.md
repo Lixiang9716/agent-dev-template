@@ -354,3 +354,10 @@
 - **状态**:已决
 - **决定**:`gov init --hooks --pre-commit` 额外安装**可选** pre-commit 钩子(单用 `--pre-commit` fail loud;外来 pre-commit 绝不覆盖,同 pre-push 规则;已初始化项目可事后补装),只跑暂存区上的廉价内容门:**`gov verify-pairing --staged`**(新)——仅检查 git index 触及的对(源侧、对侧、`.i18n.yaml` sidecar 任一被暂存即算触及),失步报错内联点名 `gov verify-pairing --write <pair>`;以及 `gov verify-conflict-markers --staged`(0.15.0 已有)。无对文件暂存时静默通过;完整门禁 DAG 仍归 pre-push(规则 1:push 拥有最小充分集,commit 必须快)。未加 flag 的仓库提交阶段行为零变化;doctor 视 pre-commit 为可选(缺席是选择不是问题,在场则查双副本可执行);两钩子都记入 manifest `gitHooks`,`uninstall` 精确反转;钩子模板连跑两门故不 `exec`,同样剥除 GIT_* 环境(#20/D32⑥)。拒绝证明:tools 族 self-test 用例 + `.gov/rejections/case-pre-commit-hook.sh`(`# gate: pairing`) + demo 标本用例。
 - **被否**:默认安装——issue 明确 opt-in,觉得 commit 钩子侵入的仓库留在 pre-push 模型;pre-commit 跑完整 DAG——commit 必须快,全矩阵归 push/CI;新起子命令而非 `--staged` 模式——与 conflict-markers 的既有 `--staged` 形态一致,避免第二套 CLI 词汇。
+
+## D42 — 任务卡：子代理简报用 rules@hash 钉住规则集，不再逐字复述(issue #125)
+
+- **问题**：orchestrator 给子代理的任务简报手工复述仓库治理纪律(显式路径暂存、禁 `git add -A`、门禁清单、决策行格式、双语对规则)，每份 ~15 行样板：重复、漂移(一次治理采纳后旧模板静默过时——0.15.0 新增的 conflict-markers 门、决策行工具落地，同会话前后简报已不一致)、不可验证(orchestrator 用散文断言"规则被遵守")。
+- **状态**：已决
+- **决定**：新增 `gov task` 任务卡子命令(new/check/close/list)。`gov task new "标题" --check 验收项` 写 `.gov/tasks/T-<4位>-<slug>.json`：以内容哈希钉住当前规则集(`.gov/rules.md` + `gates.json`，note 约定内嵌于 rules.md)，哈希 = 排序的 `路径:sha256` 串再 sha256，展示 12 位前缀；简报只带一行 `obey rules@<hash>`；`--rules <前缀>` 要求当前哈希匹配否则 fail loud(防 orchestrator 拿着旧 pin)。`gov task check` 重算哈希：开卡过期(STALE)即点名退出 1——作为门禁进 gates.json，paths 限定 `.gov/tasks/**`(规则 1 的最小充分集：卡片不变则门不出场)；done 卡复核回执(全 PASS 且与卡片 pin 同哈希)。`gov task close T-0001` 现场跑门禁 DAG(`gov run --json`)，全绿才写回执(ts/mode/rules/gates 结局)并置 done；红跑拒绝、卡片不动(运行已进 `.gov/history/gates.jsonl`)；对过期 pin 的卡片拒绝 close(须先按采纳后规则重新简报)。拒绝证明：tools 族两用例(采纳后 STALE 变红、回执非全绿变红)。
+- **被否**：规则集哈希纳入 note 约定的独立文件——本仓库约定就住在 rules.md 里，第二事实源必然漂移；check 进默认 all 模式但不带 paths——无卡片的项目每次全跑一个必然空转的检查，违背最小充分集；红跑也置 done 留红回执——"done 却红"说谎，卡片只在全绿时闭合，红跑证据由 history 承载；回执链接 history 行而不内嵌结局——history 本地且可裁剪，回执必须自带可复核证据(check 重验结局本身，不信任散文)。

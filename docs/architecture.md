@@ -77,6 +77,14 @@ gate, its first output line, and how to rerun it alone.
   to a mode — parking is `"enabled": false`, the one loud mechanism
   (a `DISABLED` line); `gov run --every-gate` is the explicit full
   matrix.
+- **Task cards** carry the subagent hand-off (`gov task`, #125/D42):
+  `gov task new "Title" --check "criterion"` writes `.gov/tasks/T-0001-*.json`
+  pinning the current rule set (`.gov/rules.md` + `gates.json`) by content
+  hash, so a brief carries the one-line pin `obey rules@<hash>` instead of
+  restated discipline. `gov task check` — a gate scoped to `.gov/tasks/**` —
+  names the stale cards after a governance adoption and re-verifies done
+  cards' receipts; `gov task close T-0001` runs the gate DAG and records an
+  all-green run as the card's completion receipt.
 - **The review rubric** carries the judgment criteria gates cannot check:
   [review-rubric.md](review-rubric.md) grades PRs item by item with
   evidence; each item's `Gate candidate` field says whether it graduates

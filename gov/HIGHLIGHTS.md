@@ -3,6 +3,13 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.19.0 — gov -C <path>
+
+- `gov -C <path> <command>` or `gov --path <path> <command>` targets
+  another worktree without `cd` — the chdir lands before the
+  subcommand, resolves the work-tree root, and announces it (issue
+  #121). Chainable: `gov -C ../a -C ../b recall x` lands in b.
+
 ## 0.18.0 — optional pre-commit hook
 
 - `gov init --hooks --pre-commit` installs an OPT-IN pre-commit hook
