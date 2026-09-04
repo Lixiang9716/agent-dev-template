@@ -3,6 +3,19 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.21.1 — `decision add` draft shape: help and validator agree
+
+- In a `table`-format repo, `gov decision add --help` now describes the
+  shape the validator enforces: table-row lines ONLY (first cell `Dn`
+  or `?`), not title+body; sections/dir repos keep the title+body
+  wording — the help you read is the truth for YOUR repo (issue #132).
+- The non-row refusal quotes the exact line it rejects AND shows a
+  minimal valid row modeled on the table's own header, e.g.
+  `| ? | <title> | <alternatives> |` — the first failed attempt now
+  teaches the fix instead of dead-ending an agent following the help.
+- An empty table draft fails loud ("wants row lines") instead of
+  rewriting the decisions file to append nothing.
+
 ## 0.21.0 — task cards: a brief says obey rules@<hash>
 
 - `gov task new "Title" --check "criterion"` writes
