@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.1](https://github.com/Lixiang9716/govrail/compare/v0.15.0...v0.15.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* failure-first gate output — failed evidence is never clipped, failure line names the rerun command ([#109](https://github.com/Lixiang9716/govrail/issues/109)) ([964f7fa](https://github.com/Lixiang9716/govrail/commit/964f7fa82fcff41b1f1dfd2e20608c3cf9734809))
+* failure-first gate output — failed evidence never clipped, failure line names the rerun command ([316fc9e](https://github.com/Lixiang9716/govrail/commit/316fc9e90c1dd92cd74b613f093a2553050cd252))
+
 ## [0.15.0](https://github.com/Lixiang9716/govrail/compare/v0.14.1...v0.15.0) (2026-09-04)
 
 
