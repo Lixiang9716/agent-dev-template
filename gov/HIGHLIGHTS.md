@@ -3,6 +3,12 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.15.1 — failure-first gate output
+
+- `gov run` prints failed evidence in full and never clips it, and the
+  failure line names the exact rerun command — reading a red run no
+  longer means scrolling past a wall of green (issue #109).
+
 ## 0.15.0 — conflict-marker gate
 
 - `gov verify-conflict-markers` fails naming `file:line` when a changed
