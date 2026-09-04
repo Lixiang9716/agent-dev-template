@@ -52,6 +52,73 @@ def test_recall_requires_all_terms(tmp_path, monkeypatch, capsys):
     assert "no match" in capsys.readouterr().out
 
 
+def test_miss_prints_per_term_hit_counts(tmp_path, monkeypatch, capsys):
+    """#148: a miss distinguishes 'corpus lacks the term' from 'AND failed'."""
+    monkeypatch.chdir(tmp_path)
+    _memory(tmp_path)
+    assert recall.main(["pairing", "quantum-nonsense"]) == 1
+    out = capsys.readouterr().out
+    assert "per-term hits: pairing: 2 / quantum-nonsense: 0" in out
+    assert "--any" in out  # the hint names the relaxed retry
+
+
+def test_miss_without_any_hit_skips_the_any_hint(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _memory(tmp_path)
+    assert recall.main(["quantum-nonsense", "void"]) == 1
+    out = capsys.readouterr().out
+    assert "per-term hits: quantum-nonsense: 0 / void: 0" in out
+    assert "--any" not in out
+
+
+def test_corpus_statement_on_every_invocation(tmp_path, monkeypatch, capsys):
+    """#148: what was searched is stated on stderr; stdout stays the hits."""
+    monkeypatch.chdir(tmp_path)
+    _memory(tmp_path)
+    assert recall.main(["pairing"]) == 0
+    captured = capsys.readouterr()
+    assert ("corpus — notes 2 (implemented 2, archived 0), "
+            "decisions 2 (docs/decisions.md), "
+            "postmortems 1 (docs/postmortem/)") in captured.err
+    # the ranked results still lead stdout (the skill reads the top lines)
+    assert captured.out.splitlines()[0].startswith(".agents/notes/")
+    # misses state the corpus too — via the same stderr line
+    assert recall.main(["quantum-nonsense"]) == 1
+    assert "corpus — notes 2" in capsys.readouterr().err
+
+
+def test_corpus_statement_names_a_missing_decisions_source(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    notes = tmp_path / ".agents" / "notes" / "implemented" / "architecture"
+    notes.mkdir(parents=True)
+    (notes / "2026-01-01-solo.md").write_text("# Agent Note: solo\n\n## Problem\nx\n")
+    assert recall.main(["solo"]) == 0
+    assert "decisions 0 (no source)" in capsys.readouterr().err
+
+
+def test_any_ranks_partial_matches(tmp_path, monkeypatch, capsys):
+    """#148: --any ranks entries by terms matched instead of refusing."""
+    monkeypatch.chdir(tmp_path)
+    _memory(tmp_path)
+    terms = ["pairing", "drift", "quantum-nonsense"]
+    assert recall.main(terms) == 1  # strict AND: no entry carries all three
+    capsys.readouterr()
+    assert recall.main(["--any", *terms]) == 0
+    out = capsys.readouterr().out
+    assert "matched 2/3 terms" in out  # the pairing note: title + body
+    assert "matched 1/3 terms" in out  # D2 (title) and the postmortem (body)
+    ranked = [l for l in out.splitlines() if "matched" in l and " — " in l]
+    assert "2/3" in ranked[0]
+
+
+def test_any_with_zero_matches_still_fails_loud(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _memory(tmp_path)
+    assert recall.main(["--any", "quantum-nonsense"]) == 1
+    out = capsys.readouterr().out
+    assert "no match" in out and "quantum-nonsense: 0" in out
+
+
 def test_recall_decisions_sections_are_entries(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     _memory(tmp_path)

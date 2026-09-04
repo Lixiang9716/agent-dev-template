@@ -130,6 +130,32 @@ interactive grading (`p`/`f`/`s`/`q`; `f` asks for evidence), then the
 verdict block — graded lines, blockers, `verdict: approve` or
 `request changes`. The human decides; the machine transcribes.
 
+## Recall found nothing — which term failed?
+
+`gov recall` requires every term in one entry, so a multi-term miss used
+to be a blind guess. Now the miss itself carries the diagnosis, and
+every run states the corpus it searched (on stderr, so the ranked hits
+on stdout stay first):
+
+```sh
+gov recall 效用 utility 归因
+```
+
+```
+recall: no match for '效用 utility 归因'
+  per-term hits: 效用: 0 / utility: 2 / 归因: 0
+  (strict AND — every term in one entry; retry with --any to rank partial matches)
+```
+
+`utility: 2` says the corpus knows the term — the AND with the others
+failed; `效用: 0` says the corpus genuinely lacks it. Follow the hint:
+
+```sh
+gov recall --any 效用 utility 归因    # partial matches, ranked by terms matched
+```
+
+The strict AND stays the default; an empty `--any` result still exits 1.
+
 ## Write a note
 
 ```sh
