@@ -57,6 +57,34 @@ check the translation before re-confirming, not after.
 3. Check the ledger: `gov self-test --scope project` ends with
    `source-limits(1)` — not `NONE — rule 6`.
 
+## A rebase left conflict markers in the diff
+
+Symptom: `git add` during a rebase stages a file that still carries
+`<<<<<<<` / `=======` / `>>>>>>>` blocks, and `git rebase --continue`
+commits it without a word — git cannot tell a real marker from a
+quoted one, so it stays silent. The conflict-markers gate ships in the
+template's `all` mode and reads the changed files' content:
+
+```sh
+gov verify-conflict-markers            # changed files vs the auto base
+gov verify-conflict-markers --staged   # only the index — pre-commit-light
+```
+
+Expected output when a marked file is in the diff (exit 1):
+
+```
+doc.md:3: conflict marker '<<<<<<<' — resolve the merge, or append 'gov:ignore-marker' to exempt a deliberate literal
+doc.md:5: conflict marker '======='
+doc.md:7: conflict marker '>>>>>>>'
+verify_conflict_markers: 3 marker(s) in 1 file(s) — git will not police its own conflict text; the gate does (D38)
+```
+
+Escape hatch: a deliberate literal (a test fixture quoting markers, a
+doc about merging) appends the token `gov:ignore-marker` to that line
+and passes. A bare `=======` alone — a Markdown H1 setext underline —
+is not a marker; it counts only beside a sibling marker in the same
+file (D38).
+
 ## Experiments are not runtime code
 
 `.gov/surfaces.json`:

@@ -327,3 +327,10 @@
 - **状态**：已决
 - **决定**：新增 **`gov verify-doc-sync`** 门禁：解析 CHANGELOG 的 `## [X.Y.Z]` 版本段与 HIGHLIGHTS 的 `## X.Y.Z` 段，≥0.12.0 的每个版本必须配对；CHANGELOG 有 HIGHLIGHTS 无 → "copy the version FROM CHANGELOG"；HIGHLIGHTS 有 CHANGELOG 无（提前猜测）→ "shipped before its release"。进本仓库 gates.json（paths 限定两文件）。工作流：release-please 更新 CHANGELOG → gate 红 → 在 release PR 里补 HIGHLIGHTS（版本号照抄 CHANGELOG）→ 合并出货——同双语配对的"一侧变了另一侧必须重确认"。tag 覆盖守卫测试保留（belt and suspenders：gate 在 release PR 拦截，test 在后续 push 兜底）。
 - **被否**：删 HIGHLIGHTS 读 CHANGELOG——CHANGELOG 条目是 commit 一行摘要，不是用法说明；cookbook 覆盖用法但不按版本组织，"这次更新了什么怎么用"需要按版本的段落；自动同步标题——内容仍需人写，只同步标题不解决内容缺失。
+
+## D38 — 冲突标记门：git 不肯管的 `<<<<<<<` 由门禁管（issue #104）
+
+- **问题**：rebase 中途把仍含冲突标记的文件 `git add`，`git rebase --continue` 照单全收——两个中间提交带着 `<<<<<<< HEAD / ======= / >>>>>>>` 入库。标准门禁集（notes/pairing/tests/source-limits）无一检查文件内容；docs-only diff 连测试门都不会红。git 自己拒绝管这件事：它无法区分字符串字面量里的标记与真冲突，所以只能沉默。
+- **状态**：已决
+- **决定**：新增 **`gov verify-conflict-markers`** 内容门并进模板 gates.json 的 all 模式（无 paths——标记可能落在任何文件类型）：对基线（auto 级联，同 note-presence 的 F1/D21）变更文件集读工作区内容逐行扫描；行首 `<<<<<<<`、`>>>>>>>`、`|||||||`（diff3 base）为主证据直接报错；裸 `=======` 仅同文件存在主证据时报（Markdown setext 下划线安全，#104 的"sibling marker"规则）；命中输出 `file:line` 并点名逃生门；行内含 `gov:ignore-marker` 令牌即豁免（字符串字面量的文档化逃生门）；二进制（NUL 字节）与已删除路径跳过；git 失败 exit 2。自带 tools 族拒绝用例 + `.gov/rejections/` 项目用例 + demo 标本真实用例。
+- **被否**：只扫 diff 新增行——内容级扫描对"触碰过的文件"严格更强（早前提交带入的标记也在现内容里）且实现更廉；容忍字符串字面量（按语言解析）——grep 级承诺不接受按语言分叉的解析器，逃生令牌一行解决；交给各语言 linter——语言绑定，治理平面语言无关，且 docs-only diff 无 linter 可跑；裸 `=======` 无兄弟证据也报——Markdown H1 下划线立刻假阳性，一门禁的第一次误报就是它的信誉破产。

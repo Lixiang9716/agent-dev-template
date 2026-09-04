@@ -814,6 +814,54 @@ def test_doc_sync_rejects_changelog_without_highlights() -> None:
         )
 
 
+def test_conflict_markers_rejects_marked_file() -> None:
+    """#104/D38: a staged conflicted file must fail loud, naming file:line,
+    while the escape hatch tolerates a deliberate literal."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _git_repo(root)
+        script = str(HERE / "verify_conflict_markers.py")
+        conflicted = root / "doc.md"
+        conflicted.write_text(
+            "# doc\n\n"
+            + "<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> side\n",
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [sys.executable, script], cwd=root, capture_output=True, text=True
+        )
+        assert result.returncode == 1, (
+            "a file with conflict markers must fail the gate\n"
+            f"{result.stdout}\n{result.stderr}"
+        )
+        assert "doc.md:3" in result.stdout, "the finding must name file and line"
+        assert "doc.md:5" in result.stdout and "doc.md:7" in result.stdout, (
+            "start, separator, and end markers are all named"
+        )
+        conflicted.write_text(
+            "# doc\n\n"
+            + "<<<<<<< HEAD " + "gov:ignore-marker" + "\n",
+            encoding="utf-8",
+        )
+        clean = subprocess.run(
+            [sys.executable, script], cwd=root, capture_output=True, text=True
+        )
+        assert clean.returncode == 0, (
+            "the ignore token must exempt a deliberate literal\n" + clean.stdout
+        )
+
+
+def test_conflict_markers_bare_separator_needs_sibling() -> None:
+    """#104: a bare ======= alone (a Markdown H1 underline) must pass."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _git_repo(root)
+        (root / "README.md").write_text(
+            "Title\n=======\n\nbody\n", encoding="utf-8")
+        _case("verify_conflict_markers.py", root, 0,
+              "a setext underline with no sibling marker must pass")
+
+
 def test_passing_gate_output_stays_visible() -> None:
     """A pass that printed a warning must not be silenced (P1-2)."""
     with tempfile.TemporaryDirectory() as td:
@@ -870,6 +918,8 @@ CASES = [
     test_registry_real_flags_are_not_drift,
     test_gates_rejects_unknown_keys,
     test_doc_sync_rejects_changelog_without_highlights,
+    test_conflict_markers_rejects_marked_file,
+    test_conflict_markers_bare_separator_needs_sibling,
 ]
 
 

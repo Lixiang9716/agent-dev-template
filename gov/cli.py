@@ -20,6 +20,7 @@ from typing import Any
 from . import archive_notes, audit_notes, change_scope, gates, recall, review
 from . import doctor, note, self_test, trend, whatsnew
 from . import verify_archive, verify_decisions, verify_doc_sync
+from . import verify_conflict_markers
 from . import verify_note_presence
 from . import verify_notes, verify_rubric
 from . import verify_translation_pairing
@@ -630,6 +631,7 @@ _COMMANDS = {
     "verify-archive": "verify the archived-notes seal (pinned sha256 per file)",
     "verify-decisions": "verify the decisions table (numbering, alternatives, orphans)",
     "verify-doc-sync": "CHANGELOG ↔ HIGHLIGHTS pairing (every version has a section)",
+    "verify-conflict-markers": "fail when changed files carry git conflict markers (e.g. --base <ref>, --staged)",
     "review": "assemble the review dossier for a diff (scope, notes, recall, rubric)",
     "trend": "gate duration trends from .gov/history/ (p50 per window)",
     "doctor": "environment self-check (PATH, python, hooks, gates schema)",
@@ -790,6 +792,8 @@ def main(argv: list[str] | None = None) -> int:
         return verify_decisions.main(rest)
     if cmd == "verify-doc-sync":
         return verify_doc_sync.main(rest)
+    if cmd == "verify-conflict-markers":
+        return verify_conflict_markers.main(rest)
     if cmd == "review":
         return review.main(rest)
     if cmd == "trend":

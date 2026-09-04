@@ -69,6 +69,7 @@ FLAGS: dict[str, set[str]] = {
     "verify-archive": set(),
     "verify-decisions": {"--path"},
     "verify-doc-sync": set(),
+    "verify-conflict-markers": {"--base", "--staged"},
     "review": {"--base", "--hits", "--grade"},
     "trend": {"--last", "--gate", "--base"},
     "doctor": set(),

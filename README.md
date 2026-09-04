@@ -54,6 +54,7 @@ gov verify-pairing --write en:docs/a.md zh:docs/a_CN.md  # register any naming
 gov verify-note-presence      # warn when a non-trivial diff carries no Agent Note
 gov verify-rubric             # check the review rubric's structure
 gov verify-decisions          # guard the decisions table (ids, alternatives)
+gov verify-conflict-markers   # fail when changed files carry git conflict markers
 gov review --base <ref> --grade  # dossier + interactive rubric grading
 gov trend                     # gate duration trends from --record history
 gov recall <terms>            # retrieve notes, decisions, postmortems

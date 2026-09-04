@@ -29,6 +29,14 @@ smallest sufficient set from one source of truth, the same `paths`
 `gov change-scope` reads for its suggestions. `gov run --gate <id>` reruns a
 single gate.
 
+One shipped gate inspects content rather than exit codes:
+`gov verify-conflict-markers` (issue #104/D38) reads the changed files'
+working-tree content and fails naming `file:line` when a line-initial
+git conflict marker survives — the rebase failure mode git itself
+refuses to police. Deliberate literals append the token
+`gov:ignore-marker` to the line; a bare `=======` alone (a Markdown
+setext underline) is not a marker.
+
 Each gate resolves to one of five outcomes — `PASS`, `FAIL`, `TIMEOUT`,
 `MISSING` (executable absent), `SKIP` — and `allowFailure: true` keeps a
 gate's failure advisory: the outcome line and its output are reported tagged
