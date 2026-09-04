@@ -3,6 +3,20 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.23.0 — LLM cost ledger: the run line learns `cost`
+
+- `gov run --cost tokens=1200,calls=4` (or `GOV_COST="…"`; the flag wins)
+  records caller-reported resource cost on the run's history line, next
+  to D42's `caller` — multi-agent cost attribution finally speaks one
+  language (issue #126/D45). Units are free-form tokens, values finite
+  non-negative numbers; govrail meters nothing itself, it standardizes
+  the ledger shape.
+- `gov trend --cost` rolls the window up per caller: per-unit totals and
+  an early→late split, untagged cost-bearing runs under `(untagged)`.
+  Runs that don't report behave exactly as before; a window with nothing
+  reported points at the opt-in instead of reading like a roll-up of
+  zero, and a malformed value fails loud naming the fragment.
+
 ## 0.22.0 — run receipts: "an agent verified this" becomes checkable
 
 - `gov run --receipt` writes a tamper-evident receipt of the run to
