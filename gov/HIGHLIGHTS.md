@@ -3,6 +3,21 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.15.0 — conflict-marker gate
+
+- `gov verify-conflict-markers` fails naming `file:line` when a changed
+  file still carries git conflict markers — the rebase failure mode git
+  itself refuses to police (`git add` stages them, `git rebase
+  --continue` commits them; issue #104, D38).
+- A line-initial start/end/diff3 marker (exactly seven characters) is
+  primary evidence; a bare `=======` counts only beside a sibling
+  marker, so Markdown setext underlines stay legal. The escape hatch
+  for deliberate literals: append `gov:ignore-marker` to the line.
+- The gate ships in the template's `all` mode (fresh `gov init` gets
+  it); existing installs see the drift with `gov init --upgrade` and
+  adopt or copy the gate block. `--staged` reviews just the index;
+  rejection proofs ride with `gov self-test`.
+
 ## 0.14.1 — flag registry pinned to each command's --help
 
 - `gov audit-notes` no longer reports real flags as dead commands: notes
