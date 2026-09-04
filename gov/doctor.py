@@ -10,8 +10,10 @@ fails, 0 when the environment is sound.
 Checks: CLI reachability from PATH (the hook's fast path), the Python
 interpreter against the package requirement, git hook presence and
 executability (both copies; the pre-commit hook is opt-in), gates.json
-schema (strict keys), and — when a decisions table exists — that it
-parses.
+schema (strict keys), shipped-but-unadopted gates (#147 — a gate absent
+from gates.json never runs and nothing prompts its adoption, so doctor
+names the ones this govrail version ships that the project hasn't
+wired), and — when a decisions table exists — that it parses.
 
 ``--json`` (#119): stdout carries exactly one JSON object —
 ``{version, status, checks, problems}`` where each check is
@@ -165,6 +167,83 @@ def _check_gates(checks: list[dict]) -> None:
                         "detail": f"gates.json: {e}"})
 
 
+# Gate-shaped tools this govrail version ships that are NOT in the
+# injection template: their paths/content are project-specific (D17/D28),
+# so they are wired into a mode by hand rather than via --adopt-new.
+# Discovery lives here because a gate absent from gates.json is invisible
+# to every run — radiant ran parallel branches while the one gate that
+# would have named the number collisions (verify-decisions) sat unadopted
+# and nothing ever pointed at it (#147).
+HAND_SHIPPED_GATES = {
+    "rubric": ("verify-rubric", "review rubric structure"),
+    "decisions": ("verify-decisions", "decisions table guard"),
+    "doc-sync": ("verify-doc-sync", "CHANGELOG/HIGHLIGHTS pairing"),
+}
+
+
+def _check_gate_adoption(checks: list[dict]) -> None:
+    """#147: name shipped gates the project never adopted.
+
+    A note, never a problem: adoption is deliberate (D17/D28 — the plane
+    is a floor, growth is event-driven), and a defined-but-unmoded gate
+    is already a loud config error (D24). What was missing is the naming:
+    a project whose gates.json predates a shipped gate had no prompt at
+    all. Template gates have a mechanical adoption path (``gov init
+    --adopt-new gates.json``, D39); the hand gates name the tool to wire.
+    """
+    import json
+    import os
+    if not os.path.exists("gates.json"):
+        return  # the gates.json check above already speaks for a missing config
+    from . import gates as gates_mod
+    try:
+        _, gs, _, _ = gates_mod.load_config("gates.json")
+    except gates_mod.ConfigError:
+        return  # the gates.json check already names this; nothing to scan
+    by_id = {g.id for g in gs}
+    tokens = {tok for g in gs for tok in (g.command or [])}
+
+    def adopted(gid: str, tool_tokens: tuple[str, ...]) -> bool:
+        return gid in by_id or all(t in tokens for t in tool_tokens)
+
+    tpl_missing: list[str] = []
+    hand_missing: list[str] = []
+    try:
+        from importlib.resources import files
+        tpl = json.loads(files("gov.templates").joinpath("gates.json")
+                         .read_text(encoding="utf-8"))
+        for g in tpl.get("gates", []):
+            tool = tuple(t for t in g.get("command", []) if t != "gov")
+            if not adopted(g["id"], tool):
+                tpl_missing.append(g["id"])
+    except (OSError, ValueError, KeyError, AttributeError):
+        checks.append({"name": "gate-adoption", "state": "note",
+                       "detail": "cannot read the shipped gates template — "
+                                 "adoption check skipped"})
+        return
+    for gid, (tool, what) in HAND_SHIPPED_GATES.items():
+        if not adopted(gid, (tool,)):
+            hand_missing.append(f"{gid} (`gov {tool}`, {what})")
+
+    if not tpl_missing and not hand_missing:
+        checks.append({"name": "gate-adoption", "state": "ok",
+                       "detail": "every gate this govrail version ships is "
+                                 "wired into gates.json (or deliberately "
+                                 'parked via "enabled": false)'})
+        return
+    parts: list[str] = []
+    if tpl_missing:
+        parts.append(f"shipped gate(s) not adopted here: {', '.join(tpl_missing)}"
+                     " — gov init --adopt-new gates.json lands them")
+    if hand_missing:
+        parts.append("shipped tool(s) with no gate: "
+                     + ", ".join(hand_missing)
+                     + " — wire one into a mode by hand (paths are "
+                       "project-specific, so they are not in the template)")
+    checks.append({"name": "gate-adoption", "state": "note",
+                   "detail": "; ".join(parts)})
+
+
 def _check_decisions(checks: list[dict]) -> None:
     import contextlib
     import io
@@ -210,6 +289,7 @@ def main(argv: list[str] | None = None) -> int:
     _check_version_drift(checks)
     _check_hook(checks)
     _check_gates(checks)
+    _check_gate_adoption(checks)
     _check_decisions(checks)
     problems = [c for c in checks if c["state"] == "problem"]
 

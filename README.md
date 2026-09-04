@@ -41,7 +41,7 @@ gov init --project <path>     # inject the plane into an existing project
 gov init --project <path> --upgrade  # show template drift (diffs, never writes)
 gov init --project <path> --adopt all  # land missing template files (never overwrites)
 gov init --project <path> --adopt-new gates.json  # merge new shipped gates into a customized gates.json
-gov doctor                     # environment self-check (PATH, python, hooks, schema)
+gov doctor                     # environment self-check (PATH, python, hooks, schema, unadopted gates)
 gov doctor --json             # machine-readable: {status, checks, problems}
 gov note new --class process --ref D6 "Title"  # scaffold a note, pre-validated
 gov init --project <path> --hooks --ci  # also install a pre-push hook and CI
@@ -59,8 +59,8 @@ gov verify-rubric             # check the review rubric's structure
 gov verify-decisions          # guard the decisions table (ids, alternatives)
 gov verify-decisions --base <ref>  # + parallel-branch number collisions
 gov verify-decisions --json    # machine-readable: {violations, orphans, overdue, ...}
-gov decision next --base <ref>     # next free D-number (branch-aware)
-gov decision add --from FILE       # append a decision, validated + atomic
+gov decision next --base <ref>     # next free D-number (branch-aware; warns on a stale base)
+gov decision add --from FILE       # append a decision, validated + atomic (--against = --base)
 gov verify-conflict-markers   # fail when changed files carry git conflict markers
 gov review --base <ref> --grade  # dossier + interactive rubric grading
 gov trend                     # gate duration trends from --record history

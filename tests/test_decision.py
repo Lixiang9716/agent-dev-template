@@ -74,6 +74,78 @@ def test_next_base_unions_landed_numbers(tmp_path, monkeypatch, capsys):
     assert capsys.readouterr().out.strip() == "D3"
 
 
+def test_next_against_is_an_alias_and_warns_stale_base(tmp_path, monkeypatch,
+                                                       capsys):
+    """#147: `--against <ref>` is the issue's requested surface — an alias
+    of --base, not a second semantic — and a local table missing rows the
+    ref has is a stale base: soft warning (stderr), stdout stays exactly
+    the number list an agent consumes."""
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "decisions.md").write_text(SECTIONS_TABLE)
+    _commit(tmp_path, "base")
+    (docs / "decisions.md").write_text(
+        SECTIONS_TABLE + "\n## D2 — two\n\n- **选项**: a\n- **被否**: b\n"
+        "\n## D3 — three\n\n- **选项**: a\n- **被否**: b\n")
+    _commit(tmp_path, "sibling lands D2+D3")
+    subprocess.run(["git", "checkout", "-q", "HEAD~1", "--", "docs"],
+                   cwd=tmp_path, check=True)
+    assert decision.main(["next", "--against", "master"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "D4"  # the union answers, alias or not
+    assert "your base is 2 rows behind 'master'" in captured.err
+    assert "missing D2, D3" in captured.err
+    assert "rebase before numbering" in captured.err
+
+
+def test_next_in_sync_base_is_not_warned(tmp_path, monkeypatch, capsys):
+    """#147: the stale-base warning fires only when rows are missing —
+    an up-to-date table stays silent."""
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "decisions.md").write_text(SECTIONS_TABLE)
+    _commit(tmp_path, "base")
+    assert decision.main(["next", "--base", "master"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "D2"
+    assert "behind" not in captured.err
+
+
+def test_add_against_warns_stale_base_and_still_writes(tmp_path, monkeypatch,
+                                                       capsys):
+    """#147 suggestion 2: the same awareness in `decision add` — a soft
+    warning, never a block: the union-allocated row is written, exit 0."""
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "decisions.md").write_text(SECTIONS_TABLE)
+    _commit(tmp_path, "base")
+    (docs / "decisions.md").write_text(
+        SECTIONS_TABLE + "\n## D2 — two\n\n- **选项**: a\n- **被否**: b\n")
+    _commit(tmp_path, "sibling lands D2")
+    subprocess.run(["git", "checkout", "-q", "HEAD~1", "--", "docs"],
+                   cwd=tmp_path, check=True)
+    draft = _draft(tmp_path, "mine", "- **选项**: a\n- **被否**: b")
+    assert decision.main(["add", "--from", draft, "--against", "master"]) == 0
+    captured = capsys.readouterr()
+    assert "your base is 1 row behind 'master'" in captured.err
+    assert "rebase before numbering" in captured.err
+    text = (docs / "decisions.md").read_text(encoding="utf-8")
+    assert "## D3 — mine" in text  # allocated above the ref's D2
+    # the local table still lacks the ref's D2 — the gate names the gap
+    # until the rebase (documented in `add`'s own post-write note)
+    import contextlib
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert vd.main([]) == 1
+    assert "missing: D2" in out.getvalue()
+
+
 def test_next_bad_base_fails_loud(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     docs = tmp_path / "docs"

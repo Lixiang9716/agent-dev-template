@@ -7,15 +7,20 @@ branches computing "next free D-number" from their own base collide
 silently, and appending to one markdown file is a textual merge-conflict
 factory. This command group moves both steps into tooling:
 
-- ``gov decision next [--count N] [--base REF]`` — the next free number
-  from the configured decisions source (``.gov/decisions.json``);
-  ``--base`` unions the numbers already landed on REF, so a branch cut
-  from an older base does not re-allocate a number master has taken;
-- ``gov decision add --from FILE [--id Dn] [--base REF] [--dry-run]``
-  — appends a decision atomically (temp file + os.replace, flock against
-  concurrent adds in the same checkout) with validation BEFORE writing:
-  number uniqueness, contiguity with what is already there, and the
-  alternatives section verify-decisions would otherwise flag later.
+- ``gov decision next [--count N] [--base|--against REF]`` — the next
+  free number from the configured decisions source
+  (``.gov/decisions.json``); ``--base`` (``--against`` is an alias,
+  #147) unions the numbers already landed on REF, so a branch cut from
+  an older base does not re-allocate a number master has taken, and
+  warns when the local table is missing rows the ref has — a stale
+  base numbering blind is how collisions mint in the first place;
+- ``gov decision add --from FILE [--id Dn] [--base|--against REF]
+  [--dry-run]`` — appends a decision atomically (temp file +
+  os.replace, flock against concurrent adds in the same checkout) with
+  validation BEFORE writing: number uniqueness, contiguity with what is
+  already there, and the alternatives section verify-decisions would
+  otherwise flag later. The same ref awareness applies as a soft
+  warning (#147): it never blocks the write.
 
 Formats follow the shared loader: ``sections`` (default) and ``table``
 append to the single file; ``dir`` (one file per decision, e.g.
@@ -46,25 +51,41 @@ ALT_RX = re.compile(r"被否|选项|否决|[Aa]lternatives")
 ID_RX = re.compile(r"^D(\d+)$")
 
 
-def _numbers_including_base(base: str | None) -> set[int]:
-    """Numbers in the working source, unioned with a base ref's (#107).
+def _ref_numbers(base: str | None) -> set[int]:
+    """Numbers present on an explicit ref (#107/#147); empty without one.
 
-    A branch cut before a sibling landed D39 must not re-allocate 39:
-    ``--base origin/master`` unions what landed there with what is local.
+    A bad revision fails loud with the ref's name (rule 5) — an explicit
+    ref is intent, and silently ignoring it would re-open the stale-base
+    collision this flag exists to close.
     """
-    nums: set[int] = set()
-    src = dec.load()
-    if src is not None:
-        nums.update(src.numbers())
-    if base:
-        try:
-            nums.update(dec.numbers_in_rev(base))
-        except subprocess.CalledProcessError as e:
-            print(f"decision: cannot read decisions at '{base}' — "
-                  f"{(e.stderr or '').strip() or 'unknown revision'}",
-                  file=sys.stderr)
-            raise SystemExit(2)
-    return nums
+    if not base:
+        return set()
+    try:
+        return dec.numbers_in_rev(base)
+    except subprocess.CalledProcessError as e:
+        print(f"decision: cannot read decisions at '{base}' — "
+              f"{(e.stderr or '').strip() or 'unknown revision'}",
+              file=sys.stderr)
+        raise SystemExit(2)
+
+
+def _warn_stale_base(local: set[int], ref_nums: set[int], base: str) -> None:
+    """#147: a local table missing rows the ref has is a stale base.
+
+    Soft warning, never a block — the union already answers with the
+    number merged history will show; the warning names the rebase so
+    the NEXT numbering (and the gate) doesn't start from a blind table.
+    On stderr: `next`'s stdout stays exactly the number list.
+    """
+    behind = sorted(ref_nums - local)
+    if not behind:
+        return
+    shown = ", ".join(f"D{n}" for n in behind[:5])
+    if len(behind) > 5:
+        shown += f", … (+{len(behind) - 5} more)"
+    print(f"decision: note: your base is {len(behind)} "
+          f"{'row' if len(behind) == 1 else 'rows'} behind '{base}' "
+          f"(missing {shown}) — rebase before numbering", file=sys.stderr)
 
 
 def _next_free(nums: set[int]) -> int:
@@ -73,8 +94,12 @@ def _next_free(nums: set[int]) -> int:
 
 def _next(args: argparse.Namespace) -> int:
     anchor_to_git_root("decision next")
-    nums = _numbers_including_base(args.base)
-    start = _next_free(nums)
+    src = dec.load()
+    local = set(src.numbers()) if src is not None else set()
+    ref_nums = _ref_numbers(args.base)
+    if args.base:
+        _warn_stale_base(local, ref_nums, args.base)
+    start = _next_free(local | ref_nums)
     for n in range(start, start + args.count):
         print(f"D{n}")
     return 0
@@ -208,7 +233,10 @@ def _add(args: argparse.Namespace) -> int:
     title, body = _parse_draft(draft, fmt)
 
     local = set(src.numbers())
-    nums = _numbers_including_base(args.base) if args.base else local
+    ref_nums = _ref_numbers(args.base)
+    if args.base:
+        _warn_stale_base(local, ref_nums, args.base)
+    nums = local | ref_nums
     n = _validate_id(args.id, nums, local, args.base)
 
     # The alternatives rule, checked BEFORE the write rather than by the
@@ -292,10 +320,17 @@ def main(argv: list[str] | None = None) -> int:
         "next", help="the next free D-number from the decisions source")
     p_next.add_argument("--count", type=int, default=1,
                         help="print N consecutive free numbers (default 1)")
+    # #147: --against is an alias of --base, not a second semantic — the
+    # issue's requested surface and the shipped vocabulary name one flag.
+    # Two actions share the dest (last on the command line wins; they can
+    # never disagree semantically).
     p_next.add_argument("--base", metavar="REF",
                         help="also count numbers landed on REF (e.g. "
                              "origin/master) — a branch cut before a "
-                             "sibling landed must not re-allocate")
+                             "sibling landed must not re-allocate; warns "
+                             "when the local table is behind REF")
+    p_next.add_argument("--against", metavar="REF", dest="base",
+                        help="alias of --base")
     p_next.set_defaults(func=_next)
 
     # The draft shape the help describes must be the shape the validator
@@ -315,7 +350,10 @@ def main(argv: list[str] | None = None) -> int:
     p_add.add_argument("--id", metavar="Dn",
                        help="explicit number (default: next free)")
     p_add.add_argument("--base", metavar="REF",
-                       help="allocate above REF's numbers too")
+                       help="allocate above REF's numbers too; warns when "
+                            "the local table is behind REF")
+    p_add.add_argument("--against", metavar="REF", dest="base",
+                       help="alias of --base")
     p_add.add_argument("--dry-run", action="store_true",
                        help="print what would be written; write nothing")
     p_add.set_defaults(func=_add)

@@ -70,7 +70,8 @@ FLAGS: dict[str, set[str]] = {
     "verify-rubric": {"--path"},
     "verify-archive": set(),
     "verify-decisions": {"--path", "--base", "--json"},
-    "decision": {"--count", "--base", "--from", "--id", "--dry-run"},
+    "decision": {"--count", "--base", "--against", "--from", "--id",
+                 "--dry-run"},  # --against aliases --base (#147)
     "verify-doc-sync": {"--write"},
     "verify-conflict-markers": {"--base", "--staged"},
     "review": {"--base", "--hits", "--grade"},
