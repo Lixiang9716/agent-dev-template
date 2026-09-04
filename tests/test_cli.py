@@ -352,3 +352,89 @@ def test_adopt_preview_writes_nothing(tmp_path, capsys):
     assert not target.exists()  # nothing landed
     manifest = json.loads((tmp_path / ".gov" / "manifest.json").read_text())
     assert manifest == json.loads(manifest_text_before)  # manifest untouched
+
+
+def test_adopt_new_merges_missing_shipped_gates(tmp_path, capsys):
+    """#108/D39: additive adoption — new shipped gates land by id, local
+    gates preserved, result passes schema validation."""
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    tpl = json.loads((Path(__file__).parent.parent / "gov" / "templates"
+                      / "gates.json").read_text())
+    shipped_ids = {g["id"] for g in tpl["gates"]}
+    assert "conflict-markers" in shipped_ids  # the 0.15.0 case from #108
+
+    gates_path = tmp_path / "gates.json"
+    cfg = json.loads(gates_path.read_text())
+    local_gate = {"id": "local-gate", "label": "mine",
+                  "command": ["gov", "run-local"]}
+    cfg["gates"] = [g for g in cfg["gates"] if g["id"] != "conflict-markers"]
+    cfg["gates"].append(local_gate)
+    cfg["modes"]["all"] = [m for m in cfg["modes"]["all"]
+                           if m != "conflict-markers"] + ["local-gate"]
+    gates_path.write_text(json.dumps(cfg, indent=2))
+    manifest_before = (tmp_path / ".gov" / "manifest.json").read_text()
+
+    assert cli.init(tmp_path, adopt_new="gates.json") == 0
+    out = capsys.readouterr().out
+    assert "added 1 shipped gate(s): conflict-markers" in out
+    assert "preserved untouched" in out
+    assert "schema validation" in out
+
+    merged = json.loads(gates_path.read_text())
+    ids = [g["id"] for g in merged["gates"]]
+    assert ids.count("conflict-markers") == 1
+    assert "local-gate" in ids
+    # every local gate byte-identical (same object, same serialization)
+    assert local_gate in merged["gates"]
+    for g in cfg["gates"]:
+        assert g in merged["gates"]
+    # modes extended with the newly adopted id only
+    assert "conflict-markers" in merged["modes"]["all"]
+    assert merged["modes"]["all"].count("local-gate") == 1
+    # merged result validates under the real schema loader
+    from gov import gates as gates_mod
+    gates_mod.load_config(str(gates_path))
+    # manifest untouched — the file stays customized, no false provenance
+    assert (tmp_path / ".gov" / "manifest.json").read_text() == manifest_before
+
+
+def test_adopt_new_nothing_to_add(tmp_path, capsys):
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    before = (tmp_path / "gates.json").read_text()
+    assert cli.init(tmp_path, adopt_new="gates.json") == 0
+    out = capsys.readouterr().out
+    assert "nothing to add" in out
+    assert (tmp_path / "gates.json").read_text() == before
+
+
+def test_adopt_new_refuses_non_additive_drift(tmp_path, capsys):
+    """A shared gate id whose content differs is refused loudly; the
+    local file is not touched."""
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    gates_path = tmp_path / "gates.json"
+    cfg = json.loads(gates_path.read_text())
+    for g in cfg["gates"]:
+        if g["id"] == "notes":
+            g["label"] = "my own notes label"  # local customization
+    gates_path.write_text(json.dumps(cfg, indent=2))
+    before = gates_path.read_text()
+    assert cli.init(tmp_path, adopt_new="gates.json") == 2
+    err = capsys.readouterr().err
+    assert "refused — non-additive drift" in err
+    assert "notes" in err
+    assert gates_path.read_text() == before  # nothing written
+
+
+def test_adopt_new_fail_loud_edges(tmp_path, capsys):
+    _git_repo(tmp_path)
+    assert cli.init(tmp_path) == 0
+    # unsupported target
+    assert cli.init(tmp_path, adopt_new="rules.md") == 2
+    assert "supports 'gates.json' only" in capsys.readouterr().err
+    # uninitialized project
+    (tmp_path / ".gov" / "manifest.json").unlink()
+    assert cli.init(tmp_path, adopt_new="gates.json") == 2
+    assert "needs an initialized project" in capsys.readouterr().err

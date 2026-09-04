@@ -40,6 +40,7 @@ dependencies). It has one subcommand per action:
 gov init --project <path>     # inject the plane into an existing project
 gov init --project <path> --upgrade  # show template drift (diffs, never writes)
 gov init --project <path> --adopt all  # land missing template files (never overwrites)
+gov init --project <path> --adopt-new gates.json  # merge new shipped gates into a customized gates.json
 gov doctor                     # environment self-check (PATH, python, hooks, schema)
 gov note new --class process --ref D6 "Title"  # scaffold a note, pre-validated
 gov init --project <path> --hooks --ci  # also install a pre-push hook and CI

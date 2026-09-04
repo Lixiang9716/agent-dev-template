@@ -57,7 +57,7 @@ UNIVERSAL_FLAGS = {"-h", "--help", "-v", "--version"}
 # notes documenting working runs read as dead commands).
 FLAGS: dict[str, set[str]] = {
     "init": {"--project", "--hooks", "--ci", "--upgrade", "--json",
-             "--adopt", "--preview"},
+             "--adopt", "--adopt-new", "--preview"},
     "uninstall": {"--project", "--force"},
     "run": {"--config", "--mode", "--base", "--gate", "--every-gate",
             "--no-record", "--json", "--fail-fast", "--verbose"},
