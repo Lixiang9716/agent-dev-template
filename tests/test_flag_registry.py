@@ -27,29 +27,37 @@ REPO = Path(__file__).resolve().parent.parent
 OPTION_LINE_RX = re.compile(r"^  (?:-h |--help |--[\w-]+)")
 LEADING_DASH_RX = re.compile(r"((?:-h|--[\w-]+)(?:,\s*(?:-h|--[\w-]+))*)(?=\s|$)")
 # Commands whose flags live on a subparser: probe that parser's help.
-HELP_ARGV: dict[str, list[str]] = {
-    "note": ["note", "new", "--help"],  # --class/--ref are `note new` flags
+# A command may split flags across several subcommands (decision's --count
+# lives on `next`, --from/--id on `add`) — every listed surface is probed
+# and the registry must equal the union (#107).
+HELP_ARGV: dict[str, list[list[str]]] = {
+    "note": [["note", "new", "--help"]],  # --class/--ref are `note new` flags
+    "decision": [["decision", "next", "--help"],
+                 ["decision", "add", "--help"]],
 }
 
 
 def _listed_flags(cmd: str) -> tuple[set[str], str]:
-    argv = HELP_ARGV.get(cmd, [cmd, "--help"])
-    proc = subprocess.run(
-        [sys.executable, "-m", "gov", *argv],
-        cwd=REPO, capture_output=True, text=True, timeout=60,
-    )
-    assert proc.returncode == 0, f"gov {cmd} --help failed: {proc.stderr}"
+    surfaces = HELP_ARGV.get(cmd, [[cmd, "--help"]])
     listed: set[str] = set()
-    in_options = False
-    for line in proc.stdout.splitlines():
-        if re.fullmatch(r"(options|optional arguments):", line.strip()):
-            in_options = True
-            continue
-        if in_options and OPTION_LINE_RX.match(line):
-            m = LEADING_DASH_RX.match(line[2:])
-            if m:
-                listed.update(t.strip() for t in m.group(1).split(","))
-    return listed - audit_notes.UNIVERSAL_FLAGS, proc.stdout
+    outs: list[str] = []
+    for argv in surfaces:
+        proc = subprocess.run(
+            [sys.executable, "-m", "gov", *argv],
+            cwd=REPO, capture_output=True, text=True, timeout=60,
+        )
+        assert proc.returncode == 0, f"gov {argv} --help failed: {proc.stderr}"
+        outs.append(proc.stdout)
+        in_options = False
+        for line in proc.stdout.splitlines():
+            if re.fullmatch(r"(options|optional arguments):", line.strip()):
+                in_options = True
+                continue
+            if in_options and OPTION_LINE_RX.match(line):
+                m = LEADING_DASH_RX.match(line[2:])
+                if m:
+                    listed.update(t.strip() for t in m.group(1).split(","))
+    return listed - audit_notes.UNIVERSAL_FLAGS, "\n".join(outs)
 
 
 @pytest.mark.parametrize("cmd", sorted(cli._COMMANDS))

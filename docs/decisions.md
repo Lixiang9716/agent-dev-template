@@ -341,3 +341,10 @@
 - **状态**：已决
 - **决定**：**`gov init --adopt-new gates.json`**（增量采纳，笔记 [2026-09-04-adopt-new-gates-merge.md](../.agents/notes/implemented/feature/2026-09-04-adopt-new-gates-merge.md)）：以 gate id 为身份——shipped 有而本地无的门按模板顺序追加并逐一点名；本地每个 gate 对象原样保留；已有 mode 只追加新采纳的 id（纯新增的模板 mode 可整体创建；引用合并外门的 mode 打 notice 不采纳）；`defaultMode` 保持本地并在模板不一致时提示。落地前用真实 schema 加载器（`gates.load_config`）验证合并结果——runner 会拒的合并不落地。非增量漂移（同名门内容不同 / 结构损坏 / 目标不是 gates.json）exit 2 大声拒绝、零写入，维持 D27/D34 的手工路径。manifest 刻意不动：gates.json 仍是定制文件，记录哈希等于伪造"这就是模板字节"的溯源。
 - **被否**：泛化到任意模板文件的自动合并——rules.md/README 是散文，没有可合并的条目身份，只有 gates.json 有机械 id 键（其他目标直接拒绝）；并入 `--adopt`——其契约是字节级（整文件、哈希证明），混入条目级 JSON 语义会让一个旗标承载两种证明故事；合并后记录溯源哈希——哈希将不再表示"模板字节"，破坏 D34 三向判定的前提；本地 disabled 的同名 shipped 门静默跳过或静默重启用——都不点名等于沉默改行为，按非增量漂移拒绝并由操作者裁决。
+
+## D40 — 并行分支的决策行工具：编号分配与原子追加（issue #107）
+
+- **问题**：radiant 的 M2 批次（8 个 PR、9 条决策行 D30–D38、多个并行 worktree）暴露两件事：①"下一个空闲 D 号"靠人从各自基线手算——两个平行分支各算一次必然同号，只能靠人工预分区（告诉一个 subagent"你拿 D31/D32"、另一个"你拿 D33"）避撞，无任何机械检查；②决策表是单个 markdown 文件，并行追加必生文本冲突，D31/D32 rebase 到已含 D33 的分支要手工解冲突并重排序号。工具层面无人回答"分支视角的下一号"与"合并后会是什么号"。
+- **状态**：已决
+- **决定**：① **`gov decision next [--count N] [--base REF]`**：从配置的决策源（.gov/decisions.json，共享加载器）算下一个空闲号；`--base` 并入 REF 上已落地的号——先分叉、兄弟先合并的分支不再重复分配（给出的是"合并后历史会显示的号"）。② **`gov decision add --from FILE [--id Dn] [--base REF] [--dry-run]`**：原子追加（临时文件 + os.replace，flock 防同检出并发），写前校验——重复号、跳号（破坏连续性）、缺 选项/被否 段一律拒绝并点名。③ **`dir` 格式**（.gov/decisions.json format:"dir"，一决策一文件 Dn-slug.md）：追加=新增文件，并行分支同基线各自追加结构性零冲突；加载器/verify-decisions/audit-notes/recall 统一支持。④ **`gov verify-decisions --base REF`**：分叉点两边都新增的号 = 点名冲突（合并后即重复行，拒绝并给 `decision next --base` 修复指引）；仅为预分区留的空档（号在 REF 侧存在）保持信息性。⑤ 自带 tools 族拒绝用例（--base 碰撞变红）+ 双 worktree 验收测试（同基线两 worktree 各自 add：dir 格式合并零文本冲突、同号成为点名的门禁失败，绝不静默）。
+- **被否**：文件锁跨 worktree——锁不住独立检出，跨分支分配是 --base 的职责不是锁的；自动迁移既有单文件表到 dir 格式——单向大改写，采用者按需配置即可；冲突时自动改号——改号等于替人做决策且会静默改变笔记里的 D 引用，大声点名才是正解；预分区空档算违规——预分区正是并行开发的合法工作流，合并前信息性提示足够。

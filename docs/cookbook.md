@@ -126,6 +126,24 @@ alternatives (every D records what it beat), and reports orphans
 may expire carries `review-by: 2027-01-01`; past dates print a
 review-due note.
 
+## Parallel branches both want the next D-number
+
+```sh
+gov decision next --base origin/master   # the number merged history will show
+gov decision add --from draft.md          # atomic append, validated before writing
+gov verify-decisions --base origin/master
+```
+
+Two worktrees computing "next free" from the same base both get D39;
+`--base` unions what already landed on the base branch, and the gate run
+names the collision (`D39: number collision … renumber via gov decision
+next --base`) instead of letting a duplicate row merge. Appending in the
+single-file formats is atomic (temp file + replace) but still a textual
+merge conflict across worktrees — configure
+`.gov/decisions.json` `{"path": ".gov/decisions", "format": "dir"}`
+(one file per decision) and appends become new files: parallel branches
+merge with no conflict at all.
+
 ## Templates evolved — see, then adopt
 
 ```sh
