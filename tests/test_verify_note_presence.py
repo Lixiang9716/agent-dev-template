@@ -1,3 +1,4 @@
+import json
 import subprocess
 
 from gov import verify_note_presence as vnp
@@ -167,3 +168,93 @@ def test_long_lists_collapse(tmp_path, monkeypatch, capsys):
     assert vnp.main([]) == 0
     out = capsys.readouterr().out
     assert "…and 3 more" in out
+
+
+def _manifest(root, data):
+    gov = root / ".gov"
+    gov.mkdir(exist_ok=True)
+    (gov / "manifest.json").write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_task_receipts_are_bookkeeping_by_default(tmp_path, monkeypatch, capsys):
+    """#149: closing a task writes machine-pinned receipts — not a decision."""
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    tasks = tmp_path / ".gov" / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "T-0001-x.json").write_text("{}\n")
+    assert vnp.main(["--strict"]) == 0
+    assert "changed with no note" not in capsys.readouterr().out
+
+
+def test_manifest_exemption_silences_declared_paths(tmp_path, monkeypatch, capsys):
+    """#149: the advisory fires only outside the repo-declared exemptions."""
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "gen.py").write_text("x = 1\n")
+    _manifest(tmp_path, {"note_presence_exempt": ["src/**"]})
+    _commit_all(tmp_path, "declare the exemption")  # the declaration lands first
+    (src / "gen.py").write_text("x = 2\n")          # then the exempt change
+    assert vnp.main(["--strict"]) == 0
+    out = capsys.readouterr().out
+    assert "changed with no note" not in out
+    assert "note_presence_exempt" in out  # the active exemption stays visible
+
+
+def test_manifest_without_key_keeps_default_warning(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "gen.py").write_text("x = 1\n")
+    _manifest(tmp_path, {"version": "0.0.0"})  # manifest present, no key
+    assert vnp.main(["--strict"]) == 1
+    assert "src/gen.py" in capsys.readouterr().out
+
+
+def test_exemption_glob_star_does_not_cross_slash(tmp_path, monkeypatch, capsys):
+    """Exemption globs speak the gate-paths language (D15): * stays in dir."""
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    deep = tmp_path / "src" / "sub"
+    deep.mkdir(parents=True)
+    (deep / "gen.py").write_text("x = 1\n")
+    _manifest(tmp_path, {"note_presence_exempt": ["src/*"]})
+    _commit_all(tmp_path, "declare the exemption")
+    (deep / "gen.py").write_text("x = 2\n")
+    assert vnp.main(["--strict"]) == 1
+    assert "src/sub/gen.py" in capsys.readouterr().out
+
+
+def test_corrupt_manifest_fails_loud(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    (tmp_path / "app.py").write_text("x = 1\n")
+    _manifest(tmp_path, {"version": "0.0.0"})
+    (tmp_path / ".gov" / "manifest.json").write_text("not json", encoding="utf-8")
+    assert vnp.main([]) == 2
+
+
+def test_ill_shaped_exemption_key_fails_loud(tmp_path, monkeypatch, capsys):
+    """Rule 5: a wrong-shaped note_presence_exempt is named, never ignored."""
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    (tmp_path / "app.py").write_text("x = 1\n")
+    _manifest(tmp_path, {"note_presence_exempt": "src/**"})
+    assert vnp.main([]) == 2
+    assert "note_presence_exempt" in capsys.readouterr().err
+
+
+def test_warning_tells_which_absence_it_is(tmp_path, monkeypatch, capsys):
+    """#149: the warning says 'no note anywhere', not 'none for these paths'."""
+    monkeypatch.chdir(tmp_path)
+    _git_repo(tmp_path)
+    (tmp_path / "app.py").write_text("x = 1\n")
+    assert vnp.main([]) == 0
+    assert ("no note file appears anywhere in this diff"
+            in capsys.readouterr().out)
+    _note(tmp_path)
+    assert vnp.main([]) == 0  # any note file in the diff passes the gate
+    assert "ok" in capsys.readouterr().out

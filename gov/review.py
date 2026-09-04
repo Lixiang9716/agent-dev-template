@@ -97,7 +97,12 @@ def main(argv: list[str] | None = None) -> int:
     for f in notes:
         print(f"  {f}")
     if not notes:
-        non_trivial = [f for f in files if not vnp._is_trivially_scoped(f)]
+        exempt_globs, ex_err = vnp._load_exempt_globs()
+        if ex_err is not None:
+            print(f"review: {ex_err}", file=sys.stderr)
+            return 2
+        non_trivial = [f for f in files if not vnp._is_trivially_scoped(f)
+                       and not vnp._is_exempt(f, exempt_globs)]
         if non_trivial:
             shown = ", ".join(non_trivial[:5])
             more = f" …and {len(non_trivial) - 5} more" if len(non_trivial) > 5 else ""

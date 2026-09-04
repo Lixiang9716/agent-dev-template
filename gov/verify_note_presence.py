@@ -17,24 +17,45 @@ upstream, else the last commit, else everything — so the shipped runners
 an explicit ``--base`` when you want a specific range. Unrunnable
 prerequisites (git failure, bad ref) exit 2 — fail loud, never silently
 pass.
+
+Not every behavior-bearing-looking path deserves a note (#149): task-card
+receipts under ``.gov/tasks/`` are machine-written bookkeeping (D43) and
+exempt by default, and a repo can exempt more surfaces by declaring
+``"note_presence_exempt": [glob, ...]`` in ``.gov/manifest.json`` — same
+glob language as gate ``paths`` (``**`` spans directories, ``*`` does not).
+The advisory then fires only where the repo has said a note is genuinely
+expected. A manifest that exists but cannot be parsed, or an ill-shaped
+key, exits 2 (rule 5: fail loud, name it); an absent manifest or key means
+built-in defaults only.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
 
+try:  # package context (`gov verify-note-presence`)
+    from .gates import _glob_regex
+except ImportError:  # direct script execution (self-test runs files by path)
+    from gates import _glob_regex
+
 NOTES_DIR = ".agents/notes/implemented"
 RULE = ".gov/rules.md rule 2 (every non-trivial change carries an Agent Note)"
+MANIFEST = ".gov/manifest.json"
 
 # Surfaces whose change is presumptively non-trivial. Documentation and the
 # notes themselves are excluded: docs answer to the pairing gate, and a
 # notes-only diff is the note. Root-level presentation files (README,
 # CHANGELOG) are trivial; other root .md files (DESIGN.md, ARCHITECTURE.md)
 # are treated as behavior-bearing — in doc-driven repositories they are the
-# contract (D20).
-TRIVIAL_PREFIXES = (".agents/notes/", "docs/")
+# contract (D20). Task-card receipts (.gov/tasks/**, #125/D43) are
+# machine-written, rules-hash-pinned bookkeeping — the task system's own
+# tamper-evident output, never a decision — so closing a task is exempt by
+# default (#149): a gate that always warns on routine workflows teaches
+# agents to stop reading it.
+TRIVIAL_PREFIXES = (".agents/notes/", "docs/", ".gov/tasks/")
 TRIVIAL_ROOT_STEMS = ("README", "CHANGELOG", "CHANGES", "CONTRIBUTING")
 TRIVIAL_SUFFIXES = (".i18n.yaml",)
 
@@ -46,6 +67,49 @@ def _is_trivially_scoped(path: str) -> bool:
         return path.endswith(TRIVIAL_SUFFIXES)
     stem = path[: -len(".md")] if path.endswith(".md") else path
     return stem.startswith(TRIVIAL_ROOT_STEMS)
+
+
+def _manifest_path() -> Path:
+    """The repo's manifest, from the git root so a subdirectory invocation
+    reads the same file the gate runner does; cwd fallback outside git."""
+    top = _run_git(["rev-parse", "--show-toplevel"])
+    if top.returncode == 0 and top.stdout.strip():
+        return Path(top.stdout.strip(), MANIFEST)
+    return Path(MANIFEST)
+
+
+def _load_exempt_globs() -> tuple[list[str], str | None]:
+    """``(globs, error)`` — repo-declared exemptions from ``.gov/manifest.json``.
+
+    ``"note_presence_exempt": ["docs/**", ...]`` names the paths where a
+    note is NOT expected (#149); the advisory fires only outside them.
+    Absent manifest or absent key = built-in defaults only — the manifest
+    is init's record and stays optional; its unknown keys are none of this
+    gate's business. A manifest that exists but is unreadable, or a key of
+    the wrong shape, is returned as an error for the caller to fail loud
+    on (rule 5), naming the file and the key.
+    """
+    path = _manifest_path()
+    if not path.is_file():
+        return [], None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        return [], f"cannot read {path}: {e}"
+    if not isinstance(data, dict):
+        return [], f"{path} must be a JSON object"
+    globs = data.get("note_presence_exempt")
+    if globs is None:
+        return [], None
+    if not isinstance(globs, list) or not all(isinstance(g, str) for g in globs):
+        return [], f"'note_presence_exempt' in {path} must be an array of strings"
+    if any(not g.strip() for g in globs):
+        return [], f"'note_presence_exempt' in {path} contains an empty pattern"
+    return globs, None
+
+
+def _is_exempt(path: str, globs: list[str]) -> bool:
+    return any(_glob_regex(g).match(path) for g in globs)
 
 
 def _changed_files(base: str) -> tuple[list[str], str | None]:
@@ -133,7 +197,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"verify_note_presence: base={base}"
               + (f" ({why})" if why else ""))
 
-    non_trivial = [f for f in files if not _is_trivially_scoped(f)]
+    exempt_globs, err = _load_exempt_globs()
+    if err is not None:
+        print(f"verify_note_presence: {err}", file=sys.stderr)
+        return 2
+    if exempt_globs:
+        print(f"verify_note_presence: exempt ({MANIFEST} note_presence_exempt): "
+              + ", ".join(exempt_globs))
+
+    non_trivial = [f for f in files
+                   if not _is_trivially_scoped(f)
+                   and not _is_exempt(f, exempt_globs)]
     notes = [f for f in files if f.startswith(NOTES_DIR)]
 
     if not non_trivial or notes:
@@ -146,6 +220,12 @@ def main(argv: list[str] | None = None) -> int:
               f"{len(non_trivial) - 5} more" if len(non_trivial) > 5 else "")
     print(f"verify_note_presence: {len(non_trivial)} non-trivial file(s) "
           f"({listing}) changed with no note under {NOTES_DIR}/")
+    # #149: say which absence this is. The warning means "no note anywhere
+    # in the diff" — the weaker reading ("a note exists, just not for these
+    # specific paths") cannot occur: any note file in the diff passes the
+    # gate, since per-path attribution is not checkable.
+    print("  no note file appears anywhere in this diff (not merely 'none "
+          "for these paths' — any note file in the diff passes this gate)")
     print(f"  if the change is non-trivial, add or update a note (see {RULE})")
     print("  if it is truly trivial (typo, format, local rename), ignore this warning")
     if args.strict:

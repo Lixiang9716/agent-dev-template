@@ -70,7 +70,12 @@ signatures are future work.
   `## Decision`, `## Alternatives considered` (`## Consequences` optional).
   `gov verify-note-presence` checks the observable half of rule 2 — a diff
   that touches behavior-bearing surfaces with no note change warns (naming
-  the rule); `--strict` makes it block. Its base is auto: a dirty worktree
+  the rule); `--strict` makes it block. Routine bookkeeping never warns:
+  task-card receipts (`.gov/tasks/**`) are exempt by default, and a repo can
+  exempt more surfaces by declaring `"note_presence_exempt": [globs]` in
+  `.gov/manifest.json` (gate-paths glob language), so the advisory fires
+  only where the repo has said a note is genuinely expected (#149). Its
+  base is auto: a dirty worktree
   reviews the working tree, a clean one reviews the commits ahead of
   upstream (else the last commit) — so the pre-push hook and CI, which
   always see clean trees, review the pushed work instead of an empty diff.

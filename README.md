@@ -55,6 +55,7 @@ gov run --json                 # machine-readable: [{gate, outcome, duration_ms,
 gov verify-pairing --write    # re-confirm a bilingual pair after editing one side
 gov verify-pairing --write en:docs/a.md zh:docs/a_CN.md  # register any naming
 gov verify-note-presence      # warn when a non-trivial diff carries no Agent Note
+                              #   (task receipts exempt; manifest note_presence_exempt names more)
 gov verify-rubric             # check the review rubric's structure
 gov verify-decisions          # guard the decisions table (ids, alternatives)
 gov verify-decisions --base <ref>  # + parallel-branch number collisions

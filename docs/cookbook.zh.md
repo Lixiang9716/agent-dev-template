@@ -261,6 +261,16 @@ gov verify-note-presence --staged     # 只看 index；干净即静默
 
 超五条折叠（`…and N more`）。
 
+## note-presence 对日常簿记狼来了
+
+现在不该了：任务卡回执（`.gov/tasks/**`）默认豁免（#149）。若本仓库还有别的例行面，在 `.gov/manifest.json` 里申报——advisory 只在确实期望 note 的范围外触发：
+
+```json
+{ "note_presence_exempt": ["docs/**", "tools/**"] }
+```
+
+警告触发时会自述缺的是哪一种——"diff 里完全没有 note 文件"——且每次运行都会打印生效中的豁免面。
+
 ## 环境感觉不对劲
 
 ```sh

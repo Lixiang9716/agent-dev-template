@@ -50,6 +50,10 @@ convention in `.gov/pairing.json`, or register pairs one by one with
 
 A change that touches behavior-bearing surfaces with no Agent Note draws a
 warning from `gov verify-note-presence` (naming the rule); add the note, or
-pass `--strict` once your team wants that warning to block.
+pass `--strict` once your team wants that warning to block. Routine
+bookkeeping never warns — task-card receipts (`.gov/tasks/**`) are exempt
+by default — and a repo can exempt more surfaces by declaring
+`"note_presence_exempt": ["docs/**", ...]` in `.gov/manifest.json`, so the
+advisory fires only where a note is genuinely expected.
 
 Then make a real change, record it as an Agent Note, and re-run the gates.
