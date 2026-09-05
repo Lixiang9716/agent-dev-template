@@ -3,6 +3,10 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.29.0 — (draft: copied from CHANGELOG, rewrite for usage)
+
+- task claims — lease semantics for parallel workers
+
 ## 0.28.0 — (draft: copied from CHANGELOG, rewrite for usage)
 
 - presets — python-lib and docs-bilingual bundles

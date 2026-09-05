@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.0](https://github.com/Lixiang9716/govrail/compare/v0.28.0...v0.29.0) (2026-09-05)
+
+
+### Features
+
+* task claims — lease semantics for parallel workers ([#165](https://github.com/Lixiang9716/govrail/issues/165)) ([4c60837](https://github.com/Lixiang9716/govrail/commit/4c60837e43173b7e5ec429b57eabca93eb355769))
+
 ## [0.28.0](https://github.com/Lixiang9716/govrail/compare/v0.27.0...v0.28.0) (2026-09-05)
 
 
