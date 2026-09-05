@@ -1316,6 +1316,25 @@ def test_failure_classifier_labels_tool_vs_environment() -> None:
     assert any("tool-defect" in l for l in tool_lines), tool_lines
 
 
+def test_preset_rejects_unknown_name() -> None:
+    """D53: an unknown preset name must exit 2 naming it and listing the
+    available presets — never a silent empty adoption."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        result = subprocess.run(
+            [sys.executable, "-m", "gov", "preset", "apply", "no-such-preset",
+             "--project", "."],
+            cwd=root, env=_pinned_env(), capture_output=True, text=True,
+            timeout=60,
+        )
+        assert result.returncode == 2, (
+            "an unknown preset name must fail loud (rule 5)\n"
+            f"{result.stdout}\n{result.stderr}")
+        assert "no-such-preset" in result.stderr
+        assert "agent-heavy" in result.stderr, \
+            "the available presets must be named"
+
+
 CASES = [
     test_verify_notes_rejects_missing_section,
     test_gates_rejects_duplicate_id,
@@ -1364,6 +1383,7 @@ CASES = [
     test_receipt_rejects_partial_run_as_full_evidence,
     test_run_merge_rejects_text_conflict,
     test_failure_classifier_labels_tool_vs_environment,
+    test_preset_rejects_unknown_name,
 ]
 
 

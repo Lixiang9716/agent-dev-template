@@ -87,6 +87,115 @@ class ConfigError(Exception):
     """gates.json is invalid; fix the file, not the project."""
 
 
+class DriftRefused(Exception):
+    """Non-additive drift under ``merge_gates_by_id(on_drift="refuse")``.
+
+    ``ids`` names the shared gate ids whose content differs — the caller
+    turns them into the loud refusal (rule 5), writing nothing.
+    """
+
+    def __init__(self, ids: list[str]):
+        self.ids = ids
+        super().__init__(", ".join(ids))
+
+
+def merge_gates_by_id(
+    local: dict,
+    incoming: dict,
+    *,
+    what: str,
+    on_drift: str,
+) -> tuple[dict, list[dict], list[str]]:
+    """D39's additive merge by gate id — the one gates-merge semantics.
+
+    Shared by ``gov init --adopt-new`` and ``gov preset apply``
+    (gov/presets.py): gate id is identity, so incoming gates whose id is
+    absent locally are appended in incoming order, and every local gate
+    object is preserved untouched (D8). A shared id whose content differs
+    is non-additive drift; ``on_drift`` picks the ruling:
+
+    - ``"refuse"`` (--adopt-new): the shipped template moved under a
+      customization — the whole merge is refused (``DriftRefused``), the
+      hand-merge path stays (D27/D34);
+    - ``"keep"`` (presets): the local gate IS the adopted state — it is
+      kept and the difference is named in a notice.
+
+    ``incoming``'s modes ride along: an existing local mode gains only
+    the newly added ids (D39); a new mode is created when every id it
+    names resolves inside the merged config — for --adopt-new that means
+    newly added gates only (D39's "purely additive new mode"), a preset
+    may also point at kept local gates. The caller's ``defaultMode``
+    never changes; when ``incoming`` declares one that differs, a notice
+    says so. ``what`` labels the source in the notices ("the template",
+    "preset 'agent-heavy'").
+
+    Returns ``(merged_config, added_gates, notices)``; refusing drift
+    raises ``DriftRefused``. Validating the merged result against the
+    real schema is the caller's job — never land a config the runner
+    would reject.
+    """
+    if on_drift not in ("refuse", "keep"):
+        raise ValueError(f"unknown on_drift ruling: {on_drift!r}")
+    local_gates = local["gates"]
+    local_by_id = {g["id"]: g for g in local_gates}
+    incoming_gates = incoming.get("gates") or []
+    incoming_by_id = {g["id"]: g for g in incoming_gates}
+
+    conflicting = sorted(
+        gid for gid, g in local_by_id.items()
+        if gid in incoming_by_id and g != incoming_by_id[gid]
+    )
+    if conflicting and on_drift == "refuse":
+        raise DriftRefused(conflicting)
+
+    added = [g for g in incoming_gates if g["id"] not in local_by_id]
+    added_ids = {g["id"] for g in added}
+    notices: list[str] = []
+    if on_drift == "keep":
+        for gid in incoming_by_id:
+            if gid not in local_by_id:
+                continue
+            if gid in conflicting:
+                notices.append(
+                    f"gate '{gid}' exists locally with different content — kept "
+                    "your local version (a preset never overwrites)")
+            else:
+                notices.append(f"gate '{gid}' already adopted (identical)")
+
+    merged = {k: v for k, v in local.items()}
+    merged["gates"] = local_gates + added
+    # Which ids a not-yet-existing mode may name at creation: --adopt-new
+    # creates a mode only when it is purely additive (D39); a preset's mode
+    # is a declarative membership patch and may point at kept local gates.
+    resolvable = added_ids if on_drift == "refuse" \
+        else added_ids | set(local_by_id)
+    modes_note: list[str] = []
+    local_modes = dict(merged.get("modes") or {})
+    for mode, ids in (incoming.get("modes") or {}).items():
+        if not isinstance(ids, list) or not all(isinstance(x, str) for x in ids):
+            continue  # malformed incoming mode; schema validation will judge
+        if mode in local_modes:
+            existing = list(local_modes[mode])
+            appended = [g for g in ids if g in added_ids and g not in existing]
+            local_modes[mode] = existing + appended
+        elif all(g in resolvable for g in ids):
+            local_modes[mode] = list(ids)  # new mode, fully resolvable
+            modes_note.append(f"mode '{mode}' created from {what}")
+        else:
+            modes_note.append(
+                f"mode '{mode}' NOT adopted — it references gates outside "
+                "this additive merge; add it by hand")
+    if local_modes or "modes" in local:
+        merged["modes"] = local_modes
+    notices.extend(modes_note)
+    if "defaultMode" in incoming \
+            and incoming.get("defaultMode") != merged.get("defaultMode"):
+        notices.append(
+            f"{what} defaultMode is '{incoming.get('defaultMode')}' (yours stays "
+            f"'{merged.get('defaultMode')}')")
+    return merged, added, notices
+
+
 @dataclass
 class Gate:
     id: str
