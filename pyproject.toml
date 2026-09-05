@@ -38,7 +38,9 @@ include = ["gov*"]
 
 [tool.setuptools.package-data]
 "gov" = ["HIGHLIGHTS.md"]
-"gov.templates" = ["*", "skills/*/SKILL.md"]
+"gov.templates" = ["*", "skills/*/SKILL.md",
+                   "presets/*/preset.json", "presets/*/README.md",
+                   "presets/*/skills/*/SKILL.md"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

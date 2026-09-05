@@ -10,6 +10,9 @@ GitHub Actions workflow — both recorded in the manifest and reversed by
 optional pre-commit hook: the cheap content gates (pairing sidecar
 freshness, conflict markers) on the staged files only, so pairing drift
 surfaces at ``git commit`` instead of one stage later at push (#110).
+``init --preset <name>`` applies a typed adoption bundle right after
+init (D53); the ``preset`` subcommand lists, shows, and applies the
+shipped presets.
 """
 from __future__ import annotations
 
@@ -23,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from . import archive_notes, audit_notes, change_scope, gates, locks, recall, review
-from . import doctor, note, receipt, self_test, trend, whatsnew
+from . import doctor, note, presets, receipt, self_test, trend, whatsnew
 from . import decision, task, verify_archive, verify_decisions, verify_doc_sync
 from . import verify_conflict_markers
 from . import verify_note_presence
@@ -95,7 +98,8 @@ def _install_ci(project: Path, created: list[str]) -> None:
 def init(project: Path, hooks: bool = False, ci: bool = False,
          upgrade: bool = False, adopt: list[str] | None = None,
          report_json: bool = False, preview: bool = False,
-         adopt_new: str | None = None, pre_commit: bool = False) -> int:
+         adopt_new: str | None = None, pre_commit: bool = False,
+         preset: str | None = None) -> int:
     project = project.resolve()
     if not project.is_dir():
         print(f"init: {project} is not a directory", file=sys.stderr)
@@ -108,6 +112,19 @@ def init(project: Path, hooks: bool = False, ci: bool = False,
               "(the optional commit-stage gates ride with the hook runner)",
               file=sys.stderr)
         return 2
+    if preset is not None:
+        if upgrade or adopt is not None or adopt_new is not None:
+            print("init: --preset composes with a fresh init (--hooks/--ci "
+                  "fine); it does not combine with --upgrade/--adopt/"
+                  "--adopt-new", file=sys.stderr)
+            return 2
+        # Fail loud BEFORE any mutation (rule 5): an unknown or malformed
+        # preset name must never leave a half-initialized project.
+        try:
+            presets.load(preset)
+        except presets.PresetError as e:
+            print(f"init: {e}", file=sys.stderr)
+            return 2
     manifest_path = project / ".gov" / "manifest.json"
     if adopt_new is not None and not manifest_path.exists():
         print("init: --adopt-new needs an initialized project", file=sys.stderr)
@@ -121,9 +138,16 @@ def init(project: Path, hooks: bool = False, ci: bool = False,
             return _upgrade_report(project, manifest_path, json_mode=report_json)
         if not (hooks or ci):
             print(f"init: {project} is already initialized")
+            if preset is not None:
+                # Retrofitting a preset onto an initialized project: same
+                # additive contract, same idempotence.
+                return presets.apply(project, preset)
             return 0
-        return _add_ons(project, manifest_path, hooks, ci,  # F5: retrofit path
-                        pre_commit=pre_commit)
+        rc = _add_ons(project, manifest_path, hooks, ci,  # F5: retrofit path
+                      pre_commit=pre_commit)
+        if rc == 0 and preset is not None:
+            rc = presets.apply(project, preset)
+        return rc
 
     # Pre-flight the add-ons: fail loud before mutating anything, so a
     # conflict never leaves a half-initialized project with no manifest.
@@ -225,6 +249,11 @@ def init(project: Path, hooks: bool = False, ci: bool = False,
         else:
             print("  2. no paired docs detected — leave pairing advisory, or disable it:")
             print("     set \"enabled\": false on the pairing gate in gates.json")
+
+    if preset is not None:
+        # D53: one command for "a new project of this type" — init lands
+        # the generic floor, the preset adds the typed patch on top.
+        return presets.apply(project, preset)
     return 0
 
 
@@ -384,7 +413,10 @@ def _adopt_new(project: Path, manifest_path: Path, target: str) -> int:
     customized gates.json. Gate id is identity: shipped gates whose id is
     absent locally are appended; every local gate is preserved untouched;
     shared ids whose content differs are non-additive drift — refused
-    loud (rule 5), nothing written.
+    loud (rule 5), nothing written. The merge itself is the plane's one
+    gates-merge semantics (gates.merge_gates_by_id), shared with preset
+    apply — only the drift ruling differs ("refuse" here; a preset keeps
+    the local gate).
     """
     if target != "gates.json":
         print(f"init: --adopt-new supports 'gates.json' only, not '{target}' "
@@ -417,58 +449,22 @@ def _adopt_new(project: Path, manifest_path: Path, target: str) -> int:
             return None
         return doc["gates"]
 
-    local_gates = _gates(local, "local")
-    if local_gates is None:
+    if _gates(local, "local") is None or _gates(tpl, "shipped template") is None:
         return 2
-    tpl_gates = _gates(tpl, "shipped template")
-    if tpl_gates is None:
-        return 2
-    local_by_id = {g["id"]: g for g in local_gates}
-    tpl_by_id = {g["id"]: g for g in tpl_gates}
 
-    conflicting = sorted(
-        gid for gid, g in local_by_id.items()
-        if gid in tpl_by_id and g != tpl_by_id[gid]
-    )
-    if conflicting:
+    try:
+        merged, added, modes_note = gates.merge_gates_by_id(
+            local, tpl, what="the template", on_drift="refuse")
+    except gates.DriftRefused as e:
         print("init: --adopt-new refused — non-additive drift: shipped "
-              f"gate(s) differ from your local version: {', '.join(conflicting)}"
+              f"gate(s) differ from your local version: {', '.join(e.ids)}"
               "; merge those by hand (see `gov init --upgrade` for the diff)",
               file=sys.stderr)
         return 2
-
-    added = [g for g in tpl_gates if g["id"] not in local_by_id]
     if not added:
         print("init: adopt-new gates.json — nothing to add (every shipped "
               "gate id is already present locally)")
         return 0
-
-    added_ids = {g["id"] for g in added}
-    merged = {k: v for k, v in local.items()}
-    merged["gates"] = local_gates + added
-    modes_note: list[str] = []
-    tpl_modes = tpl.get("modes") or {}
-    local_modes = dict(merged.get("modes") or {})
-    for mode, ids in tpl_modes.items():
-        if not isinstance(ids, list) or not all(isinstance(x, str) for x in ids):
-            continue  # malformed template mode; schema validation will judge
-        if mode in local_modes:
-            existing = list(local_modes[mode])
-            appended = [g for g in ids if g in added_ids and g not in existing]
-            local_modes[mode] = existing + appended
-        elif all(g in added_ids for g in ids):
-            local_modes[mode] = list(ids)  # purely additive new mode
-            modes_note.append(f"mode '{mode}' created from the template")
-        else:
-            modes_note.append(
-                f"mode '{mode}' NOT adopted — it references gates outside "
-                "this additive merge; add it by hand")
-    if local_modes or "modes" in local:
-        merged["modes"] = local_modes
-    if tpl.get("defaultMode") != merged.get("defaultMode"):
-        modes_note.append(
-            f"template defaultMode is '{tpl.get('defaultMode')}' (yours stays "
-            f"'{merged.get('defaultMode')}')")
 
     text = json.dumps(merged, indent=2) + "\n"
     # Rule 6 in spirit: validate before landing — never write a gates.json
@@ -491,7 +487,7 @@ def _adopt_new(project: Path, manifest_path: Path, target: str) -> int:
 
     print(f"init: adopt-new gates.json — added {len(added)} shipped gate(s): "
           + ", ".join(g["id"] for g in added))
-    print(f"  all {len(local_gates)} local gate(s) preserved untouched")
+    print(f"  all {len(local['gates'])} local gate(s) preserved untouched")
     for note in modes_note:
         print(f"  {note}")
     print("  merged gates.json passes schema validation; manifest untouched "
@@ -812,6 +808,9 @@ _COMMANDS = {
     "archive-notes": "seal the archived-notes manifest",
     "task": "task cards for subagent briefs (new/check/close/list; "
             "rules@hash pin + checklist + green-run receipt)",
+    "preset": "typed adoption bundles (list/show/apply): a project type's "
+              "gates, skills, and manifest hints — additive, never "
+              "overwriting (D53)",
     "acquire": "take a lease lock on a resource (cross-process, "
                "cross-duration; busy exits 3; --wait S polls, --ttl S "
                "bounds the lease)",
@@ -904,6 +903,10 @@ COMMAND_FLAGS: dict[str, tuple[tuple[str, str], ...]] = {
         ("--adopt-new FILE", "merge only the NEW shipped entries of a "
                              "customized gates.json into yours (additive by "
                              "gate id; non-additive drift is refused)"),
+        ("--preset NAME", "with init (fresh or already-initialized): apply "
+                          "the preset right after — typed gates, skills, "
+                          "and manifest hints, additive (see `gov preset "
+                          "list`; D53)"),
         ("--preview", "with --adopt: show what would land, write nothing"),
     ),
     "uninstall": (
@@ -932,11 +935,12 @@ def _command_help(cmd: str) -> None:
 def _init_uninstall_args(
     args: list[str], what: str
 ) -> tuple[Path, bool, bool, bool, bool] | None:
-    """Parse --project (+ init's --hooks/--ci/--upgrade, uninstall's --force)."""
+    """Parse --project (+ init's --hooks/--ci/--upgrade/--preset, uninstall's --force)."""
     project = "."
     hooks = ci = force = upgrade = adopt = report_json = preview = pre_commit = False
     adopt_targets: list[str] = []
     adopt_new: str | None = None
+    preset: str | None = None
     i = 0
     while i < len(args):
         a = args[i]
@@ -964,6 +968,13 @@ def _init_uninstall_args(
         elif what == "init" and a == "--preview":
             preview = True
             i += 1
+        elif what == "init" and a == "--preset":
+            if i + 1 >= len(args) or args[i + 1].startswith("--"):
+                print("gov init: --preset requires a preset name "
+                      "(see `gov preset list`)", file=sys.stderr)
+                return None
+            preset = args[i + 1]
+            i += 2
         elif what == "init" and a == "--adopt":
             adopt = True
             i += 1
@@ -986,7 +997,7 @@ def _init_uninstall_args(
             return None
     return (Path(project), hooks, ci, force, upgrade,
             (adopt_targets if adopt else None), report_json, preview,
-            adopt_new, pre_commit)
+            adopt_new, pre_commit, preset)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1023,10 +1034,13 @@ def main(argv: list[str] | None = None) -> int:
                                             report_json=parsed[6],
                                             preview=parsed[7],
                                             adopt_new=parsed[8],
-                                            pre_commit=parsed[9])
+                                            pre_commit=parsed[9],
+                                            preset=parsed[10])
     if cmd == "uninstall":
         parsed = _init_uninstall_args(rest, "uninstall")
         return 2 if parsed is None else uninstall(parsed[0], force=parsed[3])
+    if cmd == "preset":
+        return presets.main(rest)
     if cmd == "run":
         return gates.main(rest)
     if cmd == "receipt":

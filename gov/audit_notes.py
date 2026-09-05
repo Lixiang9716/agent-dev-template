@@ -57,7 +57,7 @@ UNIVERSAL_FLAGS = {"-h", "--help", "-v", "--version"}
 # notes documenting working runs read as dead commands).
 FLAGS: dict[str, set[str]] = {
     "init": {"--project", "--hooks", "--pre-commit", "--ci", "--upgrade",
-             "--json", "--adopt", "--adopt-new", "--preview"},
+             "--json", "--adopt", "--adopt-new", "--preview", "--preset"},
     "uninstall": {"--project", "--force"},
     "run": {"--config", "--mode", "--base", "--gate", "--every-gate",
             "--merge", "--tag", "--no-record", "--receipt", "--json",
@@ -84,6 +84,7 @@ FLAGS: dict[str, set[str]] = {
     "change-scope": {"--base"},
     "archive-notes": {"--rebaseline"},
     "task": {"--check", "--rules", "--mode", "--timeout"},  # across subcommands
+    "preset": {"--project"},  # on the `apply` subcommand (list/show are flagless)
     "acquire": {"--agent", "--ttl", "--wait"},
     "release": {"--agent"},
     "locks": set(),

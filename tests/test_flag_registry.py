@@ -38,6 +38,7 @@ HELP_ARGV: dict[str, list[list[str]]] = {
     "task": [["task", "new", "--help"], ["task", "close", "--help"]],
     "receipt": [["receipt", "verify", "--help"],   # --record is verify's
                 ["receipt", "show", "--help"]],    # --commit is show's
+    "preset": [["preset", "apply", "--help"]],     # --project is apply's
 }
 
 

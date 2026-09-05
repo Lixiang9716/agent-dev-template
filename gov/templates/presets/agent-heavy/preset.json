@@ -1,0 +1,19 @@
+{
+  "name": "agent-heavy",
+  "description": "Multi-agent parallel development: worker protocol skill, decisions guard, bookkeeping exemptions.",
+  "gates": [
+    {
+      "id": "verify-decisions",
+      "label": "decisions table guard (numbering, alternatives)",
+      "command": ["gov", "verify-decisions"],
+      "paths": ["docs/decisions.md"]
+    }
+  ],
+  "modes": {
+    "governance": ["verify-decisions"]
+  },
+  "skills": ["parallel-workers"],
+  "hints": {
+    "note_presence_exempt": [".gov/tasks/**"]
+  }
+}
