@@ -50,10 +50,13 @@ touched by a claim — the lease file is the only claim state, and
 (`{claimed_by, expires_at}` or null; expired reads as null, same
 freshness classification the lease layer uses), while the text listing
 appends a `[claimed by … until …]` column to otherwise unchanged lines.
-`gov task close` best-effort clears the card's own lease through the
-holder-verified delete primitive — only a lease naming the current
-caller ($GOV_CALLER, then the OS user) is deleted, never another
-worker's. `gov acquire` and `gov release` now announce the resolved lock
+`gov task close` clears the card's own lease unconditionally — a
+successful close means the work is finished, so any claim lease naming
+any holder is moot; holder-verified cleanup (matching the closer's
+$GOV_CALLER/OS user against the claimer's --agent) was tried first and
+starved the next claimer for the winner's full TTL in the claim-race
+drill — the closer's identity never matched the claimer's --agent.
+`gov acquire` and `gov release` now announce the resolved lock
 root (`acquire: lock root <abs path>`) on stderr, on success and busy
 alike — the misdomain acquire is visible at the moment it happens. The
 parallel-workers skill (both the live file and its byte-identical

@@ -387,22 +387,6 @@ def test_close_clears_own_card_lease(tmp_path, monkeypatch, capsys):
     assert card["status"] == "done"
 
 
-def test_close_keeps_another_holders_lease(tmp_path, monkeypatch):
-    """The cleanup never releases another worker's lease on their behalf."""
-    proj = _git_project(tmp_path)
-    (proj / "gates.json").write_text(json.dumps({
-        "modes": {"all": ["noop"]},
-        "gates": [{"id": "noop", "command": ["true"]}],
-    }), encoding="utf-8")
-    monkeypatch.chdir(proj)
-    monkeypatch.setenv("GOV_CALLER", "w1")
-    assert task.main(["new", "Not mine"]) == 0
-    assert task.main(["claim", "T-0001", "--ttl", "600"]) == 0
-    monkeypatch.setenv("GOV_CALLER", "someone-else")
-    assert task.main(["close", "T-0001", "--timeout", "60"]) == 0
-    assert _task_lease(proj).exists()          # w1's lease is untouched
-
-
 def test_list_outside_git_repo_claims_null(tmp_path, monkeypatch, capsys):
     """list is a display surface: without a git domain there is no claim
     state — null, never a crash (the lease-mutating commands refuse loud)."""

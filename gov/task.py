@@ -318,22 +318,29 @@ def _claim_of(cid: str, common: Path | None) -> dict | None:
 def _clear_task_lease(cid: str) -> None:
     """Best-effort: a closed card's own task lease is moot — clear it.
 
-    Through locks' holder-verified delete primitive: only a lease whose
-    recorded holder equals the current caller identity ($GOV_CALLER, then
-    the OS user) is deleted — never another worker's lease on their
-    behalf. Silent when there is nothing of ours to clear; this is
-    incidental cleanup piggybacking on close's receipt write, not a
-    command of its own.
+    Unconditional on purpose, unlike release's holder-verified delete: a
+    successful close means the work is finished, so ANY claim lease on the
+    card — whoever it names — is dead weight. Left in place, it starves
+    the next claimer for the winner's full TTL (drill-measured: a worker
+    waited 30 minutes past another's close because the lease named an
+    agent id the closer's identity check couldn't match). The holder-
+    verified principle still governs release, where a live lease protects
+    in-flight work; after close there is no in-flight work left to
+    protect. Silent when there is nothing to clear; this is incidental
+    cleanup piggybacking on close's receipt write, not a command of its
+    own.
     """
     common = _common_dir_quiet()
     if common is None:
         return
-    holder = locks._holder_id(None)
     resource = f"task/{cid}"
-    data = locks._read_lease(locks._lease_path(common, resource))
-    if data is None or data.get("holder") != holder:
+    lease = locks._lease_path(common, resource)
+    if locks._read_lease(lease) is None:
         return
-    locks.release(resource, holder)
+    try:
+        lease.unlink()
+    except FileNotFoundError:
+        pass
 
 
 def cmd_claim(args: argparse.Namespace) -> int:
