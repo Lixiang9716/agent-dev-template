@@ -97,4 +97,4 @@ gov locks                      # 列出当前租约（纯诊断）
 
 ## Star 历史
 
-![Star History](https://raw.githubusercontent.com/Lixiang9716/govrail/stats/stars.svg)
+![Star History Chart](https://api.star-history.com/svg?repos=Lixiang9716/govrail&type=Date)
