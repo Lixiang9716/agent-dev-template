@@ -320,6 +320,99 @@ def test_merge_appends_only_newly_adopted_ids_into_existing_mode():
     assert merged["modes"]["all"].count("x") == 1
 
 
+def test_merge_converge_gains_declared_ids_from_local_gates_too():
+    """The converge ruling (presets only): a declared id resolves from
+    the local gates as well as this round's additions; a declared id no
+    gate carries is skipped and NAMED (rule 5); --adopt-new refuses the
+    combo loudly — its membership stays added-only (D39)."""
+    from gov import gates as gates_mod
+    local = {"gates": [{"id": "x", "command": ["true"]},
+                       {"id": "z", "command": ["true"]}],
+             "modes": {"all": ["x"]}}
+    incoming = {"gates": [{"id": "y", "command": ["true"]}],
+                "modes": {"all": ["y", "z", "ghost"]}}
+    merged, added, notices = gates_mod.merge_gates_by_id(
+        local, incoming, what="preset 'probe'", on_drift="keep",
+        mode_membership="converge")
+    assert [g["id"] for g in added] == ["y"]
+    assert merged["modes"]["all"] == ["x", "y", "z"]  # local order first
+    assert any("ghost" in n and "skipped" in n for n in notices)
+    with pytest.raises(ValueError):
+        gates_mod.merge_gates_by_id(
+            local, incoming, what="adopt-new", on_drift="refuse",
+            mode_membership="converge")
+
+
+def test_apply_converges_mode_membership_for_already_adopted_gates(
+        tmp_path, capsys):
+    """The verification drill's defect: gates already adopted (wired by
+    hand) but membership never landed — the old apply reported "already
+    adopted" and left the project D24-unreachable (the next `gov run`
+    died on a config error). Apply converges: membership is written even
+    when no gate is added this round; a converged re-apply writes
+    nothing."""
+    from gov import gates as gates_mod
+    _init(tmp_path)
+    gates_path = tmp_path / "gates.json"
+    cfg = json.loads(gates_path.read_text())
+    my_gate = {"id": "my-own-first", "label": "mine", "command": ["true"]}
+    cfg["gates"].insert(1, my_gate)
+    cfg["gates"] += [{"id": "pytest", "label": "hand-wired",
+                      "command": ["python", "-m", "pytest", "-q"]},
+                     {"id": "build", "label": "hand-wired",
+                      "command": ["python", "-m", "build"]}]
+    cfg["modes"]["all"] = ["self-test", "my-own-first", "notes", "pairing",
+                           "note-presence", "conflict-markers", "archive",
+                           "task"]
+    gates_path.write_text(json.dumps(cfg, indent=2))
+    with pytest.raises(gates_mod.ConfigError):
+        gates_mod.load_config(str(gates_path))  # the drill's D24 state
+
+    assert cli.main(["preset", "apply", PYTHON_LIB,
+                     "--project", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "nothing to add" in out                      # gates were present
+    assert "mode 'all' += pytest, build" in out
+    merged = json.loads(gates_path.read_text())
+    assert merged["modes"]["all"] == cfg["modes"]["all"] + ["pytest", "build"]
+    assert merged["modes"]["quick"] == ["notes", "pytest"]
+    by_id = {g["id"]: g for g in merged["gates"]}
+    assert by_id["pytest"]["label"] == "hand-wired"     # local object kept
+    assert by_id["my-own-first"] == my_gate
+    gates_mod.load_config(str(gates_path))              # reachable again
+
+    before = gates_path.read_bytes()
+    assert cli.main(["preset", "apply", PYTHON_LIB,
+                     "--project", str(tmp_path)]) == 0
+    assert "already adopted — nothing written" in capsys.readouterr().out
+    assert gates_path.read_bytes() == before
+
+
+def test_apply_skips_mode_ids_missing_from_the_project(tmp_path, capsys):
+    """A preset mode id that no gate in the project carries (an adopter
+    deleted the template gate) is skipped and named — never silently
+    written into an invalid config."""
+    from gov import gates as gates_mod
+    _init(tmp_path)
+    gates_path = tmp_path / "gates.json"
+    cfg = json.loads(gates_path.read_text())
+    cfg["gates"] = [g for g in cfg["gates"] if g["id"] != "self-test"]
+    cfg["modes"]["all"] = [m for m in cfg["modes"]["all"] if m != "self-test"]
+    cfg["modes"]["governance"] = []
+    gates_path.write_text(json.dumps(cfg, indent=2))
+    capsys.readouterr()
+
+    root = tmp_path / "bundles"
+    _write_bundle(root, {"name": "probe", "description": "d",
+                         "modes": {"all": ["self-test"]}})
+    assert presets.apply(tmp_path, "probe", root=root) == 0
+    out = capsys.readouterr().out
+    assert "self-test" in out and "skipped" in out
+    merged = json.loads(gates_path.read_text())
+    assert "self-test" not in merged["modes"]["all"]
+    gates_mod.load_config(str(gates_path))  # the skip kept the config valid
+
+
 def test_apply_never_overwrites_a_local_same_id_gate(tmp_path, capsys):
     """D8/D39: the local gate IS the adopted state — kept and named."""
     _init(tmp_path)

@@ -29,20 +29,31 @@ joining `all`; `gov/templates/presets/docs-bilingual/` lands the
 hints — and each carries a README stating who it is for, what lands,
 and the premise (python-lib: the environment needs `pytest` and
 `build`; docs-bilingual: the repository really carries the two files,
-and `verify-doc-sync` reads the HIGHLIGHTS file at `gov/HIGHLIGHTS.md`,
-this plane's own layout — a red gate from a missing file is correct
-fail-loud, rule 5). Declaring `all`/`quick` exercised the D39
-append-into-existing-mode path for the first time from a preset; the
-machine already implemented it (agent-heavy appended into the
-template's `governance` mode), and tests now pin it both ways —
-template membership preserved verbatim, only newly adopted ids
-appended, never duplicated. Tests: schema walks for both bundles,
-list/show surfaces, package-data reachability for skill-less preset
-dirs, the mode-append pins, and two scratch acceptances (python-lib:
-plain init → apply → `gov run --every-gate` green with pytest and
-`python -m build` actually executing, skipped loudly where the `build`
-package is absent — now in the `dev` extra so CI runs it; docs-bilingual:
-paired green, then an unpaired CHANGELOG version proven red).
+`verify-doc-sync` reads the HIGHLIGHTS file at `gov/HIGHLIGHTS.md`,
+this plane's own layout, and HIGHLIGHTS headings must read
+`## <version> <description>` — a bare `## 1.0.0` is not a section to
+D37's parser; a red gate from a missing file is correct fail-loud,
+rule 5). A preset's mode declaration is a membership patch on the same
+shared merge: `gates.merge_gates_by_id` grew an explicit
+`mode_membership` ruling — `--adopt-new` keeps D39's added-only
+behavior unchanged; presets converge, i.e. an existing local mode
+gains every declared id that resolves in the project's gates, whether
+adopted this round or already local, with local membership and its
+order untouched, and an id no gate carries is skipped and named. The
+verification drill found why convergence is not a nicety: a project
+whose gates were already adopted (hand-wired) but whose mode
+membership never landed got a silent "already adopted" and stayed
+D24-unreachable (the next `gov run` died on a config error) — apply
+now lands the membership even when no gate is added in the round, and
+a fully converged re-apply writes nothing. Tests pin all of it:
+schema walks for both bundles, list/show surfaces, package-data
+reachability for skill-less preset dirs, the membership-convergence
+pins (drill repro included, plus the ghost-id skip), and two scratch
+acceptances (python-lib: plain init → apply → `gov run --every-gate`
+green with pytest and `python -m build` actually executing, skipped
+loudly where the `build` package is absent — now in the `dev` extra
+so CI runs it; docs-bilingual: paired green, then an unpaired
+CHANGELOG version proven red).
 
 ## Alternatives considered
 

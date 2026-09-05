@@ -105,6 +105,7 @@ def merge_gates_by_id(
     *,
     what: str,
     on_drift: str,
+    mode_membership: str = "added-only",
 ) -> tuple[dict, list[dict], list[str]]:
     """D39's additive merge by gate id — the one gates-merge semantics.
 
@@ -120,14 +121,27 @@ def merge_gates_by_id(
     - ``"keep"`` (presets): the local gate IS the adopted state — it is
       kept and the difference is named in a notice.
 
-    ``incoming``'s modes ride along: an existing local mode gains only
-    the newly added ids (D39); a new mode is created when every id it
-    names resolves inside the merged config — for --adopt-new that means
-    newly added gates only (D39's "purely additive new mode"), a preset
-    may also point at kept local gates. The caller's ``defaultMode``
-    never changes; when ``incoming`` declares one that differs, a notice
-    says so. ``what`` labels the source in the notices ("the template",
-    "preset 'agent-heavy'").
+    ``incoming``'s modes ride along; ``mode_membership`` picks how an
+    EXISTING local mode absorbs them (a NEW mode is created when every
+    id it names resolves inside the merged config — for --adopt-new that
+    means newly added gates only (D39's "purely additive new mode"), a
+    preset may also point at kept local gates):
+
+    - ``"added-only"`` (default, --adopt-new): an existing local mode
+      gains only the ids this merge newly added (D39) — a gate the local
+      side already had stays wherever local membership put it;
+    - ``"converge"`` (presets): a preset's mode declaration is a
+      membership patch — an existing local mode gains every declared id
+      that resolves in the merged gates and is not already a member,
+      whether it was adopted this round or already present, so a second
+      apply converges a project whose membership drifted (or never
+      landed) even when every gate is already adopted. Local membership
+      and its order are never touched; a declared id that resolves to no
+      gate in this project is skipped and NAMED in a notice (rule 5).
+
+    The caller's ``defaultMode`` never changes; when ``incoming``
+    declares one that differs, a notice says so. ``what`` labels the
+    source in the notices ("the template", "preset 'agent-heavy'").
 
     Returns ``(merged_config, added_gates, notices)``; refusing drift
     raises ``DriftRefused``. Validating the merged result against the
@@ -136,6 +150,12 @@ def merge_gates_by_id(
     """
     if on_drift not in ("refuse", "keep"):
         raise ValueError(f"unknown on_drift ruling: {on_drift!r}")
+    if mode_membership not in ("added-only", "converge"):
+        raise ValueError(f"unknown mode_membership ruling: {mode_membership!r}")
+    if on_drift == "refuse" and mode_membership == "converge":
+        raise ValueError(
+            "mode_membership='converge' is a preset ruling — --adopt-new "
+            "never rewrites existing local mode membership (D39)")
     local_gates = local["gates"]
     local_by_id = {g["id"]: g for g in local_gates}
     incoming_gates = incoming.get("gates") or []
@@ -176,8 +196,25 @@ def merge_gates_by_id(
             continue  # malformed incoming mode; schema validation will judge
         if mode in local_modes:
             existing = list(local_modes[mode])
-            appended = [g for g in ids if g in added_ids and g not in existing]
+            if mode_membership == "added-only":
+                appended = [g for g in ids if g in added_ids and g not in existing]
+                ghosts: list[str] = []
+            else:  # converge: the declaration is a membership patch
+                appended = []
+                ghosts = []
+                for g in ids:
+                    if g in existing:
+                        continue  # already a member — nothing to converge
+                    (appended if g in resolvable else ghosts).append(g)
             local_modes[mode] = existing + appended
+            if appended:
+                modes_note.append(
+                    f"mode '{mode}' += {', '.join(appended)} (from {what})")
+            if ghosts:
+                modes_note.append(
+                    f"mode '{mode}': skipped gate id(s) that no gate in this "
+                    f"project carries: {', '.join(ghosts)} — add the gate or "
+                    "the id by hand")
         elif all(g in resolvable for g in ids):
             local_modes[mode] = list(ids)  # new mode, fully resolvable
             modes_note.append(f"mode '{mode}' created from {what}")

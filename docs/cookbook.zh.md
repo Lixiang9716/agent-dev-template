@@ -29,7 +29,7 @@ gov preset list                 # 本包发布了哪些类型
 gov preset show <name>          # 只读：每个门、mode、技能、提示
 ```
 
-今天随包三个（D53）：`agent-heavy`——多 agent 并行开发（decisions 守卫、worker 协议技能、簿记豁免）；`python-lib`——Python 包仓库的 pytest 与 build 门，接入 `all` 与 `quick`；`docs-bilingual`——CHANGELOG/HIGHLIGHTS 同步守卫，面向真有这两个文件的仓（缺文件门红是正确的 fail-loud）。
+今天随包三个（D53）：`agent-heavy`——多 agent 并行开发（decisions 守卫、worker 协议技能、簿记豁免）；`python-lib`——Python 包仓库的 pytest 与 build 门，接入 `all` 与 `quick`；`docs-bilingual`——CHANGELOG/HIGHLIGHTS 同步守卫，面向真有这两个文件的仓（缺文件门红是正确的 fail-loud；HIGHLIGHTS 段落标题必须是 `## <版本> <描述>`——裸 `## 1.0.0` 不被识别为段落）。
 
 然后一条命令带着 preset 起步：
 

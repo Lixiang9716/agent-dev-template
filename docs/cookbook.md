@@ -37,7 +37,9 @@ development (decisions guard, worker-protocol skill, bookkeeping
 exemption); `python-lib` — pytest and build gates for Python package
 repos, wired into `all` and `quick`; `docs-bilingual` — the
 CHANGELOG/HIGHLIGHTS sync guard, for repos that really carry those
-files (a red gate naming a missing one is correct fail-loud).
+files (a red gate naming a missing one is correct fail-loud; HIGHLIGHTS
+headings must read `## <version> <description>` — a bare `## 1.0.0` is
+not recognized as a section).
 
 Then start the project with the preset in one command:
 

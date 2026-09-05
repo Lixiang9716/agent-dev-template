@@ -11,6 +11,12 @@ customizations:
 - gates merge additively by id (D39's semantics, the same machine as
   ``init --adopt-new``; a same-id local gate is kept — it is the adopted
   state, and a difference is named);
+- mode declarations converge: created when absent, an existing mode
+  gains every declared id it lacks — adopted this round or already
+  local — with local membership and its order untouched, so apply lands
+  the project on the declared state even when the gates arrived in an
+  earlier round; an id no gate in the project carries is skipped and
+  named;
 - skills copy byte-for-byte, create-if-missing (D29's contract; an
   existing skill is skipped and named);
 - hints write only manifest keys that are absent (D49's contract: the
@@ -25,8 +31,10 @@ The bundle schema is strict (rule 5): unknown keys, bad types, a gate
 object that fails the real gates.json schema, or a mode naming a gate
 outside the bundle's gates plus the shipped template exit 2 naming the
 preset and the key. Presets are declarative data, not code: they define
-WHAT lands; the adoption machinery defines HOW — no new merge semantics
-were introduced.
+WHAT lands; the adoption machinery defines HOW — the one gates-merge
+machine (``gates.merge_gates_by_id``) with two documented mode rulings
+(D39's added-only for ``--adopt-new``, membership-converging for
+presets).
 """
 from __future__ import annotations
 
@@ -231,7 +239,8 @@ def show(name: str, root: Path | None = None) -> int:
         if g.get("paths"):
             print(f"    paths: {', '.join(g['paths'])}")
     for mode, ids in (bundle.get("modes") or {}).items():
-        print(f"  mode '{mode}' += {', '.join(ids)} (created when absent)")
+        print(f"  mode '{mode}' += {', '.join(ids)} (created when absent; "
+              "an existing mode gains the ids it lacks, order preserved)")
     for skill in bundle.get("skills", []):
         print(f"  skill {SKILL_DEST}/{skill}/{SKILL_FILE} "
               "(copied byte-for-byte when missing, D29)")
@@ -308,8 +317,13 @@ def apply(project: Path, name: str, root: Path | None = None) -> int:
         {"gates": bundle.get("gates", []), "modes": bundle.get("modes", {})},
         what=f"preset '{name}'",
         on_drift="keep",
+        mode_membership="converge",
     )
-    if added:
+    # Convergence: membership may move even when every gate is already
+    # adopted (a drifted or hand-wired project must land on the declared
+    # state; a fully converged one reports zero writes below).
+    modes_changed = merged.get("modes") != local_doc.get("modes")
+    if added or modes_changed:
         text = json.dumps(merged, indent=2) + "\n"
         # Validate before landing — never write a gates.json the runner
         # itself would reject (rule 6 in spirit, D39's own order).
@@ -328,8 +342,11 @@ def apply(project: Path, name: str, root: Path | None = None) -> int:
                 os.unlink(tmp)
         gates_path.write_text(text, encoding="utf-8")
         wrote = True
-        print(f"  gates: added {len(added)} (in preset order): "
-              + ", ".join(g["id"] for g in added))
+        if added:
+            print(f"  gates: added {len(added)} (in preset order): "
+                  + ", ".join(g["id"] for g in added))
+        else:
+            print("  gates: nothing to add")
     else:
         print("  gates: nothing to add")
     for notice in notices:

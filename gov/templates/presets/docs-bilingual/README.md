@@ -8,7 +8,11 @@ CHANGELOG — never guessed (D37). Applying lands one gate,
 `HIGHLIGHTS.md`, registered in the `all` mode. Premise, stated plainly:
 the repository must really carry the two files — `CHANGELOG.md` at the
 root and the HIGHLIGHTS file where `verify-doc-sync` reads it
-(`gov/HIGHLIGHTS.md`, the layout this plane's own repository uses). A
+(`gov/HIGHLIGHTS.md`, the layout this plane's own repository uses) — and
+the HIGHLIGHTS section headings must read `## <version> <description>`:
+the version followed by a space and text (D37's parser recognizes
+exactly that shape; a bare `## 1.0.0` heading is not a section, and the
+gate reports the version as missing). A
 repository without them sees a red gate naming the missing file: that is
 correct fail-loud (rule 5), the premise of the type — move the file or
 drop the preset, never silence the gate.
