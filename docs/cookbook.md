@@ -329,6 +329,34 @@ can overlap two writers (double-hold). That is exactly why the lock is
 not the correctness layer: what lands is still judged by your gates and
 review, and master's correctness is anchored in the push CAS.
 
+## Two workers take the same task card
+
+**Symptom**: two parallel workers both read card T-0001 as open and both
+start the work — duplicated effort the card format alone cannot stop
+(the card is a rules pin + receipt, D43; claim bookkeeping must not go
+inside it).
+
+**Command**: claim the card before starting:
+
+```sh
+gov task claim T-0001 --agent w1 --ttl 20m   # exit 0 = the card is yours
+gov task claim T-0001 --agent w2             # exit 3, names the holder
+gov task list                                # [claimed by w1 until …]
+gov task release T-0001 --agent w1           # done working: let it go
+```
+
+**Expected output**: the winner's stderr says
+`task: T-0001 claimed by 'w1' until 2026-09-05T…`; the loser gets
+`acquire: REFUSED — 'task/T-0001' is held by 'w1' until …` and exit 3 —
+the wait-or-move-on moment (`--wait 20m` polls at 1s; size the wait at
+least the holder's remaining TTL, or it can only end in exit 3 at its
+own deadline — see the parallel-workers skill's TTL section). An expired
+lease is taken over by the next claim; claiming a closed card is exit 2,
+not busy — waiting cannot reopen one. The claim lives only in the lease
+file under the git common dir: `gov task list --json` surfaces it as
+`claim` (expired reads as null), the card JSON never changes, and
+`gov task close` clears the holder's own lease when the card lands.
+
 ## Templates evolved — see, then adopt
 
 ```sh

@@ -84,9 +84,15 @@ gov audit-notes --json         # machine-readable: {findings: [{file, signal}], 
 gov change-scope --base <ref> # smallest sufficient set (.gov/surfaces.json maps paths)
 gov task new "Title" --check "criterion"  # task card: one-line rules@<hash> pin for a subagent brief
 gov task check                 # after a rules adoption: name the stale cards
+gov task claim T-0001 --agent w1 --ttl 20m  # lease an open card for one worker
+                                            # (two workers cannot take one; busy → exit 3)
+gov task release T-0001 --agent w1          # release the card lease you hold
 gov task close T-0001          # run the gates; the green run becomes the completion receipt
+gov task list --json           # cards as [{id, title, status, rules, claim}] — claim read
+                               #  from the lease file; expired reads as unclaimed
 gov acquire reports/summary.md --agent w1  # lease a shared resource (busy → exit 3;
-                                           #  --wait S polls, --ttl S bounds the lease)
+                                           #  --wait S polls, --ttl S bounds the lease;
+                                           #  both outcomes announce the lock root)
 gov release reports/summary.md --agent w1  # release a lease you hold (never on another
                                            #  holder's behalf)
 gov locks                      # list current leases (diagnostic only)

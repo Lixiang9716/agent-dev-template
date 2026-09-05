@@ -321,6 +321,30 @@ def test_locks_listing_matches_directory(tmp_path, capsys):
     assert "one" not in out and "two" in out
 
 
+# --- announce the resolved lock root (misdomain is visible at once) ----------
+
+def test_acquire_announces_lock_root_on_success_and_busy(tmp_path):
+    """The drills caught an agent locking the WRONG repository (wrong cwd):
+    the lease used to be silent about where it lives. Now both the success
+    and the busy path name the resolved lock root on stderr."""
+    _git_repo(tmp_path)
+    ok = _gov(tmp_path, "acquire", "r", "--agent", "a", "--ttl", "300")
+    assert ok.returncode == 0, (ok.stdout, ok.stderr)
+    root = _lockdir(tmp_path)
+    assert f"acquire: lock root {root}" in ok.stderr
+    busy = _gov(tmp_path, "acquire", "r", "--agent", "b", "--ttl", "300")
+    assert busy.returncode == 3
+    assert f"acquire: lock root {root}" in busy.stderr
+
+
+def test_release_announces_lock_root(tmp_path):
+    _git_repo(tmp_path)
+    _gov(tmp_path, "acquire", "r", "--agent", "a", "--ttl", "300")
+    rel = _gov(tmp_path, "release", "r", "--agent", "a")
+    assert rel.returncode == 0, (rel.stdout, rel.stderr)
+    assert f"release: lock root {_lockdir(tmp_path)}" in rel.stderr
+
+
 # --- holder identity defaults ------------------------------------------------------
 
 def test_holder_defaults_to_gov_caller_then_os_user(tmp_path):

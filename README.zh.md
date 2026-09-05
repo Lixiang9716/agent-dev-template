@@ -77,9 +77,15 @@ gov audit-notes --json          # 机器可读：{findings: [{file, signal}], ..
 gov change-scope --base <ref>  # 最小充分集（.gov/surfaces.json 可映射路径）
 gov task new "标题" --check "验收项"  # 任务卡：一行 rules@<hash> 钉住子代理简报
 gov task check                 # 规则采纳后点名过期卡片
+gov task claim T-0001 --agent w1 --ttl 20m  # 把开着的卡租给一个 worker（两人不能同领；
+                                            #  busy → exit 3 点名持有者）
+gov task release T-0001 --agent w1          # 释放自己持有的卡片租约
 gov task close T-0001          # 跑门禁，全绿运行即完成回执
+gov task list --json           # 卡片数组 [{id, title, status, rules, claim}]——claim 读自
+                               #  租约文件，过期视为未认领
 gov acquire reports/summary.md --agent w1  # 租约占用共享资源（busy → exit 3；
-                                           #  --wait S 轮询，--ttl S 封顶）
+                                           #  --wait S 轮询，--ttl S 封顶；
+                                           #  成功与 busy 都播报锁根路径）
 gov release reports/summary.md --agent w1  # 释放自己持有的租约（绝不代他人释放）
 gov locks                      # 列出当前租约（纯诊断）
 ```

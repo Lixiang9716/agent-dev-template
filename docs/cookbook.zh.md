@@ -286,6 +286,32 @@ release 会被点名冒充者并 exit 2。`gov locks` 列出当前租约（纯�
 可能双持。这正是锁不承担正确性的原因：落地的内容仍由你的门禁与评审
 裁决，master 的正确性锚在 push CAS。
 
+## 两个 worker 领同一张卡会怎样
+
+**症状**：两个并行 worker 都读到卡片 T-0001 是 open，于是都开始干活
+——卡片格式本身拦不住这种重复劳动（卡片是 rules 钉住 + 回执，D43；
+认领簿记不能写进卡片）。
+
+**命令**：开工前先认领：
+
+```sh
+gov task claim T-0001 --agent w1 --ttl 20m   # exit 0 = 这张卡归你了
+gov task claim T-0001 --agent w2             # exit 3，点名持有者
+gov task list                                # [claimed by w1 until …]
+gov task release T-0001 --agent w1           # 干完了：放手
+```
+
+**预期输出**：赢家的 stderr 打
+`task: T-0001 claimed by 'w1' until 2026-09-05T…`；输家得到
+`acquire: REFUSED — 'task/T-0001' is held by 'w1' until …`、exit 3——
+这就是"等还是先走开"的时刻（`--wait 20m` 以 1s 轮询；等待时长至少要
+给到持有者剩余 TTL，否则只会在自己的期限上以 exit 3 收场——见
+parallel-workers 技能的 TTL 一节）。过期租约由下一个认领者懒接管；对
+已关闭的卡 claim 是 exit 2 而非 busy——等是等不开的。认领状态只住在
+git common dir 下的租约文件里：`gov task list --json` 把它暴露为
+`claim` 字段（过期视为 null），卡片 JSON 本身一字不动；卡片落地时
+`gov task close` 顺路清掉持有者自己的租约。
+
 ## 模板演进了——先看，再采纳
 
 ```sh

@@ -18,6 +18,20 @@ with a verifiable receipt (issue #125):
 - ``gov task close T-0001`` runs the gate DAG now and, only on an all-green
   run, records the receipt (outcomes + rules hash + timestamp) in the card.
 
+Claim semantics (D52 applied to cards): ``gov task claim T-0001 --agent W1``
+takes a LEASE on the card — resource name ``task/<id>`` — through the
+``gov/locks.py`` machinery unchanged (O_EXCL create, lazy takeover of an
+expired lease, guard-flocked critical section, holder-verified release).
+Two parallel workers cannot both hold one card: the loser gets exit 3
+naming the holder and expiry. The claim lives ONLY in the runtime domain
+(``<git-common-dir>/gov-locks/``) — it never touches the card JSON, whose
+integrity D43 pins (the card is the rules@hash brief + receipt; claim
+state is runtime, not record). ``gov task list`` reads the lease files to
+display a claim column / ``claim`` JSON field; an expired lease reads as
+unclaimed. ``gov task close`` best-effort clears the card's own lease on
+success — holder-verified: only a lease naming the current caller is
+deleted, never another worker's.
+
 Fail loud throughout (rule 5): missing rule files, malformed cards, and
 ambiguous id prefixes abort with the offending name.
 """
@@ -33,8 +47,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 try:  # package context (`gov ...`)
+    from . import locks
     from .root import anchor_to_git_root
 except ImportError:  # direct script execution
+    import locks
     from root import anchor_to_git_root
 
 TASKS_DIR = Path(".gov/tasks")
@@ -256,19 +272,143 @@ def cmd_close(args: argparse.Namespace) -> int:
     }
     card["status"] = "done"
     path.write_text(json.dumps(card, indent=2) + "\n", encoding="utf-8")
+    _clear_task_lease(card["id"])
     print(f"task: closed {card['id']} with an all-green "
           f"{args.mode} run ({len(records)} gates)")
     return 0
 
 
-def cmd_list(_args: argparse.Namespace) -> int:
+def _common_dir_quiet() -> Path | None:
+    """The resolved git common dir, or None outside a git repository.
+
+    Quiet twin of locks._common_dir: the claim DISPLAY surfaces (list) and
+    the incidental cleanup (close) must work wherever task cards do —
+    outside a git domain there is simply no claim state, not an error.
+    The lease-MUTATING commands (claim/release) keep locks' loud refusal.
+    """
+    proc = subprocess.run(["git", "rev-parse", "--git-common-dir"],
+                          capture_output=True, text=True,
+                          env=locks._scrubbed_env())
+    out = proc.stdout.strip()
+    if proc.returncode != 0 or not out:
+        return None
+    p = Path(out)
+    if not p.is_absolute():
+        p = Path.cwd() / p
+    return p.resolve()
+
+
+def _claim_of(cid: str, common: Path | None) -> dict | None:
+    """The live claim on a card, or None when unclaimed/expired.
+
+    Same freshness classification the lease layer itself uses: a lease
+    past its expires_at reads as unclaimed (it may be taken over). The
+    card JSON is never consulted — the lease file is the only claim
+    state (D43: the card carries results, never claim bookkeeping).
+    """
+    if common is None:
+        return None
+    data = locks._read_lease(locks._lease_path(common, f"task/{cid}"))
+    if not locks._is_fresh(data, datetime.now(timezone.utc)):
+        return None
+    return {"claimed_by": data.get("holder"),
+            "expires_at": data.get("expires_at")}
+
+
+def _clear_task_lease(cid: str) -> None:
+    """Best-effort: a closed card's own task lease is moot — clear it.
+
+    Unconditional on purpose, unlike release's holder-verified delete: a
+    successful close means the work is finished, so ANY claim lease on the
+    card — whoever it names — is dead weight. Left in place, it starves
+    the next claimer for the winner's full TTL (drill-measured: a worker
+    waited 30 minutes past another's close because the lease named an
+    agent id the closer's identity check couldn't match). The holder-
+    verified principle still governs release, where a live lease protects
+    in-flight work; after close there is no in-flight work left to
+    protect. Silent when there is nothing to clear; this is incidental
+    cleanup piggybacking on close's receipt write, not a command of its
+    own.
+    """
+    common = _common_dir_quiet()
+    if common is None:
+        return
+    resource = f"task/{cid}"
+    lease = locks._lease_path(common, resource)
+    if locks._read_lease(lease) is None:
+        return
+    try:
+        lease.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def cmd_claim(args: argparse.Namespace) -> int:
+    """Lease an open card for one worker; the loser is told who holds it.
+
+    The card gate (must exist, must be open) runs BEFORE the lease — a
+    claim on a closed card is a usage error (exit 2), not a busy (exit 3):
+    no amount of waiting will reopen a closed card.
+    """
+    locks._refuse_hostile_env("task claim")
+    _cards = _load_cards()
+    _path, card = _resolve(_cards, args.id)
+    if card.get("status") != "open":
+        print(f"task: {card['id']} is {card.get('status')!r}, not open — "
+              "only an open card can be claimed", file=sys.stderr)
+        return 2
+    cid = card["id"]
+    holder = locks._holder_id(args.agent)
+    rc = locks.acquire(f"task/{cid}", holder, args.ttl, args.wait,
+                       tool="task claim")
+    if rc != 0:
+        return rc
+    data = locks._read_lease(
+        locks._lease_path(_common_dir_quiet(), f"task/{cid}"))
+    if isinstance(data, dict):
+        print(f"task: {cid} claimed by '{data.get('holder')}' "
+              f"until {data.get('expires_at')} (lease 'task/{cid}'; the "
+              "card JSON is untouched)", file=sys.stderr)
+    else:
+        print(f"task: {cid} claimed (lease 'task/{cid}')", file=sys.stderr)
+    return 0
+
+
+def cmd_task_release(args: argparse.Namespace) -> int:
+    """Release a card lease — holder-verified, never on another's behalf."""
+    locks._refuse_hostile_env("task release")
+    return locks.release(f"task/{args.id}", locks._holder_id(args.agent),
+                         tool="task release")
+
+
+def cmd_list(args: argparse.Namespace) -> int:
     cards = _load_cards()
+    common = _common_dir_quiet()
+    claim_by_id = {cid: _claim_of(cid, common) for cid, _p, _c in cards}
+    if args.json:
+        # stdout carries exactly one JSON value, even when empty —
+        # the same purity contract `gov run --json` is held to.
+        records = [
+            {"id": card.get("id", "?"),
+             "title": card.get("title", ""),
+             "status": card.get("status", "?"),
+             "rules": (card.get("rules", {}).get("hash") or "")[:12] or None,
+             "claim": claim_by_id.get(card.get("id", "?"))}
+            for _cid, _p, card in cards
+        ]
+        print(json.dumps(records, indent=2))
+        return 0
     if not cards:
         print("task: no cards in .gov/tasks/")
         return 0
     for _cid, _p, card in cards:
-        print(f"{card.get('status', '?'):5} {card.get('id', '?')} "
-              f"{card.get('title', '')}")
+        line = (f"{card.get('status', '?'):5} {card.get('id', '?')} "
+                f"{card.get('title', '')}")
+        claim = claim_by_id.get(card.get("id", "?"))
+        if claim:
+            line += (f" [claimed by {claim['claimed_by']} "
+                     f"until {claim['expires_at']}]")
+        print(line)
     return 0
 
 
@@ -306,11 +446,40 @@ def main(argv: list[str] | None = None) -> int:
     p_close.set_defaults(func=cmd_close)
 
     p_list = sub.add_parser("list", help="list cards and their status")
+    p_list.add_argument("--json", action="store_true",
+                        help="machine-readable: stdout is exactly one JSON "
+                             "array of {id, title, status, rules, claim}")
     p_list.set_defaults(func=cmd_list)
+
+    p_claim = sub.add_parser("claim", help="lease an open card for one "
+                             "worker (busy → exit 3 naming the holder)")
+    p_claim.add_argument("id", help="card id or unique prefix (T-0001)")
+    p_claim.add_argument("--agent", metavar="ID",
+                         help="holder identity (default: $GOV_CALLER, then "
+                              "the OS user)")
+    p_claim.add_argument("--ttl", type=locks.duration,
+                         default=locks.DEFAULT_TTL_S, metavar="DUR",
+                         help="lease duration (seconds, or 20m/2h style; "
+                              f"default {locks.DEFAULT_TTL_S:g}s); an "
+                              "expired lease may be taken over lazily")
+    p_claim.add_argument("--wait", type=locks.duration, default=None,
+                         metavar="DUR",
+                         help="poll up to this long for the card instead of "
+                              "failing immediately (exit 3 on timeout)")
+    p_claim.set_defaults(func=cmd_claim)
+
+    p_release = sub.add_parser("release", help="release a card lease you "
+                               "hold (holder-verified)")
+    p_release.add_argument("id", help="card id as claimed (T-0001)")
+    p_release.add_argument("--agent", metavar="ID",
+                           help="holder identity (default: $GOV_CALLER, "
+                                "then the OS user)")
+    p_release.set_defaults(func=cmd_task_release)
 
     args = parser.parse_args(argv)
     if getattr(args, "func", None) is None:
-        parser.error("a subcommand is required (new|check|close|list)")
+        parser.error("a subcommand is required "
+                     "(new|check|close|claim|release|list)")
     return args.func(args)
 
 

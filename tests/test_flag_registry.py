@@ -34,8 +34,12 @@ HELP_ARGV: dict[str, list[list[str]]] = {
     "note": [["note", "new", "--help"]],  # --class/--ref are `note new` flags
     "decision": [["decision", "next", "--help"],
                  ["decision", "add", "--help"]],
-    # --check/--rules live on `new`; --mode/--timeout on `close` (#125)
-    "task": [["task", "new", "--help"], ["task", "close", "--help"]],
+    # --check/--rules live on `new`; --mode/--timeout on `close`;
+    # --agent/--ttl/--wait on `claim` and --agent on `release`; --json on
+    # `list` (#125's claim semantics)
+    "task": [["task", "new", "--help"], ["task", "close", "--help"],
+             ["task", "claim", "--help"], ["task", "release", "--help"],
+             ["task", "list", "--help"]],
     "receipt": [["receipt", "verify", "--help"],   # --record is verify's
                 ["receipt", "show", "--help"]],    # --commit is show's
     "preset": [["preset", "apply", "--help"]],     # --project is apply's

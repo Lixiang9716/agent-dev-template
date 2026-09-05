@@ -49,7 +49,33 @@ doing.
    knowledge of each other's progress. All coordination flows through
    acquire/release leases and task cards (`gov task new`, `gov task
    check`, `gov task close`) — never through assumptions about what the
-   "other" agent has or has not done yet.
+   "other" agent has or has not done yet. When the shared artifact is a
+   TASK CARD, claim it instead of a raw lease —
+   `gov task claim <task-id> --agent <worker id> --ttl 20m` — so two
+   workers cannot take one card (busy → exit 3 names the holder);
+   `gov task close` clears the card's lease when it lands. **Commit the
+   closed card immediately** (`git add .gov/tasks && git commit`) — card
+   status lives in each worktree's copy, so an uncommitted close is
+   invisible to sibling worktrees and the card can be claimed again;
+   the commit is what propagates completion.
+
+## Size the TTL, then size --wait to match
+
+A lease has no fairness guarantee (D52) and the concurrency drills
+measured what that feels like: a worker holding with `--ttl 300s` kept
+its rival — waiting with `--wait 120s` — parked for the rival's ENTIRE
+120 s wait, which ended in exit 3 at the deadline, and the resource
+stayed blocked until the winner's full 300 s TTL ran out. Nothing hands
+over early: `--wait` shorter than the holder's remaining TTL can only
+ever end in exit 3 at its own deadline.
+
+- `--ttl` ≈ 2-3x your expected critical section (edit + verify). Too
+  short: a slow holder is taken over mid-edit. Too long: every loser
+  waits out the whole TTL, not the work.
+- `--wait` ≥ the holder's remaining TTL + margin — or skip `--wait` and
+  go do other work, polling `gov task list` / `gov locks` instead.
+- Work outgrew the TTL? Release and re-acquire with a fresh TTL rather
+  than letting rivals wait for a stale holder.
 
 ## Boundaries
 
