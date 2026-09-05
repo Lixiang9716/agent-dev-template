@@ -48,6 +48,9 @@ gov init --project <path> --hooks --ci  # also install a pre-push hook and CI
 gov uninstall --project <path>  # reverse it exactly
 gov run                        # run the default mode's gate DAG (defaultMode)
 gov run --base HEAD~1          # only the gates whose paths match the diff
+gov run --merge a b --base origin/master  # preflight the union of parallel branches:
+                               #  merge each into a scratch worktree, gates run on every
+                               #  step's tree; conflict or red step keeps the scene (D51)
 gov run --gate pairing         # rerun a single gate
 gov self-test                  # rejection cases: the tools' + yours (.gov/rejections/)
 gov run --json                 # machine-readable: [{gate, outcome, duration_ms, detail,

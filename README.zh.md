@@ -43,6 +43,8 @@ gov init --project <path> --hooks --ci  # 同时安装 pre-push 钩子与 CI
 gov uninstall --project <path> # 精确反转
 gov run                        # 跑默认模式（defaultMode）的门禁 DAG
 gov run --base HEAD~1          # 只跑 paths 命中本次 diff 的门
+gov run --merge a b --base origin/master  # 预演并行分支的并集：在 scratch worktree
+                               #  逐条合并、每步树上跑门；冲突或红步保留现场（D51）
 gov run --gate pairing         # 单门重跑
 gov self-test                  # 拒绝用例：工具自带 + 你的（.gov/rejections/）
 gov run --json                 # 机器可读：[{gate, outcome, duration_ms, detail,

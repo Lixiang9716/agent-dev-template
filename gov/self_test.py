@@ -1235,6 +1235,58 @@ def test_receipt_rejects_partial_run_as_full_evidence() -> None:
             "a partial run must never pass as a full green run")
 
 
+def test_run_merge_rejects_text_conflict() -> None:
+    """D51: `gov run --merge` must catch a textual merge conflict before
+    landing — the step fails loud, names the branch, the already-merged
+    set, and the conflicted file, and keeps the scratch scene. A real,
+    subprocess-reproducible failure (no fault injection, #24's lesson)."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "host"
+        root.mkdir()
+        env = _fixture_env(root)
+
+        def git(*argv: str, check: bool = True):
+            return subprocess.run(["git", *argv], cwd=root, check=check,
+                                  capture_output=True, text=True, env=env)
+
+        git("init", "-q", "-b", "main", ".")
+        git("config", "user.email", "t@t")
+        git("config", "user.name", "t")
+        (root / "gates.json").write_text(
+            json.dumps({"gates": [{"id": "ok", "command": ["true"]}]}),
+            encoding="utf-8")
+        (root / ".gitignore").write_text(".gov/history/\n", encoding="utf-8")
+        (root / "f.txt").write_text("one\ntwo\nthree\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-qm", "base")
+        for name, first in (("a", "A1"), ("b", "B1")):
+            git("checkout", "-q", "-b", name)
+            (root / "f.txt").write_text(f"{first}\ntwo\nthree\n",
+                                        encoding="utf-8")
+            git("commit", "-qam", name)
+            git("checkout", "-q", "main")
+        result = _run("gates.py", root,
+                      extra=["--merge", "a", "b", "--base", "main"])
+        assert result.returncode == 1, (
+            "a textual conflict must fail the preflight\n"
+            f"{result.stdout}\n{result.stderr}")
+        assert ("branch 2 (b) conflicts with already-merged set (a)"
+                in result.stdout), result.stdout
+        assert "f.txt" in result.stdout, "the conflicted file must be named"
+        kept = [l for l in result.stdout.splitlines()
+                if "kept for inspection: " in l]
+        assert kept, "the scratch scene must be kept for inspection"
+        scene = Path(kept[0].split("kept for inspection: ", 1)[1].strip())
+        assert scene.is_dir() and "<<<<<<<" in (scene / "f.txt").read_text(
+            encoding="utf-8"), "the live conflict must be inspectable"
+        # the scene is kept BY DESIGN; this case tidies it up
+        subprocess.run(["git", "-C", str(root), "worktree", "remove",
+                        "--force", str(scene)], capture_output=True)
+        shutil.rmtree(scene, ignore_errors=True)
+        subprocess.run(["git", "-C", str(root), "worktree", "prune"],
+                       capture_output=True)
+
+
 def test_failure_classifier_labels_tool_vs_environment() -> None:
     """#139/D47: a FAIL's label is earned from evidence, not guessed.
 
@@ -1310,6 +1362,7 @@ CASES = [
     test_task_survives_pre37_argparse_shadow,
     test_receipt_rejects_forged_record,
     test_receipt_rejects_partial_run_as_full_evidence,
+    test_run_merge_rejects_text_conflict,
     test_failure_classifier_labels_tool_vs_environment,
 ]
 

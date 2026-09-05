@@ -658,7 +658,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--mode", default=None,
                         help="mode name from gates.json (overrides defaultMode)")
     parser.add_argument("--base", default=None,
-                        help="select gates whose 'paths' match the diff against this git ref")
+                        help="select gates whose 'paths' match the diff against this git ref; "
+                             "with --merge: the integration target baseline instead "
+                             "(default origin/master)")
     parser.add_argument("--gate", default=None, help="run a single gate by id")
     parser.add_argument("--every-gate", action="store_true",
                         help="run every enabled gate — the full matrix, ignoring "
@@ -678,6 +680,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-record", action="store_true",
                         help="do not append this run to .gov/history/gates.jsonl "
                              "(recording is the default; see gov trend)")
+    parser.add_argument("--merge", nargs="+", metavar="BRANCH", default=None,
+                        help="preflight the union of parallel branches: each branch is "
+                             "merged --no-ff into a detached scratch worktree built on "
+                             "--base (integration baseline, default origin/master), and "
+                             "the gates run after every merge on that step's tree, "
+                             "selected by the diff the step introduced (D15); a text "
+                             "conflict or a red step aborts named, keeping the scene; "
+                             "with --receipt the last step records D44 evidence for "
+                             "the union tree")
     parser.add_argument("--receipt", action="store_true",
                         help="append a tamper-evident receipt of this run to "
                              ".gov/history/receipts.jsonl, bound to the tree's "
@@ -692,6 +703,33 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
+
+    if args.merge is not None:
+        # Delegation, before this process loads any gates.json of its own:
+        # a preflight runs the MERGED tree's config inside the scratch
+        # worktree, not the caller's checkout (merge.py owns the semantics;
+        # the D33 walls live there).
+        try:
+            from . import merge as merge_mod
+        except ImportError:  # direct-script execution (self-test scratch)
+            import merge as merge_mod
+        conflicts = [name for flag, name in (
+            (args.mode, "--mode"), (args.gate, "--gate"),
+            (args.every_gate, "--every-gate"), (args.json, "--json"),
+            (args.fail_fast, "--fail-fast"), (args.verbose, "--verbose"),
+        ) if flag]
+        if conflicts:
+            print(f"gov run: --merge and {', '.join(conflicts)} cannot be "
+                  "combined — each step runs its own scoped selection, and "
+                  "its human report streams live", file=sys.stderr)
+            return 2
+        caller = (args.tag if args.tag is not None
+                  else os.environ.get("GOV_CALLER"))
+        caller = caller.strip() if caller else None
+        return merge_mod.run_merge(
+            args.merge, base=args.base, config=args.config,
+            receipt=args.receipt, tag=caller, cost=args.cost,
+            no_record=args.no_record)
 
     try:
         modes, gates, concurrency, default_mode = load_config(args.config)

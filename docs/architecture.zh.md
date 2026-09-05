@@ -14,6 +14,10 @@
 
 模板还自带一个查内容而非只看退出码的门：`gov verify-conflict-markers`（issue #104/D38）读变更文件的工作区内容，发现行首的 git 冲突标记即以 `file:line` 点名失败——git 拒绝自查的那种 rebase 失败模式由门禁接管；确实要写字面量的行追加令牌 `gov:ignore-marker` 即豁免，孤立的裸 `=======`（Markdown 标题下划线）不算标记。
 
+### 落地前预演并集（run --merge）
+
+并行 agent 分支各自通过全部门禁，但"并集"直到合并发生才被测到：文本冲突 git 能拦，语义冲突（各自绿、合并红）无人拦。`gov run --merge <branch>… [--base <ref>]`（D51）在建于集成基线（`--base`，缺省 `origin/master`）上的分离 scratch worktree 里预演合并：各分支按命令行顺序逐条 `--no-ff` 合并，每合并一条就在该步的并集树上跑门禁——按本步引入的 diff 选门（D15 的最小充分集；上一步的树 sha 是 diff 基线）。文本冲突或门禁红即点名中止——分支、已合并集合、冲突文件或失败门——并**保留现场** scratch worktree 供检查；全绿则清理并打印各步摘要。退出码仍是 D2 的词汇。宿主安全是 D33 的三墙，且因本命令会变更状态而升级：敌对的仓库解析变量在任何操作之前大声拒绝，git 操作一律 `-C` 钉住，scratch 必须把 toplevel 解析到自身，验收测试钉住宿主工作树字节不变。带 `--receipt` 时最末步升级为全矩阵并为并集树录 D44 回执——落地时复现同样内容的提交（squash merge 换 commit sha 不换 tree）随后经 `gov receipt verify` 可验。被推迟的层（锁、租约、队列服务）在 D51 的被否段按判据记录在案，绝非静默砍掉。
+
 每个门禁落到五种结局之一——`PASS` / `FAIL` / `TIMEOUT` / `MISSING`（可执行文件不存在）/ `SKIP`——`allowFailure: true` 让该门禁的失败仅作 advisory：结局行与输出带 `advisory` 标记照常报告，退出码保持 0。通过但有输出的门禁以 `(passed with output)` 块保留其末尾几行——"有话说的通过"绝不被静默（D20）。退出码 0 = 全绿，1 = 有阻塞失败；阻塞失败末尾追加摘要块：哪个门挂了 + 首行输出 + 单门重跑命令。
 
 一次运行还能留下可机检的证据，而不只是一行账：`gov run --receipt` 把本次运行的哈希链回执追加到 `.gov/history/receipts.jsonl`（issue #124/D44）——逐门结局绑到树的 commit **与** tree sha，带上运行的 caller 标签（`--tag`/`$GOV_CALLER`，D42），并链到上一条回执。改、删、重排历史都会让后续所有链接断裂：`gov receipt verify <commit>` 重走链条，以 exit 0 或点名失败回答"这棵树上是否录得一次**完整**（覆盖全部 enabled 门）、**干净**（无 tracked 文件偏离 commit）、**全绿**（每门 PASS）的运行"——squash merge 换 commit sha 不换 tree，也照常命中。PR 正文引用的单条回执经 `gov receipt verify <commit> --record '<json>'` 自校验成立，"reviewer 重跑过门禁"这类散文从此可以换成机器可查的 id。链条刻意无密钥——证明一致性与绑定，不证明作者身份；真签名是后续工作。

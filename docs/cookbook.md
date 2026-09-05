@@ -225,6 +225,36 @@ before numbering` — soft, never blocking; the number you get is still
 the one merged history will show. `--against` is an alias of `--base`,
 not a second semantic.
 
+## Parallel branches — rehearse the union before merging
+
+```sh
+gov run --merge feat-a feat-b feat-c --base origin/master
+```
+
+**Symptom**: each agent branch passed every gate on its own tree, yet the
+merge is broken — text conflicts git catches, but semantic collisions
+(each branch green, the union red: two branches adding the same gate id
+to `gates.json`, or two edits that only break together) surface after
+landing, when the tree has already shipped.
+
+**Command**: the preflight merges the branches, in the order given, into
+a detached scratch worktree built on `--base` (the integration baseline;
+default `origin/master`, and a missing default is a named demand for an
+explicit flag). After every merge the gates run on that step's union
+tree — the minimal sufficient set for the diff the step introduced.
+
+**Expected output** (all green): one summary line per step —
+`merge: step 2/3: 'feat-b' -> tree 9a1b2c3d4e5f; gates: 4 ran, 4 pass` —
+then `merge: union of 3 branch(es) is green` and exit 0. **On a text
+conflict**: exit 1, `merge: branch 2 (feat-b) conflicts with
+already-merged set (feat-a)` plus the conflicted files, and the scratch
+worktree is KEPT (its path is printed) so you can inspect the scene; on
+a red step the failed gates and their first output lines are named the
+same way. Fix, then re-run. With `--receipt` the last step records a D44
+receipt for the union tree — after landing (squash merges included),
+`gov receipt verify <commit>` proves the landed tree is the one that
+went green.
+
 ## Templates evolved — see, then adopt
 
 ```sh
