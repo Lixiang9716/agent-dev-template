@@ -368,3 +368,34 @@ def test_shared_common_dir_across_worktrees(tmp_path):
     busy = _gov(root, "acquire", "shared", "--agent", "from-root")
     assert busy.returncode == 3
     assert "from-wt" in busy.stderr
+
+
+import argparse
+
+
+class TestDurationParsing:
+    """--ttl/--wait accept agent-natural durations (20m), not just seconds.
+
+    Both blind-drill workers wrote ``--ttl 20m`` unprompted; the parser now
+    speaks durations. Bare numbers stay seconds (original contract)."""
+
+    def test_suffixes(self):
+        from gov.locks import duration
+        assert duration("600") == 600.0
+        assert duration("600s") == 600.0
+        assert duration("20m") == 1200.0
+        assert duration("2h") == 7200.0
+        assert duration("1.5m") == 90.0
+
+    def test_invalid(self):
+        import pytest
+        from gov.locks import duration
+        for bad in ("abc", "10x", "0", "-5", "m", ""):
+            with pytest.raises(argparse.ArgumentTypeError):
+                duration(bad)
+
+    def test_cli_accepts_duration_style(self, tmp_path):
+        _git_repo(tmp_path)
+        r = _gov(tmp_path, "acquire", "cli-dur", "--agent", "d1", "--ttl", "20m")
+        assert r.returncode == 0, (r.stdout, r.stderr)
+        assert _gov(tmp_path, "release", "cli-dur", "--agent", "d1").returncode == 0

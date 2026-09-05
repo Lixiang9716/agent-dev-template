@@ -24,7 +24,7 @@ supersede boundary: cross-clone/cross-machine correctness stays with the
 CAS anchor; D40's "file locks don't lock independent checkouts" remains
 true and un-superseded).
 
-- ``gov acquire <resource> [--agent ID] [--ttl S] [--wait S]`` — atomic
+- ``gov acquire <resource> [--agent ID] [--ttl DUR] [--wait DUR]`` — atomic
   create (O_CREAT|O_EXCL). Existing fresh lease → busy: exit 3 naming the
   holder and expiry (``--wait S`` polls at 1s until the deadline). Existing
   EXPIRED lease → lazy takeover, legal only inside a flock-guarded critical
@@ -230,6 +230,32 @@ def _takeover(common: Path, resource: str, payload: str,
     return bool(_guarded(common, resource, action))
 
 
+_DURATION_UNITS = {"s": 1.0, "m": 60.0, "h": 3600.0}
+
+
+def duration(value: str) -> float:
+    """Parse a duration for --ttl/--wait: ``600``, ``600s``, ``20m``, ``2h``.
+
+    Bare numbers stay seconds (the original contract, kept for every caller
+    that already passes them); suffixes exist because both drill agents
+    wrote ``20m`` unprompted — agents think in durations, not seconds.
+    """
+    text = value.strip().lower()
+    try:
+        if text and text[-1] in _DURATION_UNITS:
+            seconds = float(text[:-1]) * _DURATION_UNITS[text[-1]]
+        else:
+            seconds = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"invalid duration {value!r} — use seconds, or a suffix of "
+            f"{', '.join(sorted(_DURATION_UNITS))} (e.g. 600, 20m, 2h)")
+    if seconds <= 0:
+        raise argparse.ArgumentTypeError(
+            f"invalid duration {value!r} — must be > 0")
+    return seconds
+
+
 def acquire(resource: str, holder: str, ttl: float,
             wait: float | None, tool: str = "gov acquire") -> int:
     now = datetime.now(timezone.utc)
@@ -351,12 +377,13 @@ def main(argv: list[str] | None = None) -> int:
     p_acq.add_argument("--agent", metavar="ID",
                        help="holder identity (default: $GOV_CALLER, then "
                             "the OS user)")
-    p_acq.add_argument("--ttl", type=float, default=DEFAULT_TTL_S, metavar="S",
-                       help=f"lease duration in seconds "
-                            f"(default {DEFAULT_TTL_S:g}); an expired lease "
+    p_acq.add_argument("--ttl", type=duration, default=DEFAULT_TTL_S,
+                       metavar="DUR",
+                       help="lease duration (seconds, or 20m/2h style; "
+                            f"default {DEFAULT_TTL_S:g}s); an expired lease "
                             "may be taken over lazily")
-    p_acq.add_argument("--wait", type=float, default=None, metavar="S",
-                       help="poll up to S seconds for the lease instead of "
+    p_acq.add_argument("--wait", type=duration, default=None, metavar="DUR",
+                       help="poll up to this long for the lease instead of "
                             "failing immediately (exit 3 on timeout)")
 
     p_rel = sub.add_parser(
@@ -377,10 +404,6 @@ def main(argv: list[str] | None = None) -> int:
     _refuse_hostile_env(args.subcommand)
     anchor_to_git_root("locks")
     if args.subcommand == "acquire":
-        if not (args.ttl > 0):
-            print("gov acquire: --ttl must be > 0 seconds (a non-positive "
-                  "lease is a zombie by construction)", file=sys.stderr)
-            return 2
         return acquire(args.resource, _holder_id(args.agent), args.ttl,
                        args.wait)
     if args.subcommand == "release":
