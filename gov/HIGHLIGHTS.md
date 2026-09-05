@@ -3,6 +3,11 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.27.0 — (draft: copied from CHANGELOG, rewrite for usage)
+
+- acquire/release — lease locks for oblivious parallel agents
+- run --merge — preflight the union of parallel branches before landing
+
 ## 0.26.0 — (draft: copied from CHANGELOG, rewrite for usage)
 
 - decision --against alias with stale-base warning; doctor names unadopted shipped gates
