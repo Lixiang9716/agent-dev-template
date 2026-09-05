@@ -28,7 +28,7 @@ Changelog = "https://github.com/Lixiang9716/govrail/blob/master/CHANGELOG.md"
 gov = "gov.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "build"]
 
 [tool.setuptools.dynamic]
 version = { attr = "gov.__version__" }
