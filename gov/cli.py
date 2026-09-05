@@ -22,7 +22,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
-from . import archive_notes, audit_notes, change_scope, gates, recall, review
+from . import archive_notes, audit_notes, change_scope, gates, locks, recall, review
 from . import doctor, note, receipt, self_test, trend, whatsnew
 from . import decision, task, verify_archive, verify_decisions, verify_doc_sync
 from . import verify_conflict_markers
@@ -812,6 +812,12 @@ _COMMANDS = {
     "archive-notes": "seal the archived-notes manifest",
     "task": "task cards for subagent briefs (new/check/close/list; "
             "rules@hash pin + checklist + green-run receipt)",
+    "acquire": "take a lease lock on a resource (cross-process, "
+               "cross-duration; busy exits 3; --wait S polls, --ttl S "
+               "bounds the lease)",
+    "release": "release a lease you hold (--agent must match the holder)",
+    "locks": "list current lease locks in the git common dir (diagnostic "
+             "only, never an admission decision)",
 }
 
 
@@ -1065,6 +1071,8 @@ def main(argv: list[str] | None = None) -> int:
         return archive_notes.main(rest)
     if cmd == "task":
         return task.main(rest)
+    if cmd in ("acquire", "release", "locks"):
+        return locks.main([cmd, *rest])
     print(f"gov: unknown command '{cmd}'", file=sys.stderr)
     _usage()
     return 2

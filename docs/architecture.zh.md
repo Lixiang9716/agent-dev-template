@@ -16,7 +16,11 @@
 
 ### 落地前预演并集（run --merge）
 
-并行 agent 分支各自通过全部门禁，但"并集"直到合并发生才被测到：文本冲突 git 能拦，语义冲突（各自绿、合并红）无人拦。`gov run --merge <branch>… [--base <ref>]`（D51）在建于集成基线（`--base`，缺省 `origin/master`）上的分离 scratch worktree 里预演合并：各分支按命令行顺序逐条 `--no-ff` 合并，每合并一条就在该步的并集树上跑门禁——按本步引入的 diff 选门（D15 的最小充分集；上一步的树 sha 是 diff 基线）。文本冲突或门禁红即点名中止——分支、已合并集合、冲突文件或失败门——并**保留现场** scratch worktree 供检查；全绿则清理并打印各步摘要。退出码仍是 D2 的词汇。宿主安全是 D33 的三墙，且因本命令会变更状态而升级：敌对的仓库解析变量在任何操作之前大声拒绝，git 操作一律 `-C` 钉住，scratch 必须把 toplevel 解析到自身，验收测试钉住宿主工作树字节不变。带 `--receipt` 时最末步升级为全矩阵并为并集树录 D44 回执——落地时复现同样内容的提交（squash merge 换 commit sha 不换 tree）随后经 `gov receipt verify` 可验。被推迟的层（锁、租约、队列服务）在 D51 的被否段按判据记录在案，绝非静默砍掉。
+并行 agent 分支各自通过全部门禁，但"并集"直到合并发生才被测到：文本冲突 git 能拦，语义冲突（各自绿、合并红）无人拦。`gov run --merge <branch>… [--base <ref>]`（D51）在建于集成基线（`--base`，缺省 `origin/master`）上的分离 scratch worktree 里预演合并：各分支按命令行顺序逐条 `--no-ff` 合并，每合并一条就在该步的并集树上跑门禁——按本步引入的 diff 选门（D15 的最小充分集；上一步的树 sha 是 diff 基线）。文本冲突或门禁红即点名中止——分支、已合并集合、冲突文件或失败门——并**保留现场** scratch worktree 供检查；全绿则清理并打印各步摘要。退出码仍是 D2 的词汇。宿主安全是 D33 的三墙，且因本命令会变更状态而升级：敌对的仓库解析变量在任何操作之前大声拒绝，git 操作一律 `-C` 钉住，scratch 必须把 toplevel 解析到自身，验收测试钉住宿主工作树字节不变。带 `--receipt` 时最末步升级为全矩阵并为并集树录 D44 回执——落地时复现同样内容的提交（squash merge 换 commit sha 不换 tree）随后经 `gov receipt verify` 可验。D51 推迟的层按各自判据到来、绝非静默：租约锁在下节随"≥2 真并行 worker"判据触发而落地（D52）；队列与调度函数仍按判据推迟。
+
+### worker 自己的租约锁（acquire/release/locks）
+
+预演协调的是落地前的分支；分支内部的 worker 之间也可能要协调共享资源——几个互相盲态的 agent 共写一个文件。`gov acquire <resource> [--agent ID] [--ttl S] [--wait S]` 取一份租约：在 git common dir（D32#9 的先例）下以 O_CREAT|O_EXCL 原子创建一个小 JSON 文件，同 clone 的全部 worktree 天然共享；`gov release --agent ID` 做持有者校验（不匹配即 exit 2 点名实际持有者——租约绝不代他人释放）；`gov locks` 只读列出。资源被占是 exit 3——D2 词汇的 additive 扩展，0/1/2 语义不变（D52）。过期租约在 flock 守护的临界区内懒接管——这是 flock 的合法形态（仅单命令时长）：评审 P0 的结论仍然成立，flock 属于持有进程、进程退出即失锁，任何长持物都绝不建在它上面。分层才是重点：租约是**活性层**（避免重复劳动；`--ttl` 封顶，绝不永久阻塞），刻意不承载正确性——holder 挂起超过 TTL 就可能双持，正确性仍锚在它本来就在的地方（master 的 push CAS、文档的交付 rebase）。`gov locks` 永不参与准入决策：JSON 只是诊断层。
 
 每个门禁落到五种结局之一——`PASS` / `FAIL` / `TIMEOUT` / `MISSING`（可执行文件不存在）/ `SKIP`——`allowFailure: true` 让该门禁的失败仅作 advisory：结局行与输出带 `advisory` 标记照常报告，退出码保持 0。通过但有输出的门禁以 `(passed with output)` 块保留其末尾几行——"有话说的通过"绝不被静默（D20）。退出码 0 = 全绿，1 = 有阻塞失败；阻塞失败末尾追加摘要块：哪个门挂了 + 首行输出 + 单门重跑命令。
 
