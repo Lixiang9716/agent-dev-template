@@ -3,6 +3,13 @@
 Usage-oriented highlights (the CHANGELOG carries commits; this carries
 how to use them). `gov whatsnew [--since <version>]` prints from here.
 
+## 0.26.0 — (draft: copied from CHANGELOG, rewrite for usage)
+
+- decision --against alias with stale-base warning; doctor names unadopted shipped gates
+- note-presence exemptions — task receipts by default, manifest note_presence_exempt
+- pairing sidecar is self-describing — template comments, --write field echo, --explain ([#155](https://github.com/Lixiang9716/govrail/issues/155)) ([d446b2d](https://github.com/Lixiang9716/govrail/commit/d446b2db9bcbd36c995725de376d4fc66e583206)), closes [#150](https://github.com/Lixiang9716/govrail/issues/150)
+- recall misses are diagnosable — corpus statement, per-term counts, --any
+
 ## 0.25.0 — (draft: copied from CHANGELOG, rewrite for usage)
 
 - self-test classifies FAILs via clean-env replay
