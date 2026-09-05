@@ -83,7 +83,8 @@ FLAGS: dict[str, set[str]] = {
     "audit-notes": {"--json"},
     "change-scope": {"--base"},
     "archive-notes": {"--rebaseline"},
-    "task": {"--check", "--rules", "--mode", "--timeout"},  # across subcommands
+    "task": {"--check", "--rules", "--mode", "--timeout",
+             "--agent", "--ttl", "--wait", "--json"},  # across subcommands
     "preset": {"--project"},  # on the `apply` subcommand (list/show are flagless)
     "acquire": {"--agent", "--ttl", "--wait"},
     "release": {"--agent"},

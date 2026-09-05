@@ -806,8 +806,9 @@ _COMMANDS = {
     "audit-notes": "report mechanical staleness signals in implemented notes",
     "change-scope": "report touched surfaces (e.g. --base <ref>)",
     "archive-notes": "seal the archived-notes manifest",
-    "task": "task cards for subagent briefs (new/check/close/list; "
-            "rules@hash pin + checklist + green-run receipt)",
+    "task": "task cards for subagent briefs (new/check/close/claim/release/"
+            "list; rules@hash pin + checklist + green-run receipt; claim/"
+            "release lease a card so two workers cannot take one)",
     "preset": "typed adoption bundles (list/show/apply): a project type's "
               "gates, skills, and manifest hints — additive, never "
               "overwriting (D53)",

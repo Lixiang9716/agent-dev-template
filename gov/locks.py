@@ -34,6 +34,12 @@ true and un-superseded).
 - ``gov release <resource> --agent ID`` — holder-verified delete: a
   mismatching agent is refused (exit 2) with the real holder named; a
   lease is never released on another holder's behalf. Absent lease → exit 2.
+- Both announce the resolved lock root on stderr (one line, success and
+  busy alike): the concurrency drills caught an agent acquiring against
+  the WRONG repository — a lease was silent about where it lived, so the
+  misdomain lock looked exactly like a success until someone read
+  ``gov locks`` in the right repo. Now the misdomain is visible at the
+  moment it happens.
 - ``gov locks`` — read-only listing of the lease directory, expired flags
   included. Pure diagnostics (review P1-3: the JSON layer never feeds an
   admission decision); no locks → an empty listing.
@@ -119,6 +125,16 @@ def _common_dir(tool: str) -> Path:
     if not p.is_absolute():
         p = Path.cwd() / p
     return p.resolve()
+
+
+def _announce_root(command: str, common: Path) -> None:
+    """One stderr line naming the resolved lock root — every invocation.
+
+    Success or busy, the caller sees exactly which directory the lease
+    lives in; an acquire issued from the wrong cwd is visible immediately
+    instead of at review time.
+    """
+    print(f"{command}: lock root {common / LOCK_DIR}", file=sys.stderr)
 
 
 def _lease_path(common: Path, resource: str) -> Path:
@@ -265,7 +281,8 @@ def acquire(resource: str, holder: str, ttl: float,
          "acquired_at": _iso(now), "expires_at": expires},
         ensure_ascii=False, sort_keys=True,
     ) + "\n"
-    common = _common_dir("acquire")
+    common = _common_dir(tool)
+    _announce_root("acquire", common)
     path = _lease_path(common, resource)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -298,8 +315,9 @@ def acquire(resource: str, holder: str, ttl: float,
         time.sleep(POLL_INTERVAL_S)
 
 
-def release(resource: str, holder: str) -> int:
-    common = _common_dir("release")
+def release(resource: str, holder: str, tool: str = "release") -> int:
+    common = _common_dir(tool)
+    _announce_root("release", common)
 
     def action() -> int:
         path = _lease_path(common, resource)
