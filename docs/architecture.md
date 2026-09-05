@@ -58,8 +58,33 @@ toplevel, and acceptance tests pin a byte-identical host worktree. With
 `--receipt` the last step upgrades to the full matrix and records a D44
 receipt for the union tree — a landing that reproduces the content (a
 squash merge moves the commit sha, not the tree) then verifies via
-`gov receipt verify`. The deferred layers (locks, leases, queue
-services) are rejected with criteria in D51, not silently dropped.
+`gov receipt verify`. D51's deferred layers arrive on their own
+criteria, never silently: the lease locks below shipped when the
+"≥2 real parallel workers" criterion fired (D52); the queue and
+scheduling functions stay deferred.
+
+### Lease locks for the workers themselves (acquire/release/locks)
+
+The preflight coordinates branches before landing; the workers inside a
+branch may also need to coordinate with each other — several oblivious
+agents writing one file. `gov acquire <resource> [--agent ID]
+[--ttl S] [--wait S]` takes a lease: an atomic O_CREAT|O_EXCL create of
+a small JSON file under the git common dir (D32#9's precedent), shared
+by every worktree of one clone; `gov release --agent ID` is
+holder-verified (a mismatch is exit 2 naming the real holder — a lease
+is never released on another holder's behalf); `gov locks` lists them
+read-only. A busy resource is exit 3 — D2's vocabulary extended
+additively, 0/1/2 unchanged (D52). An expired lease is taken over
+lazily inside a flock-guarded critical section — flock's lawful
+single-command duration, since the reviews' P0 finding stands: an flock
+belongs to its holding process and dies with it, so nothing long-lived
+is ever built on it. The layering is the point: the lease is the
+LIVENESS layer (no duplicated work; `--ttl` bounds it so it can never
+block forever) and deliberately carries no correctness — a holder
+stalling past its TTL can double-hold, and correctness stays anchored
+where it already lives (the push CAS for master, the delivery rebase
+for docs). `gov locks` never feeds an admission decision: the JSON is
+diagnostics only.
 
 Each gate resolves to one of five outcomes — `PASS`, `FAIL`, `TIMEOUT`,
 `MISSING` (executable absent), `SKIP` — and `allowFailure: true` keeps a

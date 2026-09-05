@@ -79,6 +79,11 @@ gov change-scope --base <ref> # smallest sufficient set (.gov/surfaces.json maps
 gov task new "Title" --check "criterion"  # task card: one-line rules@<hash> pin for a subagent brief
 gov task check                 # after a rules adoption: name the stale cards
 gov task close T-0001          # run the gates; the green run becomes the completion receipt
+gov acquire reports/summary.md --agent w1  # lease a shared resource (busy → exit 3;
+                                           #  --wait S polls, --ttl S bounds the lease)
+gov release reports/summary.md --agent w1  # release a lease you hold (never on another
+                                           #  holder's behalf)
+gov locks                      # list current leases (diagnostic only)
 ```
 
 `init` is non-invasive and idempotent: it creates `.gov/rules.md`, adds

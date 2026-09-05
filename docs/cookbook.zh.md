@@ -231,6 +231,33 @@ gov run --merge feat-a feat-b feat-c --base origin/master
 带 `--receipt` 时最末步为并集树录 D44 回执——落地后（含 squash
 merge）`gov receipt verify <commit>` 证明落地的树就是绿过的那棵。
 
+## 多个 agent 共写一个文件，如何不互踩
+
+```sh
+gov acquire reports/summary.md --agent w1 --ttl 600  # exit 0 = 拿到租约
+gov acquire reports/summary.md --agent w2            # exit 3，点名持有者
+gov release reports/summary.md --agent w1            # 只有持有者能释放
+```
+
+**症状**：几个并行 agent 写同一个文件，互相覆盖——变成"谁最后写谁
+赢"。worker 之间互相盲态，需要工具来说"等"还是"走"。
+
+**命令**：写之前先拿租约。租约是 git common dir 下的一个小 JSON 文件
+（覆盖同 clone 的全部 worktree），由 `--ttl` 封顶、绝不永久阻塞，且
+**只管活性**：它防止重复劳动，不承载正确性。资源被占时 exit 3——这
+就是"阻塞还是继续"的时刻：`--wait 30` 以 1s 间隔轮询（直到租约过期
+或被释放），或者先去干别的。
+
+**预期输出**：赢家打印
+`acquire: 'reports/summary.md' leased by 'w1' until 2026-09-05T…`；
+输家在 stderr 得到
+`acquire: REFUSED — 'reports/summary.md' is held by 'w1' until …`，
+退出码 3——同 holder 重复 acquire 也是 3，锁不可重入。非持有者的
+release 会被点名冒充者并 exit 2。`gov locks` 列出当前租约（纯诊断）。
+持有者崩溃时，租约在 `--ttl` 后过期，下一个 acquire 懒接管——此后
+可能双持。这正是锁不承担正确性的原因：落地的内容仍由你的门禁与评审
+裁决，master 的正确性锚在 push CAS。
+
 ## 模板演进了——先看，再采纳
 
 ```sh

@@ -84,6 +84,9 @@ FLAGS: dict[str, set[str]] = {
     "change-scope": {"--base"},
     "archive-notes": {"--rebaseline"},
     "task": {"--check", "--rules", "--mode", "--timeout"},  # across subcommands
+    "acquire": {"--agent", "--ttl", "--wait"},
+    "release": {"--agent"},
+    "locks": set(),
 }
 
 

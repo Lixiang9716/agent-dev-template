@@ -255,6 +255,38 @@ receipt for the union tree — after landing (squash merges included),
 `gov receipt verify <commit>` proves the landed tree is the one that
 went green.
 
+## Several agents write one file — how not to stomp on each other
+
+```sh
+gov acquire reports/summary.md --agent w1 --ttl 600  # exit 0 = you hold the lease
+gov acquire reports/summary.md --agent w2            # exit 3, names the holder
+gov release reports/summary.md --agent w1            # only the holder can release
+```
+
+**Symptom**: several parallel agents write the same file and clobber each
+other — "whoever writes last wins". The workers are oblivious to each
+other and need the tool to say "wait" or "go".
+
+**Command**: take a lease before writing. The lease is one small JSON
+file under the git common dir (it spans every worktree of the clone),
+bounded by `--ttl` so it can never block forever, and **liveness-only**:
+it prevents duplicated work, it does not carry correctness. A busy
+resource exits 3 — that is the "block or continue" moment: poll with
+`--wait 30` (1s interval, until the lease expires or is released), or go
+work on something else.
+
+**Expected output**: the winner prints
+`acquire: 'reports/summary.md' leased by 'w1' until 2026-09-05T…`; the
+loser gets on stderr
+`acquire: REFUSED — 'reports/summary.md' is held by 'w1' until …` with
+exit code 3 — same holder included, the lock is not reentrant. A release
+by anyone but the holder names the impostor and exits 2. `gov locks`
+lists the current leases (pure diagnostics). If a holder crashes, the
+lease expires after `--ttl` and the next acquirer takes it over — which
+can overlap two writers (double-hold). That is exactly why the lock is
+not the correctness layer: what lands is still judged by your gates and
+review, and master's correctness is anchored in the push CAS.
+
 ## Templates evolved — see, then adopt
 
 ```sh
