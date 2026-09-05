@@ -44,6 +44,14 @@
 
 新装项目首跑不红：pairing 门禁以 advisory 落地（`allowFailure: true`），报告哪些文档待 baseline；`gov verify-pairing --write` 记录存量配对后，摘除 `allowFailure` 即升级为强制。`init` 会打印这些 next steps。
 
+### preset：类型化采用（D53）
+
+注入的模板刻意是通用的一套——类型化内容因项目而异，不进默认集（D28）。**preset** 是"我的项目类型需要一套成套起步配置"的答案：随包发布在 `gov/templates/presets/<name>/` 的声明式补丁包，承载已有采纳契约的三类内容——门片段、agent 技能、manifest 提示。`gov preset list` 列出随包 preset；`gov preset show <name>` 只读打印将落地的一切；`gov preset apply <name>` 落地到已初始化项目（`gov init --preset <name>` 把两步合成新项目的一条命令）。
+
+apply 不引入任何新合并语义——复用平面的既有契约，且绝不覆盖本地状态：门片段按 id 增量合并（D39 的机器，与 `--adopt-new` 共享同一实现；同 id 的本地门即已采纳状态——保留并点名，而 `--adopt-new` 对非增量漂移是拒绝）；技能逐字节复制、仅缺失时落地（D29）；manifest 提示只写缺失键（D49——本地值永远赢，notice 明说）。apply 幂等：重复运行全部报 "already adopted"、零写入。bundle schema 严格（规则 5）：未知键、坏类型、过不了真实 `gates.json` schema 的门、mode 引用 preset 与 shipped 模板之外的门，一律 exit 2 点名 preset 与键。
+
+与 D28 的调和是精确的：默认模板仍是通用地板（preset 绝不进默认 init）——D28 回答"每个项目都得到什么"，preset 回答"这个项目类型额外需要什么"，经旗标显式采用。首个内置 preset `agent-heavy` 打包 D51/D52 并发演练验证过的多 agent 并行工作流：`verify-decisions` 门注册进 `governance` mode（可达，D24）、`parallel-workers` worker 协议技能（lease → 验证 → 预演 → 盲态协调；同一文件也住在本仓库自己的 `.agents/skills/`，字节一致钉住）、以及 `note_presence_exempt: [".gov/tasks/**"]`（#149：任务回执是簿记）。
+
 ## 平面成长
 
 治理平面是地板，不是天花板。成长是事件驱动的，不是灵感驱动的：

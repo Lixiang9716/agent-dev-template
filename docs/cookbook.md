@@ -21,6 +21,39 @@ gov verify-pairing --write      # baseline every pair (partial: records
                                 # what it can, reports the rest)
 ```
 
+## I want to start a project by its type
+
+`gov init` injects the generic floor (D28: typed content stays out of
+the default template). A **preset** adds the typed set — gates, skills,
+and manifest hints for a project kind. Look before you leap:
+
+```sh
+gov preset list                 # what types ship with this package
+gov preset show agent-heavy     # read-only: every gate, mode, skill, hint
+```
+
+Then start the project with the preset in one command:
+
+```sh
+gov init --preset agent-heavy   # multi-agent parallel development (D53)
+```
+
+```
+init: initialized /path/to/project
+  …
+preset: applying 'agent-heavy' to /path/to/project
+  gates: added 1 (in preset order): verify-decisions
+  skill: created .agents/skills/parallel-workers/SKILL.md
+  hint: wrote manifest 'note_presence_exempt' = [".gov/tasks/**"]
+```
+
+Apply lands additively through the plane's adoption contracts — a local
+gate with the same id is kept and named (D39), an existing skill is
+skipped (D29), a manifest key you already set wins (D49) — so it also
+retrofits onto an initialized project (`gov preset apply agent-heavy`),
+and a re-apply reports "already adopted" and writes nothing. Unknown
+preset name? Exit 2 lists what does exist.
+
 ## Pairing went red after an edit
 
 The error carries its own fix — copy it:

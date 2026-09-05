@@ -205,6 +205,42 @@ advisory (`allowFailure: true`), reporting what needs baselining; after
 `gov verify-pairing --write` records the existing pairs, removing
 `allowFailure` turns the gate enforcing. `init` prints these next steps.
 
+### Presets: typed adoption (D53)
+
+The injected template is deliberately generic — typed content varies by
+project and stays out of the default set (D28). A **preset** is the
+answer for "my project type needs a coherent starting set": a declarative
+patch bundle shipped with the plane at `gov/templates/presets/<name>/`,
+carrying the three content kinds that already have an adoption contract —
+gate fragments, agent skills, and manifest hints. `gov preset list`
+names them; `gov preset show <name>` prints exactly what would land,
+read-only; `gov preset apply <name>` lands it on an initialized project
+(`gov init --preset <name>` composes the two for a new project).
+
+Apply introduces no new merge semantics — it reuses the plane's existing
+contracts, and never overwrites local state: gate fragments merge
+additively by id (D39's machine, shared with `--adopt-new`; a same-id
+local gate is the adopted state — kept and named, where `--adopt-new`
+would refuse non-additive drift); skills copy byte-for-byte only when
+missing (D29); manifest hints write only keys that are absent (D49 — the
+local value always wins, and the notice says so). Apply is idempotent: a
+second run reports "already adopted" and writes nothing. The bundle
+schema is strict (rule 5): unknown keys, bad types, a gate failing the
+real `gates.json` schema, or a mode naming a gate outside the preset and
+the shipped template exit 2 naming the preset and the key.
+
+The reconciliation with D28 is exact: the default template stays the
+generic floor (presets never ship in default init) — D28 answers "what
+does everyone get", presets answer "what does this project type
+additionally need", adopted explicitly by flag. The first built-in
+preset, `agent-heavy`, packages the multi-agent parallel workflow
+validated in the D51/D52 concurrency drills: the `verify-decisions` gate
+in the `governance` mode (reachable, D24), the `parallel-workers` worker
+protocol skill (lease → verify → preflight → blind coordination — the
+same file lives in this repo's own `.agents/skills/`, pinned byte-equal),
+and `note_presence_exempt: [".gov/tasks/**"]` (#149: task receipts are
+bookkeeping).
+
 ## Growing the plane
 
 The governance plane is a floor, not a ceiling. Growth is event-driven, never

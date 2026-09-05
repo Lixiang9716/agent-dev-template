@@ -20,6 +20,32 @@ gov verify-pairing --write      # 全部配对建立基线（部分成功：能�
                                 # 不能记的报）
 ```
 
+## 我想按项目类型起步
+
+`gov init` 注入的是通用地板（D28：类型化内容不进默认模板）。**preset** 负责补上类型化的一套——某类项目需要的门、技能与 manifest 提示。先看再装：
+
+```sh
+gov preset list                 # 本包发布了哪些类型
+gov preset show agent-heavy     # 只读：每个门、mode、技能、提示
+```
+
+然后一条命令带着 preset 起步：
+
+```sh
+gov init --preset agent-heavy   # 多 agent 并行开发（D53）
+```
+
+```
+init: initialized /path/to/project
+  …
+preset: applying 'agent-heavy' to /path/to/project
+  gates: added 1 (in preset order): verify-decisions
+  skill: created .agents/skills/parallel-workers/SKILL.md
+  hint: wrote manifest 'note_presence_exempt' = [".gov/tasks/**"]
+```
+
+apply 经平面的采纳契约增量落地——同 id 的本地门保留并点名（D39），已有技能跳过（D29），manifest 里你已设的键赢（D49）——所以它也能事后补装到已初始化项目（`gov preset apply agent-heavy`）；重复 apply 全部报 "already adopted"、零写入。preset 名写错？exit 2 会列出存在的。
+
 ## 改完文档 pairing 变红了
 
 报错自带修复——照抄即可：
