@@ -53,7 +53,11 @@ doing.
    TASK CARD, claim it instead of a raw lease —
    `gov task claim <task-id> --agent <worker id> --ttl 20m` — so two
    workers cannot take one card (busy → exit 3 names the holder);
-   `gov task close` clears the card's lease when it lands.
+   `gov task close` clears the card's lease when it lands. **Commit the
+   closed card immediately** (`git add .gov/tasks && git commit`) — card
+   status lives in each worktree's copy, so an uncommitted close is
+   invisible to sibling worktrees and the card can be claimed again;
+   the commit is what propagates completion.
 
 ## Size the TTL, then size --wait to match
 
