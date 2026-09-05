@@ -6,7 +6,10 @@ preset and the key), the list/show surfaces, apply's additive contracts
 the dogfooded parallel-workers skill (D19's byte-equality pin), the
 packaging entry (a wheel without the preset files ships nothing), and
 the end-to-end acceptance: a scratch git repo brought up with
-`gov init --preset agent-heavy` goes green on `gov run --every-gate`.
+`gov init --preset agent-heavy` goes green on `gov run --every-gate`,
+as do the content presets' scratches (python-lib: a real pytest run and
+a real `python -m build`; docs-bilingual: CHANGELOG/HIGHLIGHTS paired
+green, unpaired red — the README's premise, proven).
 """
 from __future__ import annotations
 
@@ -23,6 +26,8 @@ from gov import cli, presets
 
 REPO = Path(__file__).resolve().parent.parent
 AGENT_HEAVY = "agent-heavy"
+PYTHON_LIB = "python-lib"
+DOCS_BILINGUAL = "docs-bilingual"
 
 
 # --- the shipped bundle parses and means what the decision says -----------
@@ -40,11 +45,66 @@ def test_agent_heavy_bundle_loads():
     assert bundle["hints"] == {"note_presence_exempt": [".gov/tasks/**"]}
 
 
+def test_python_lib_bundle_loads():
+    """D53's staged python-lib preset: two build/test gates, mode wiring,
+    deliberately lean (no skills, no hints)."""
+    bundle = presets.load(PYTHON_LIB)
+    assert bundle["name"] == PYTHON_LIB
+    assert bundle["description"]
+    assert [g["id"] for g in bundle["gates"]] == ["pytest", "build"]
+    assert bundle["gates"][0]["command"] == ["python", "-m", "pytest", "-q"]
+    assert bundle["gates"][0]["paths"] == ["**/*.py", "pyproject.toml"]
+    assert bundle["gates"][1]["command"] == ["python", "-m", "build"]
+    assert bundle["gates"][1]["paths"] == ["**/*.py", "pyproject.toml"]
+    assert bundle["modes"] == {"all": ["pytest", "build"],
+                               "quick": ["pytest"]}
+    assert "skills" not in bundle and "hints" not in bundle
+
+
+def test_docs_bilingual_bundle_loads():
+    """D53's staged docs-bilingual preset: the CHANGELOG/HIGHLIGHTS sync
+    guard (D37's gate, packaged), lean like python-lib."""
+    bundle = presets.load(DOCS_BILINGUAL)
+    assert bundle["name"] == DOCS_BILINGUAL
+    assert bundle["description"]
+    assert [g["id"] for g in bundle["gates"]] == ["doc-sync"]
+    assert bundle["gates"][0]["command"] == ["gov", "verify-doc-sync"]
+    assert bundle["gates"][0]["paths"] == ["CHANGELOG.md", "HIGHLIGHTS.md"]
+    assert bundle["modes"] == {"all": ["doc-sync"]}
+    assert "skills" not in bundle and "hints" not in bundle
+
+
+def test_preset_show_prints_the_content_presets_items(capsys):
+    for name, gate_ids, commands in (
+            (PYTHON_LIB, ("pytest", "build"),
+             ("python -m pytest -q", "python -m build")),
+            (DOCS_BILINGUAL, ("doc-sync",), ("gov verify-doc-sync",))):
+        assert cli.main(["preset", "show", name]) == 0
+        out = capsys.readouterr().out
+        for gid in gate_ids:
+            assert gid in out
+        for command in commands:
+            assert command in out
+        assert "all" in out                      # mode wiring shown
+        assert "read-only" in out
+
+
 def test_preset_list_names_the_bundle(capsys):
     assert cli.main(["preset", "list"]) == 0
     out = capsys.readouterr().out
     assert AGENT_HEAVY in out
     assert "Multi-agent parallel development" in out
+
+
+def test_preset_list_names_the_content_presets(capsys):
+    """D53's staged second stage: the two content presets ship on the same
+    matrix, and `gov preset list` reads (and validates) every bundle."""
+    assert cli.main(["preset", "list"]) == 0
+    out = capsys.readouterr().out
+    assert PYTHON_LIB in out
+    assert "pytest and build" in out
+    assert DOCS_BILINGUAL in out
+    assert "CHANGELOG/HIGHLIGHTS sync guard" in out
 
 
 def test_preset_show_prints_every_item_and_writes_nothing(tmp_path, capsys):
@@ -219,6 +279,140 @@ def test_apply_is_idempotent(tmp_path, capsys):
             / "SKILL.md").read_bytes() == snapshot["skill"]
 
 
+def test_apply_appends_into_existing_template_modes(tmp_path):
+    """The path agent-heavy's fresh `governance` mode never exercised alone:
+    python-lib declares `all` and `quick`, which the shipped template
+    ALREADY creates — D39's append ruling must preserve the local
+    membership verbatim and add only the newly adopted ids."""
+    from gov import gates as gates_mod
+    _init(tmp_path)
+    template = json.loads((REPO / "gov" / "templates" / "gates.json")
+                          .read_text())
+    assert template["modes"]["all"] and template["modes"]["quick"]
+
+    assert cli.main(["preset", "apply", PYTHON_LIB,
+                     "--project", str(tmp_path)]) == 0
+    cfg = json.loads((tmp_path / "gates.json").read_text())
+    assert cfg["modes"]["all"] == (template["modes"]["all"]
+                                   + ["pytest", "build"])
+    assert cfg["modes"]["quick"] == template["modes"]["quick"] + ["pytest"]
+    assert cfg["modes"]["governance"] == template["modes"]["governance"]
+    gates_mod.load_config(str(tmp_path / "gates.json"))
+
+
+def test_merge_appends_only_newly_adopted_ids_into_existing_mode():
+    """The shared machine (gates.merge_gates_by_id) under the preset
+    ruling, pinned directly: an existing local mode gains exactly the
+    ids this merge newly added — never a duplicate of an id it already
+    carries, never a reordering of local membership."""
+    from gov import gates as gates_mod
+    local = {"gates": [{"id": "x", "command": ["true"]}],
+             "modes": {"all": ["x"]}}
+    incoming = {
+        "gates": [{"id": "x", "command": ["true"]},   # already adopted
+                  {"id": "y", "command": ["true"]}],  # new
+        "modes": {"all": ["x", "y"]},
+    }
+    merged, added, notices = gates_mod.merge_gates_by_id(
+        local, incoming, what="preset 'probe'", on_drift="keep")
+    assert [g["id"] for g in added] == ["y"]
+    assert merged["modes"]["all"] == ["x", "y"]
+    assert merged["modes"]["all"].count("x") == 1
+
+
+def test_merge_converge_gains_declared_ids_from_local_gates_too():
+    """The converge ruling (presets only): a declared id resolves from
+    the local gates as well as this round's additions; a declared id no
+    gate carries is skipped and NAMED (rule 5); --adopt-new refuses the
+    combo loudly — its membership stays added-only (D39)."""
+    from gov import gates as gates_mod
+    local = {"gates": [{"id": "x", "command": ["true"]},
+                       {"id": "z", "command": ["true"]}],
+             "modes": {"all": ["x"]}}
+    incoming = {"gates": [{"id": "y", "command": ["true"]}],
+                "modes": {"all": ["y", "z", "ghost"]}}
+    merged, added, notices = gates_mod.merge_gates_by_id(
+        local, incoming, what="preset 'probe'", on_drift="keep",
+        mode_membership="converge")
+    assert [g["id"] for g in added] == ["y"]
+    assert merged["modes"]["all"] == ["x", "y", "z"]  # local order first
+    assert any("ghost" in n and "skipped" in n for n in notices)
+    with pytest.raises(ValueError):
+        gates_mod.merge_gates_by_id(
+            local, incoming, what="adopt-new", on_drift="refuse",
+            mode_membership="converge")
+
+
+def test_apply_converges_mode_membership_for_already_adopted_gates(
+        tmp_path, capsys):
+    """The verification drill's defect: gates already adopted (wired by
+    hand) but membership never landed — the old apply reported "already
+    adopted" and left the project D24-unreachable (the next `gov run`
+    died on a config error). Apply converges: membership is written even
+    when no gate is added this round; a converged re-apply writes
+    nothing."""
+    from gov import gates as gates_mod
+    _init(tmp_path)
+    gates_path = tmp_path / "gates.json"
+    cfg = json.loads(gates_path.read_text())
+    my_gate = {"id": "my-own-first", "label": "mine", "command": ["true"]}
+    cfg["gates"].insert(1, my_gate)
+    cfg["gates"] += [{"id": "pytest", "label": "hand-wired",
+                      "command": ["python", "-m", "pytest", "-q"]},
+                     {"id": "build", "label": "hand-wired",
+                      "command": ["python", "-m", "build"]}]
+    cfg["modes"]["all"] = ["self-test", "my-own-first", "notes", "pairing",
+                           "note-presence", "conflict-markers", "archive",
+                           "task"]
+    gates_path.write_text(json.dumps(cfg, indent=2))
+    with pytest.raises(gates_mod.ConfigError):
+        gates_mod.load_config(str(gates_path))  # the drill's D24 state
+
+    assert cli.main(["preset", "apply", PYTHON_LIB,
+                     "--project", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "nothing to add" in out                      # gates were present
+    assert "mode 'all' += pytest, build" in out
+    merged = json.loads(gates_path.read_text())
+    assert merged["modes"]["all"] == cfg["modes"]["all"] + ["pytest", "build"]
+    assert merged["modes"]["quick"] == ["notes", "pytest"]
+    by_id = {g["id"]: g for g in merged["gates"]}
+    assert by_id["pytest"]["label"] == "hand-wired"     # local object kept
+    assert by_id["my-own-first"] == my_gate
+    gates_mod.load_config(str(gates_path))              # reachable again
+
+    before = gates_path.read_bytes()
+    assert cli.main(["preset", "apply", PYTHON_LIB,
+                     "--project", str(tmp_path)]) == 0
+    assert "already adopted — nothing written" in capsys.readouterr().out
+    assert gates_path.read_bytes() == before
+
+
+def test_apply_skips_mode_ids_missing_from_the_project(tmp_path, capsys):
+    """A preset mode id that no gate in the project carries (an adopter
+    deleted the template gate) is skipped and named — never silently
+    written into an invalid config."""
+    from gov import gates as gates_mod
+    _init(tmp_path)
+    gates_path = tmp_path / "gates.json"
+    cfg = json.loads(gates_path.read_text())
+    cfg["gates"] = [g for g in cfg["gates"] if g["id"] != "self-test"]
+    cfg["modes"]["all"] = [m for m in cfg["modes"]["all"] if m != "self-test"]
+    cfg["modes"]["governance"] = []
+    gates_path.write_text(json.dumps(cfg, indent=2))
+    capsys.readouterr()
+
+    root = tmp_path / "bundles"
+    _write_bundle(root, {"name": "probe", "description": "d",
+                         "modes": {"all": ["self-test"]}})
+    assert presets.apply(tmp_path, "probe", root=root) == 0
+    out = capsys.readouterr().out
+    assert "self-test" in out and "skipped" in out
+    merged = json.loads(gates_path.read_text())
+    assert "self-test" not in merged["modes"]["all"]
+    gates_mod.load_config(str(gates_path))  # the skip kept the config valid
+
+
 def test_apply_never_overwrites_a_local_same_id_gate(tmp_path, capsys):
     """D8/D39: the local gate IS the adopted state — kept and named."""
     _init(tmp_path)
@@ -341,14 +535,20 @@ def test_presets_are_reachable_as_package_data():
     """`gov preset list` must work from an installed package, not only a
     checkout — importlib.resources reads package data, so this fails the
     moment the pyproject glob stops matching (the skills/*/SKILL.md
-    precedent, D19)."""
+    precedent, D19). The content presets (D53's second stage) pin the
+    glob for preset dirs that carry no skills/ subtree at all."""
     from importlib.resources import files
     root = files("gov.templates").joinpath("presets")
     names = sorted(p.name for p in root.iterdir()
                    if p.is_dir() and p.joinpath("preset.json").is_file())
     assert AGENT_HEAVY in names
+    assert PYTHON_LIB in names
+    assert DOCS_BILINGUAL in names
     skill = root / AGENT_HEAVY / "skills" / "parallel-workers" / "SKILL.md"
     assert b"gov acquire" in skill.read_bytes()
+    # every shipped preset dir carries its README through the same glob
+    for name in (AGENT_HEAVY, PYTHON_LIB, DOCS_BILINGUAL):
+        assert (root / name / "README.md").is_file(), name
 
 
 def test_package_data_declares_the_presets_glob():
@@ -419,3 +619,109 @@ def test_acceptance_init_preset_then_every_gate_green(tmp_path):
     assert "already adopted — nothing written" in again.stdout
     for p, content in before.items():
         assert p.read_bytes() == content
+
+
+# --- acceptance: the content presets (D53's second stage) ------------------
+
+def _build_available() -> bool:
+    """The `build` gate shells out to `python -m build`; environments
+    without the package (pip install build) skip loudly instead of
+    failing on an environment gap that has nothing to do with presets."""
+    import importlib.util
+    return importlib.util.find_spec("build") is not None
+
+
+@pytest.mark.skipif(not _build_available(),
+                    reason="the python-lib build gate needs the 'build' "
+                           "package (pip install build)")
+def test_acceptance_python_lib_scratch_green(tmp_path):
+    """Minimal python project → plain init → apply python-lib → the full
+    matrix is green with pytest and build actually executing."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    env = _gov_env(tmp_path)
+    _git_repo(scratch, env)
+    (scratch / "pyproject.toml").write_text(
+        '[build-system]\n'
+        'requires = ["setuptools>=61"]\n'
+        'build-backend = "setuptools.build_meta"\n'
+        '\n'
+        '[project]\n'
+        'name = "scratch-lib"\n'
+        'version = "0.1.0"\n', encoding="utf-8")
+    (scratch / "test_it.py").write_text(
+        "def test_ok():\n    assert True\n", encoding="utf-8")
+
+    r = subprocess.run([sys.executable, "-m", "gov", "init"],
+                       cwd=scratch, env=env, capture_output=True, text=True,
+                       timeout=300)
+    assert r.returncode == 0, r.stdout + r.stderr
+    r = subprocess.run(
+        [sys.executable, "-m", "gov", "preset", "apply", PYTHON_LIB,
+         "--project", "."],
+        cwd=scratch, env=env, capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "gates: added 2 (in preset order): pytest, build" in r.stdout
+
+    cfg = json.loads((scratch / "gates.json").read_text())
+    template = json.loads((REPO / "gov" / "templates" / "gates.json")
+                          .read_text())
+    # D39 append: template membership preserved, preset ids appended
+    assert cfg["modes"]["all"] == template["modes"]["all"] + ["pytest", "build"]
+    assert cfg["modes"]["quick"] == template["modes"]["quick"] + ["pytest"]
+
+    run = subprocess.run(
+        [sys.executable, "-m", "gov", "run", "--every-gate"],
+        cwd=scratch, env=env, capture_output=True, text=True, timeout=300)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert "PASS pytest" in run.stdout
+    assert "PASS build" in run.stdout
+
+
+def test_acceptance_docs_bilingual_scratch_green_then_fail_loud(tmp_path):
+    """Minimal bilingual docs repo (CHANGELOG.md + the HIGHLIGHTS file
+    verify-doc-sync reads, each carrying the same version section) →
+    plain init → apply docs-bilingual → green; and the README's stated
+    premise proven: an unpaired CHANGELOG version turns the gate red —
+    correct fail-loud, never a silent pass."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    env = _gov_env(tmp_path)
+    _git_repo(scratch, env)
+    (scratch / "CHANGELOG.md").write_text(
+        "# Changelog\n\n## [1.0.0] - 2026-09-05\n\n- first release\n",
+        encoding="utf-8")
+    (scratch / "gov").mkdir()
+    (scratch / "gov" / "HIGHLIGHTS.md").write_text(
+        "# Highlights\n\n## 1.0.0 — first release\n\n- first, usage-shaped\n",
+        encoding="utf-8")
+
+    r = subprocess.run([sys.executable, "-m", "gov", "init"],
+                       cwd=scratch, env=env, capture_output=True, text=True,
+                       timeout=300)
+    assert r.returncode == 0, r.stdout + r.stderr
+    r = subprocess.run(
+        [sys.executable, "-m", "gov", "preset", "apply", DOCS_BILINGUAL,
+         "--project", "."],
+        cwd=scratch, env=env, capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "gates: added 1 (in preset order): doc-sync" in r.stdout
+
+    run = subprocess.run(
+        [sys.executable, "-m", "gov", "run", "--every-gate"],
+        cwd=scratch, env=env, capture_output=True, text=True, timeout=300)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert "PASS doc-sync" in run.stdout
+    assert "1 version(s) paired" in run.stdout
+
+    # the premise: a version that reaches CHANGELOG without its HIGHLIGHTS
+    # section fails the gate loudly, naming the fix
+    (scratch / "CHANGELOG.md").write_text(
+        "# Changelog\n\n## [1.1.0] - 2026-09-06\n\n- second release\n\n"
+        "## [1.0.0] - 2026-09-05\n\n- first release\n", encoding="utf-8")
+    red = subprocess.run(
+        [sys.executable, "-m", "gov", "run", "--gate", "doc-sync"],
+        cwd=scratch, env=env, capture_output=True, text=True, timeout=120)
+    assert red.returncode == 1
+    assert "FAIL doc-sync" in red.stdout
+    assert "CHANGELOG has [1.1.0] but HIGHLIGHTS has" in red.stdout

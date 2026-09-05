@@ -1,0 +1,15 @@
+{
+  "name": "docs-bilingual",
+  "description": "Bilingual docs repositories: CHANGELOG/HIGHLIGHTS sync guard.",
+  "gates": [
+    {
+      "id": "doc-sync",
+      "label": "CHANGELOG ↔ HIGHLIGHTS pairing",
+      "command": ["gov", "verify-doc-sync"],
+      "paths": ["CHANGELOG.md", "HIGHLIGHTS.md"]
+    }
+  ],
+  "modes": {
+    "all": ["doc-sync"]
+  }
+}

@@ -26,13 +26,15 @@ gov verify-pairing --write      # 全部配对建立基线（部分成功：能�
 
 ```sh
 gov preset list                 # 本包发布了哪些类型
-gov preset show agent-heavy     # 只读：每个门、mode、技能、提示
+gov preset show <name>          # 只读：每个门、mode、技能、提示
 ```
+
+今天随包三个（D53）：`agent-heavy`——多 agent 并行开发（decisions 守卫、worker 协议技能、簿记豁免）；`python-lib`——Python 包仓库的 pytest 与 build 门，接入 `all` 与 `quick`；`docs-bilingual`——CHANGELOG/HIGHLIGHTS 同步守卫，面向真有这两个文件的仓（缺文件门红是正确的 fail-loud；HIGHLIGHTS 段落标题必须是 `## <版本> <描述>`——裸 `## 1.0.0` 不被识别为段落）。
 
 然后一条命令带着 preset 起步：
 
 ```sh
-gov init --preset agent-heavy   # 多 agent 并行开发（D53）
+gov init --preset agent-heavy   # 或：python-lib / docs-bilingual
 ```
 
 ```
@@ -44,7 +46,7 @@ preset: applying 'agent-heavy' to /path/to/project
   hint: wrote manifest 'note_presence_exempt' = [".gov/tasks/**"]
 ```
 
-apply 经平面的采纳契约增量落地——同 id 的本地门保留并点名（D39），已有技能跳过（D29），manifest 里你已设的键赢（D49）——所以它也能事后补装到已初始化项目（`gov preset apply agent-heavy`）；重复 apply 全部报 "already adopted"、零写入。preset 名写错？exit 2 会列出存在的。
+apply 经平面的采纳契约增量落地——同 id 的本地门保留并点名（D39），已有技能跳过（D29），manifest 里你已设的键赢（D49）——所以它也能事后补装到已初始化项目（`gov preset apply <name>`）；重复 apply 全部报 "already adopted"、零写入。preset 名写错？exit 2 会列出存在的。
 
 ## 改完文档 pairing 变红了
 

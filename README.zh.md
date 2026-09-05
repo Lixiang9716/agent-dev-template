@@ -36,9 +36,10 @@ gov init --project <path>      # 把平面注入现有项目
 gov init --project <path> --upgrade  # 查看模板漂移（只 diff，绝不写入）
 gov init --project <path> --adopt all  # 落地缺失的模板文件（绝不覆盖已有）
 gov init --project <path> --adopt-new gates.json  # 把新 shipped 门增量合入定制版 gates.json
-gov preset list                # 随包 preset：按项目类型的采纳补丁包（D53）
-gov preset show agent-heavy    # 只读：preset 将落地的一切
-gov preset apply agent-heavy --project <path>  # 落地其门 + 技能 + manifest 提示，
+gov preset list                # 随包 preset（D53）：agent-heavy、python-lib、
+                               #  docs-bilingual——按项目类型的采纳补丁包
+gov preset show python-lib     # 只读：preset 将落地的一切
+gov preset apply docs-bilingual --project <path>  # 落地其门 + 技能 + manifest 提示，
                                #  增量且幂等（绝不覆盖已有）
 gov init --project <path> --preset agent-heavy  # init 后立即 apply，一条命令起步
 gov doctor                     # 环境自检（PATH、python、钩子、schema、未采用的门）

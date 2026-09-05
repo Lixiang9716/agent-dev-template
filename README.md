@@ -41,10 +41,11 @@ gov init --project <path>     # inject the plane into an existing project
 gov init --project <path> --upgrade  # show template drift (diffs, never writes)
 gov init --project <path> --adopt all  # land missing template files (never overwrites)
 gov init --project <path> --adopt-new gates.json  # merge new shipped gates into a customized gates.json
-gov preset list                # shipped presets: typed adoption bundles (D53)
-gov preset show agent-heavy    # read-only: exactly what a preset lands
-gov preset apply agent-heavy --project <path>  # land its gates + skills + manifest
-                               #  hints, additive and idempotent (never overwrites)
+gov preset list                # shipped presets (D53): agent-heavy, python-lib,
+                               #  docs-bilingual — typed adoption bundles
+gov preset show python-lib     # read-only: exactly what a preset lands
+gov preset apply docs-bilingual --project <path>  # land its gates + skills + hints,
+                               #  additive and idempotent (never overwrites)
 gov init --project <path> --preset agent-heavy  # init, then apply the preset in one command
 gov doctor                     # environment self-check (PATH, python, hooks, schema, unadopted gates)
 gov doctor --json             # machine-readable: {status, checks, problems}
