@@ -206,6 +206,31 @@ worktree 合并仍是文本冲突——配置 `.gov/decisions.json`
 绝不阻断；你拿到的仍是合并后历史会显示的号。`--against` 是 `--base`
 的别名，不是第二套语义。
 
+## 多分支并行，合并前如何预演并集
+
+```sh
+gov run --merge feat-a feat-b feat-c --base origin/master
+```
+
+**症状**：每个 agent 分支在自己的树上全部门禁绿过，合并却坏了——
+文本冲突 git 能拦，语义冲突（各自绿、并集红：两条分支往
+`gates.json` 加了同一个门 id，或两处改动合在一起才坏）在落地后、
+树已经出货时才现形。
+
+**命令**：预演按给定顺序把各分支合并进建于 `--base`（集成基线；
+缺省 `origin/master`，缺省不存在会点名并要求显式旗标）之上的
+分离 scratch worktree。每合并一条分支，就在该步的并集树上跑门禁
+——按本步引入的 diff 选最小充分集。
+
+**预期输出**（全绿）：每步一行摘要——`merge: step 2/3: 'feat-b'
+-> tree 9a1b2c3d4e5f; gates: 4 ran, 4 pass`——然后 `merge: union of
+3 branch(es) is green`，exit 0。**文本冲突时**：exit 1，输出
+`merge: branch 2 (feat-b) conflicts with already-merged set (feat-a)`
+加冲突文件列表，且 scratch worktree **保留现场**（打印路径）供检查；
+门禁红同样点名失败分支、已合并集合、失败门与首行输出。修好再跑。
+带 `--receipt` 时最末步为并集树录 D44 回执——落地后（含 squash
+merge）`gov receipt verify <commit>` 证明落地的树就是绿过的那棵。
+
 ## 模板演进了——先看，再采纳
 
 ```sh

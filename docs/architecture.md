@@ -37,6 +37,30 @@ refuses to police. Deliberate literals append the token
 `gov:ignore-marker` to the line; a bare `=======` alone (a Markdown
 setext underline) is not a marker.
 
+### Preflighting the union before landing (run --merge)
+
+Parallel agent branches each pass every gate on their own tree, but the
+union is never tested until the merge happens: text conflicts git catches,
+semantic collisions — each branch green, the merge red — nobody catches.
+`gov run --merge <branch>… [--base <ref>]` (D51) rehearses the merge in a
+detached scratch worktree built on the integration baseline (`--base`,
+default `origin/master`): each branch merges `--no-ff` in command-line
+order, and after every merge the gates run on that step's union tree,
+selected by the diff the step introduced (D15's minimal sufficient set;
+the previous step's tree sha is the diff baseline). A text conflict or a
+red step aborts named — branch, already-merged set, conflicted files or
+failed gates — and KEEPS the scratch worktree for inspection; all green
+cleans up and prints the per-step summary. Exit codes stay D2's. Host
+safety is D33's three walls, upgraded because this command mutates state:
+hostile repository-resolving variables abort before anything runs, git
+operations are pinned with `-C`, the scratch must resolve its own
+toplevel, and acceptance tests pin a byte-identical host worktree. With
+`--receipt` the last step upgrades to the full matrix and records a D44
+receipt for the union tree — a landing that reproduces the content (a
+squash merge moves the commit sha, not the tree) then verifies via
+`gov receipt verify`. The deferred layers (locks, leases, queue
+services) are rejected with criteria in D51, not silently dropped.
+
 Each gate resolves to one of five outcomes — `PASS`, `FAIL`, `TIMEOUT`,
 `MISSING` (executable absent), `SKIP` — and `allowFailure: true` keeps a
 gate's failure advisory: the outcome line and its output are reported tagged

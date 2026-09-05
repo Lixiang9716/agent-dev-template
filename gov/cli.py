@@ -784,7 +784,9 @@ _COMMANDS = {
             "merges new shipped gates; --upgrade shows template drift)",
     "uninstall": "reverse init",
     "run": "run the project's gate DAG (args forwarded to gates.py; "
-           "--receipt records a tamper-evident run receipt, #124)",
+           "--receipt records a tamper-evident run receipt, #124; "
+           "--merge preflights the union of parallel branches in a "
+           "scratch worktree before landing)",
     "self-test": "run governance rejection cases",
     "receipt": "verifiable run receipts: verify a cited receipt against a "
                "commit (issue #124/D42)",
