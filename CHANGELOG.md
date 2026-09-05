@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.28.0](https://github.com/Lixiang9716/govrail/compare/v0.27.0...v0.28.0) (2026-09-05)
+
+
+### Features
+
+* presets — python-lib and docs-bilingual bundles ([#164](https://github.com/Lixiang9716/govrail/issues/164)) ([71dd341](https://github.com/Lixiang9716/govrail/commit/71dd341421e48c09b30915e885c93beea6be546a))
+* presets — typed adoption bundles (machinery + agent-heavy) ([#162](https://github.com/Lixiang9716/govrail/issues/162)) ([757c92b](https://github.com/Lixiang9716/govrail/commit/757c92b087b7dedd7c1986e9a596da8ae9fb6dcf))
+
 ## [0.27.0](https://github.com/Lixiang9716/govrail/compare/v0.26.0...v0.27.0) (2026-09-05)
 
 
