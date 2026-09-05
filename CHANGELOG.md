@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.27.0](https://github.com/Lixiang9716/govrail/compare/v0.26.0...v0.27.0) (2026-09-05)
+
+
+### Features
+
+* acquire/release — lease locks for oblivious parallel agents ([#160](https://github.com/Lixiang9716/govrail/issues/160)) ([d584def](https://github.com/Lixiang9716/govrail/commit/d584def9e5febe5c776d4235dd8f1c4f2601d6fd))
+* run --merge — preflight the union of parallel branches before landing ([#158](https://github.com/Lixiang9716/govrail/issues/158)) ([59abc76](https://github.com/Lixiang9716/govrail/commit/59abc766ae44878667b713556e922abcac8ae2b1))
+
 ## [0.26.0](https://github.com/Lixiang9716/govrail/compare/v0.25.0...v0.26.0) (2026-09-04)
 
 
